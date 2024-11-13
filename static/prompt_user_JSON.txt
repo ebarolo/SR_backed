@@ -1,0 +1,17 @@
+Analyze the following audio transcript of a recipe. Extract all the information needed for its preparation.
+
+Audio transcript: {recipe_audio}
+Caption recipe: {recipe_caption}
+Ingredients: {ingredients}
+Actions: {actions}
+
+Provide the answer in the following JSON format:
+{
+ "titolo": "Indica il nome della ricetta",
+ "categoria": "Specifica la categoria della ricetta (es. antipasto, primo, dolce, ecc.",
+ "tempo_di_preparazione": "Specifica il tempo di preparazione degli ingredienti e della ricetta",
+ "tempo_cottura": "Specifica il tempo di cottura",
+ "ingredienti": [Elenca tutti gli ingredienti con le quantità, formattandoli in modo chiaro e dettagliato],
+ "preparazione": [Descrivi i passaggi della preparazione in modo ordinato e numerato, per facilitare la comprensione],
+ "consigli_dello_chef": "Includi eventuali suggerimenti o trucchi per un risultato ottimale"
+}

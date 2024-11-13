@@ -1,0 +1,230 @@
+# Importazione delle librerie necessarie
+import cv2
+import os
+import base64
+import logging
+import asyncio
+import json
+import re
+
+from functools import wraps
+from tenacity import retry, stop_after_attempt, wait_exponential
+from openai import OpenAI
+
+os.environ['OPENAI_API_KEY'] = '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'
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OpenAIclient = OpenAI(api_key=OPENAI_API_KEY)
+
+# Configurazione del logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    filename='backend.log'
+)
+
+logger = logging.getLogger(__name__)
+
+def timeout(seconds):
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            try:
+                return await asyncio.wait_for(func(*args, **kwargs), timeout=seconds)
+            except asyncio.TimeoutError:
+                logger.error(f"Timeout dopo {seconds} secondi nella funzione {func.__name__}")
+                raise
+        return wrapper
+    return decorator
+
+def read_prompt_files(recipe_audio_text="", recipe_capiton_text="", ingredients=None, actions=None, file_name=""):
+    """
+    Legge i file di prompt e sostituisce le variabili con i valori forniti.
+    
+    Args:
+        recipe_text (str): Il testo della ricetta da sostituire
+        ingredients (list): Lista degli ingredienti
+        actions (list): Lista delle azioni
+        
+    Returns:
+        tuple: (user_prompt, system_prompt) contenenti i testi processati
+    """
+    # Inizializza liste vuote se non fornite
+    if ingredients is None:
+        ingredients = []
+    if actions is None:
+        actions = []
+        
+    try:
+        # Leggi i file dalla cartella static
+        base_path = os.path.join('static')
+        
+        # Leggi prompt_user.txt
+        with open(os.path.join(base_path, file_name), 'r', encoding='utf-8') as file:
+            user_prompt = file.read()
+            
+        # Leggi prompt_system.txt
+        with open(os.path.join(base_path, 'prompt_system.txt'), 'r', encoding='utf-8') as file:
+            system_prompt = file.read()
+            
+        # Converti gli array in stringhe
+        ingredients_text = "\n".join(ingredients) if ingredients else ""
+        actions_text = "\n".join(actions) if actions else ""
+            
+        # Sostituisci le variabili nel testo
+        variables = {
+            '{recipe_audio}': recipe_audio_text,
+            '{recipe_caption}': recipe_capiton_text,
+            '{ingredients}': ingredients_text,
+            '{actions}': actions_text
+        }
+        
+        # Effettua le sostituzioni in entrambi i prompt
+        for var, value in variables.items():
+            user_prompt = user_prompt.replace(var, value)
+            system_prompt = system_prompt.replace(var, value)
+            
+        return user_prompt, system_prompt
+        
+    except FileNotFoundError as e:
+        print(f"Errore: File non trovato - {str(e)}")
+        return None, None
+    except Exception as e:
+        print(f"Errore durante la lettura dei file: {str(e)}")
+        return None, None
+
+def encode_image(image_path):
+    """
+    Codifica l'immagine in base64.
+    """
+    try:
+     
+     with open(image_path, "rb") as image_file:
+        return base64.b64encode(image_file.read()).decode('utf-8')
+    except Exception as e:
+     logger.error(f"Errore durante la codifica dell'immagine {image_path}: {str(e)}")
+     raise
+
+def extract_recipe_frames(video_path, batch_size=10):
+ try:
+     video = cv2.VideoCapture(video_path)
+     while video.isOpened():
+        base64Frames = []
+        for _ in range(batch_size):
+            success, frame = video.read()
+            if not success:
+                break
+            _, buffer = cv2.imencode(".jpg", frame)
+            base64Frames.append(base64.b64encode(buffer).decode("utf-8"))
+        if base64Frames:
+            yield base64Frames
+        else:
+            break
+     video.release()
+     logger.info("All frames processed.")
+     return base64Frames
+ except Exception as e:
+  logger.error(f"Errore durante extract_recipe_frames: {str(e)}")
+ raise
+
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
+@timeout(300)
+async def analyze_recipe_frames(base64Frames):
+ try:
+  PROMPT_MESSAGES = [
+    { "role": "system",
+       "content": "You are an assistant expert in culinary image analysis. Your task is to identify ingredients and cooking actions from an image."
+    },
+    {
+        "role": "user",
+        "content": [
+            "These are frames from a video recipe that I want to upload. Identify the visible ingredients and the actions that are executed. Provide the answer in JSON format with three keys: ‘ingredients’ , ‘actions’, description.",
+            *map(lambda x: {"image": x, "resize": 768}, base64Frames[0::50]),
+        ],
+    },
+  ]
+  logger.info({PROMPT_MESSAGES})
+  params = {
+    "model": "gpt-4o-mini",
+    "messages": PROMPT_MESSAGES,
+    "max_tokens": 700,
+   }
+
+ 
+  result = await asyncio.to_thread(
+     OpenAIclient.chat.completions.create(params)
+   )
+
+  logger.info(result.choices[0])
+  return result.choices[0].message.content
+ except Exception as e:
+  logger.error(f"Errore durante l'analisi dei fotogrammi: {str(e)}")
+  raise
+ 
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
+@timeout(90)  # 1 minuto e 30 secondi di timeout
+async def extract_recipe_info(recipe_audio_text: str, recipe_caption_text: str, ingredients: any, actions: any) -> str:
+    user_prompt, system_prompt = read_prompt_files(recipe_audio_text, recipe_caption_text, ingredients, actions, "prompt_user_TXT.txt")
+    logger.info(f"user_prompt: {user_prompt}")
+    logger.info(f"system_prompt: {system_prompt}")
+
+    try:
+        OpenAIresponseTXT = await asyncio.to_thread(
+            OpenAIclient.chat.completions.create,
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=1.2
+        )
+
+        try:
+            recipeTXT = OpenAIresponseTXT.choices[0].message.content
+           
+            recipeTXT = re.sub(r',\s*}$', '}', recipeTXT)  # Rimuove l'ultima virgola se presente
+            recipeTXT = re.sub(r'"{2,}', '"', recipeTXT)   # Rimuove eventuali virgolette multiple
+            logger.info(f"recipeTXT: {str(recipeTXT)}")
+            
+            titolo = ""
+            
+        except Exception as e:  
+            logger.error(f"Errore durante OpenAIresponse convert in txt: {str(e)}")
+            raise
+
+    except Exception as e:
+        logger.error(f"Errore durante extract_recipe_info: {str(e)}")
+        raise
+    
+    user_prompt, system_prompt = read_prompt_files(recipe_audio_text, recipe_caption_text, ingredients, actions, "prompt_user_JSON.txt")
+    logger.info(f"user_prompt: {user_prompt}")
+    logger.info(f"system_prompt: {system_prompt}")
+
+    try:
+        OpenAIresponseJSON = await asyncio.to_thread(
+            OpenAIclient.chat.completions.create,
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            response_format={ "type": "json_object" },
+            temperature=1.2
+        )
+
+        try:
+            recipeJSON = json.loads(OpenAIresponseJSON.choices[0].message.content)
+            logger.info(f"extract_recipe_info: {str(recipeJSON)}")
+            
+        except json.JSONDecodeError:
+            logger.error(f"Errore durante OpenAIresponseJSON convert in json: {str(e)}")
+            raise
+            
+        except Exception as e:  
+            logger.error(f"Errore durante chiamata rest OpenAIresponseJSON : {str(e)}")
+            raise
+
+    except Exception as e:
+        logger.error(f"Errore durante extract_recipe_info json: {str(e)}")
+        raise
+    
+    return recipeTXT, recipeJSON
