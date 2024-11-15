@@ -1,5 +1,4 @@
 # Importazione delle librerie necessarie
-import cv2
 import os
 import base64
 import logging
@@ -103,28 +102,6 @@ def encode_image(image_path):
     except Exception as e:
      logger.error(f"Errore durante la codifica dell'immagine {image_path}: {str(e)}")
      raise
-
-def extract_recipe_frames(video_path, batch_size=10):
- try:
-     video = cv2.VideoCapture(video_path)
-     while video.isOpened():
-        base64Frames = []
-        for _ in range(batch_size):
-            success, frame = video.read()
-            if not success:
-                break
-            _, buffer = cv2.imencode(".jpg", frame)
-            base64Frames.append(base64.b64encode(buffer).decode("utf-8"))
-        if base64Frames:
-            yield base64Frames
-        else:
-            break
-     video.release()
-     logger.info("All frames processed.")
-     return base64Frames
- except Exception as e:
-  logger.error(f"Errore durante extract_recipe_frames: {str(e)}")
- raise
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
 @timeout(300)
