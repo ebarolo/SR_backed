@@ -116,36 +116,6 @@ async def download_video(url: str) -> Dict[str, Any]:
         logger.error(f"Errore imprevisto durante il download del video {url}: {e}")
         raise
 
-    """
-    Copia una cartella e tutto il suo contenuto in una destinazione.
-    
-    Args:
-        sorgente (str): Percorso della cartella da copiare
-        destinazione (str): Percorso dove copiare la cartella
-    """
-    try:
-        # Verifica se la cartella sorgente esiste
-        if not os.path.exists(sorgente):
-            raise FileNotFoundError(f"La cartella sorgente '{sorgente}' non esiste")
-            
-        # Crea la cartella di destinazione se non esiste
-        os.makedirs(destinazione, exist_ok=True)
-        
-        # Ottieni il nome della cartella sorgente
-        nome_cartella = os.path.basename(sorgente)
-        
-        # Costruisci il percorso completo della destinazione
-        destinazione_completa = os.path.join(destinazione, nome_cartella)
-        
-        # Copia la cartella e tutto il suo contenuto
-        shutil.copytree(sorgente, destinazione_completa, dirs_exist_ok=True)
-        
-        print(f"Cartella copiata con successo da '{sorgente}' a '{destinazione_completa}'")
-        
-    except Exception as e:
-        print(f"Errore durante la copia della cartella: {str(e)}")
-        raise
-
 async def process_video(url: str):
     try:
         #dw = await download_video(url)
