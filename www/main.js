@@ -47,7 +47,7 @@ import {
   ɵɵelementEnd,
   ɵɵelementStart,
   ɵɵinject
-} from "./chunk-XQKGXJYT.js";
+} from "./chunk-ASZ7S43O.js";
 import "./chunk-CHE7QSOJ.js";
 import "./chunk-KQEJHESJ.js";
 import "./chunk-PSJYXVUC.js";
@@ -71,7 +71,7 @@ import {
 var routes = [
   {
     path: "",
-    loadChildren: () => import("./tabs.routes-N34EUWS4.js").then((m) => m.routes)
+    loadChildren: () => import("./tabs.routes-RJOX2UVX.js").then((m) => m.routes)
   }
 ];
 
@@ -444,9 +444,13 @@ var ServiceWorkerModule = _ServiceWorkerModule;
 bootstrapApplication(AppComponent, {
   providers: [
     { provide: RouteReuseStrategy, useClass: IonicRouteStrategy },
-    provideHttpClient(),
     provideIonicAngular(),
+    provideHttpClient(),
     provideRouter(routes, withPreloading(PreloadAllModules)),
+    provideServiceWorker("ngsw-worker.js", {
+      enabled: !isDevMode(),
+      registrationStrategy: "registerWhenStable:30000"
+    }),
     provideServiceWorker("ngsw-worker.js", {
       enabled: !isDevMode(),
       registrationStrategy: "registerWhenStable:30000"
@@ -457,7 +461,7 @@ bootstrapApplication(AppComponent, {
 
 @angular/service-worker/fesm2022/service-worker.mjs:
   (**
-   * @license Angular v18.2.8
+   * @license Angular v18.2.12
    * (c) 2010-2024 Google LLC. https://angular.io/
    * License: MIT
    *)

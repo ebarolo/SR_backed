@@ -48,8 +48,8 @@ def saveRecipeInRabitHole(recipeJSON, recipeTXT):
         files=files,
         data=payload
      )
-      logger.info(f"response_RabitHole: {str(response_RabitHole)}")
+      logger.info(f"response_RabitHole: {str(response_RabitHole.content)}")
       return response_RabitHole
   except Exception as e:
      logger.error(f"error response_RabitHole {e}")
-     raise
+     return e

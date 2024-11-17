@@ -11,6 +11,7 @@ import yt_dlp
 from yt_dlp.utils import DownloadError
 from openai import OpenAI
 from tenacity import retry, stop_after_attempt, wait_exponential
+import json
 
 from importRicette.analizeRecipe import extract_recipe_info
 from importRicette.rag import saveRecipeInRabitHole
@@ -117,9 +118,14 @@ async def download_video(url: str) -> Dict[str, Any]:
         raise
 
 async def process_video(url: str):
+    recipeJSON = {}
+    recipeTXT = ""
+    
     try:
         #dw = await download_video(url)
-        dw = await scarica_contenuti_instagram(url)
+       dw = await scarica_contenuti_instagram(url)
+       
+       if(len(dw['error'])==0):
         logger.info(f"Video scaricato: {str(dw)}")
 
         rename_file(dw['percorso_video'], dw['titolo'])
@@ -182,24 +188,30 @@ async def process_video(url: str):
         logger.info(f"end  extract_recipe_info: {recipe_info_path}")
 
         logger.info(f"process video completata per: {url}")
+        recipeJSON['error'] = []
         return recipeJSON, recipeTXT
-    
+       else:
+        recipeJSON['error'] = dw['error']
+        return recipeJSON
+       
     except Exception as e:
         logger.error(f"Errore durante process video {url}: {e}")
-        raise
+        recipeJSON['error'] = [e]
+        return recipeJSON
 
 async def import_recipe(urls: List[str]) -> Dict:
-  
-  for videourl in urls:
-    recipeJSON, recipeTXT =  await process_video(videourl)
-    logger.info(f"video ricetta processata {str(recipeJSON['titolo'])}")
+    all_responses = []  # Lista per raccogliere tutte le risposte
 
-    if isinstance(recipeJSON, Exception):
-            logger.error(f"Errore durante saveRecipeInRagMemory della ricetta: {str(recipeJSON['titolo'])}")
-            raise 
-        
-    responseRabitHole = saveRecipeInRabitHole(recipeJSON, recipeTXT)
-    logger.info(f"ricetta memorizza nella memoria dichiarativa del Cheshire Cat {str(recipeJSON['titolo'])}")
+    for videourl in urls:
+        recipeJSON, recipeTXT = await process_video(videourl)
+        logger.info(f"video ricetta processata {str(recipeJSON['titolo'])}")
 
-    return responseRabitHole
+        if len(recipeJSON['error']) == 0:
+            responseRabitHole = saveRecipeInRabitHole(recipeJSON, recipeTXT)
+            logger.info(f"ricetta memorizza nella memoria dichiarativa del Cheshire Cat {str(recipeJSON['titolo'])}")
+            all_responses.append(json.loads(responseRabitHole))  # Aggiungi la risposta in formato JSON alla lista
+        else:
+            all_responses.append(recipeJSON['error'])  # Aggiungi l'errore alla lista
+
+    return all_responses  # Restituisci tutte le risposte
     
