@@ -34,8 +34,8 @@ async def process_url():
         return jsonify({"error": "URL mancante nella richiesta"}), 500
     url = request.json['url']
     urls = [url]
-    await import_recipe(urls)
-    return jsonify({"message": "Elaborazione conclusa"}), 200
+    response = await import_recipe(urls)
+    return jsonify({"message": response}), 200
 
 @app.route('/getRecipeList', methods=['GET'])
 async def getRecipeList():
