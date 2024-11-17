@@ -129,6 +129,9 @@ async def process_video(url: str):
         video_folder_post = os.path.join(BASE_FOLDER, dw['titolo'])
         shutil.copytree(video_folder_pre, video_folder_post, dirs_exist_ok=True) 
         
+        if os.path.exists(video_folder_pre):
+         shutil.rmtree(video_folder_pre)
+
         audio_filename = f"{os.path.splitext(os.path.basename(video_folder_post))[0]}.mp3"
         audio_path = os.path.join(video_folder_post, audio_filename)
         

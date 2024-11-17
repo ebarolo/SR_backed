@@ -29,6 +29,8 @@ def saveRecipeInRabitHole(recipeJSON, recipeTXT):
         "tempo_cottura": recipeJSON['tempo_cottura'],
         "ingredienti": recipeJSON['ingredienti'],
         "preparazione": recipeJSON['preparazione'],
+        "ricetta_audio": recipeJSON['ricetta_audio'],
+        "ricetta_caption": recipeJSON['ricetta_caption'],
         "consigli_dello_chef": recipeJSON['consigli_dello_chef'],
     }
   
