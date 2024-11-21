@@ -3,7 +3,7 @@ from flask_cors import CORS
 import logging
 import os
 
-from importRicette.importVideo import import_recipe
+from importRicette.saveRecipe import process_video
 from getRecipeList.getRecipeList import merge_json_files
 
 # Configurazione del logging
@@ -32,9 +32,8 @@ def serve(path):
 async def process_url():
     if 'url' not in request.json:
         return jsonify({"error": "URL mancante nella richiesta"}), 500
-    url = request.json['url']
-    urls = [url]
-    response = await import_recipe(urls)
+    
+    response = await process_video(request.json['url'])
     return jsonify({"message": response}), 200
 
 @app.route('/getRecipeList', methods=['GET'])
@@ -44,4 +43,5 @@ async def getRecipeList():
  return jsonify(merge_json_files(directory)), 200
 
 if __name__ == '__main__':
- app.run()
+ port = int(os.environ.get('PORT', 8080))
+ app.run(host='0.0.0.0', port=port)

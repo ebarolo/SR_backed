@@ -15,7 +15,6 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-
 def sanitize_folder_name(folder_name: str) -> str:
     return re.sub(r'[<>:"/\\|?*]', '_', folder_name)
 
@@ -26,7 +25,8 @@ def create_safe_folder_name(title):
     safe_title = safe_title.replace(' ', '_')
     return safe_title
 
-async def scarica_contenuti_instagram(url: str) -> Dict[str, Any]:
+async def scarica_contenuto_reel(url: str) -> Dict[str, Any]:
+    result = []
     try:
         L = instaloader.Instaloader(
             download_videos=True,
@@ -38,7 +38,7 @@ async def scarica_contenuti_instagram(url: str) -> Dict[str, Any]:
         )
         
         # Login (opzionale ma consigliato per evitare limitazioni)
-        #L.login("e.barolo", "meqxid-mesdeg-hUpti5")
+        L.login(os.getenv("ISTA_USERNAME"), os.getenv("ISTA_PASSWORD"))
         
         shortcode = url.split("/")[-2]
         post = instaloader.Post.from_shortcode(L.context, shortcode)
@@ -49,32 +49,69 @@ async def scarica_contenuti_instagram(url: str) -> Dict[str, Any]:
         os.makedirs(folder_path, exist_ok=True)
         L.download_post(post, folder_path)
             
-        result = {
-            "error":[],
+        res = {
+            "error": "",
             "titolo": create_safe_folder_name(post.caption.split('\n')[0] if post.caption else str(post.mediaid)),
             "percorso_video": folder_path,
             "caption": post.caption if post.caption else ""
         }
         
         logger.info(f"Download completato per {url}")
-        logger.info(f"Download completato per {str(result)}")
-        return result
-        
+        logger.info(f"Download completato per {str(res)}")
+        result.append(res)
+        return  result
     except instaloader.exceptions.InstaloaderException as e:
-        logger.error(f"Errore specifico di Instaloader: {str(e)}")
-        result = {
-            "error":[e],
-            "titolo":"",
+        logger.error(f"Errore specifico di scarica_contenuto_reel: {str(e)}")
+        result.append({
+            "error": str(e),
+            "titolo": "",
             "percorso_video": "",
-            "caption":  ""
-        }
-        return result
-    except Exception as e:
-        logger.error(f"Errore durante il download da Instagram: {str(e)}")
-        result = {
-            "error":[e],
-            "titolo":"",
+            "caption": ""
+        })
+        raise result
+
+async def scarica_contenuti_account(username: str):
+  result = []
+     # Scarica i post dell'account
+  try:
+    L = instaloader.Instaloader(
+            download_videos=True,
+            download_video_thumbnails=True,
+            download_geotags=False,
+            download_comments=False,
+            save_metadata=True,
+            compress_json=False
+     )
+
+    # Login (opzionale, ma consigliato per evitare limitazioni)
+    L.login(os.getenv("ISTA_USERNAME"), os.getenv("ISTA_PASSWORD"))
+    
+    profile = instaloader.Profile.from_username(L.context, username)
+       
+    account_name = create_safe_folder_name(profile.username)
+    folder_path = os.path.join("", f"{account_name}")
+    os.makedirs(folder_path, exist_ok=True)
+        
+    for post in profile.get_posts():
+        if post.is_video:
+         L.download_post(post, target=folder_path)
+
+         res = {
+          "error": "",
+          "titolo": create_safe_folder_name(post.caption.split('\n')[0] if post.caption else str(post.mediaid)),
+          "percorso_video": folder_path,
+          "caption": post.caption if post.caption else ""
+         }
+                
+         result.append(res)
+    return result
+  
+  except instaloader.exceptions.InstaloaderException as e:
+   logger.error(f"Errore specifico di scarica_contenuti_account: {str(e)}")
+  raise result.append({
+            "error": str(e),
+            "titolo": "",
             "percorso_video": "",
-            "caption":  ""
-        }
-        return result
+            "caption": ""
+        })
+

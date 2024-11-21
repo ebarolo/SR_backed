@@ -10,7 +10,6 @@ from functools import wraps
 from tenacity import retry, stop_after_attempt, wait_exponential
 from openai import OpenAI
 
-os.environ['OPENAI_API_KEY'] = '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'
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OpenAIclient = OpenAI(api_key=OPENAI_API_KEY)
 
@@ -162,15 +161,13 @@ async def extract_recipe_info(recipe_audio_text: str, recipe_caption_text: str, 
             recipeTXT = re.sub(r'"{2,}', '"', recipeTXT)   # Rimuove eventuali virgolette multiple
             logger.info(f"recipeTXT: {str(recipeTXT)}")
             
-            titolo = ""
-            
         except Exception as e:  
             logger.error(f"Errore durante OpenAIresponse convert in txt: {str(e)}")
-            raise
+            raise e
 
     except Exception as e:
         logger.error(f"Errore durante extract_recipe_info: {str(e)}")
-        raise
+        raise e
     
     user_prompt, system_prompt = read_prompt_files(recipe_audio_text, recipe_caption_text, ingredients, actions, "prompt_user_JSON.txt")
     logger.info(f"user_prompt: {user_prompt}")
