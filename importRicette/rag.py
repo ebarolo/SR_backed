@@ -52,4 +52,4 @@ def saveRecipeInRabitHole(recipeJSON, recipeTXT):
       return response_RabitHole
   except Exception as e:
      logger.error(f"error response_RabitHole {e}")
-     return e
+     raise e

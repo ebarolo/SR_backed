@@ -15,11 +15,10 @@ import json
 
 from importRicette.analizeRecipe import extract_recipe_info
 from importRicette.rag import saveRecipeInRabitHole
-from importRicette.instaloader import scarica_contenuti_instagram
+from importRicette.instaLoader import scarica_contenuto_reel, scarica_contenuti_account
 
 BASE_FOLDER = os.path.join(os.getcwd(), "static/ricette")
 
-os.environ['OPENAI_API_KEY'] = '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'
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 if not OPENAI_API_KEY:
@@ -91,7 +90,7 @@ async def whisper_speech_recognition(audio_file_path: str, language: str) -> str
         raise
    
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
-@timeout(600)  # 10 minuti di timeout
+@timeout(600) 
 async def download_video(url: str) -> Dict[str, Any]:
     opzioni = {
         'format': 'bestvideo+bestaudio/best',
@@ -117,56 +116,59 @@ async def download_video(url: str) -> Dict[str, Any]:
         logger.error(f"Errore imprevisto durante il download del video {url}: {e}")
         raise
 
-async def process_video(url: str):
-    recipeJSON = {}
-    recipeTXT = ""
-    
-    try:
-        #dw = await download_video(url)
-       dw = await scarica_contenuti_instagram(url)
-       
-       if(len(dw['error'])==0):
-        logger.info(f"Video scaricato: {str(dw)}")
+async def process_video(recipe: str):
+    importedJSON = []
+    urlPattern = r'^(ftp|http|https):\/\/[^ "]+$'
+
+    if not re.match(urlPattern, recipe):
+      dws = await scarica_contenuti_account(recipe)
+    else:
+      dws = await scarica_contenuto_reel(recipe)
+
+    for dw in dws:
+     if len(dw['error']) == 0:
+      recipeJSON = {}
+      try:
+        logger.info(f"video scaricato: {str(dw)}")
 
         rename_file(dw['percorso_video'], dw['titolo'])
 
-        # Copia la cartella video nella destinazione
         video_folder_pre = os.path.join(os.getcwd(), dw['percorso_video'])
         video_folder_post = os.path.join(BASE_FOLDER, dw['titolo'])
-        shutil.copytree(video_folder_pre, video_folder_post, dirs_exist_ok=True) 
-        
+                
         if os.path.exists(video_folder_pre):
-         shutil.rmtree(video_folder_pre)
+           shutil.copytree(video_folder_pre, video_folder_post, dirs_exist_ok=True) 
+           shutil.rmtree(video_folder_pre)
 
         audio_filename = f"{os.path.splitext(os.path.basename(video_folder_post))[0]}.mp3"
         audio_path = os.path.join(video_folder_post, audio_filename)
-        
+                
         video = f"{os.path.splitext(os.path.basename(video_folder_post))[0]}.mp4"
-        v_path = os.path.join(video_folder_post,video)
-        logger.info(f"estrazione audio da video: {v_path}")
+        v_path = os.path.join(video_folder_post, video)
 
+        logger.info(f"estrazione audio da video: {v_path}")
         await asyncio.to_thread(subprocess.run, [
-            'ffmpeg', '-i', v_path, 
-            '-q:a', '0', '-map', 'a', audio_path
+          'ffmpeg', '-i', v_path, 
+          '-q:a', '0', '-map', 'a', audio_path
         ], check=True)
-        
+                
         logger.info(f"start speech_to_text: {audio_path}")
         ricetta_audio = await whisper_speech_recognition(audio_path, "it")
-
         logger.info(f"end speech_to_text")
-        
+                
         # Estrai informazioni dalla ricetta
         logger.info(f"start extract_recipe_info: {ricetta_audio}")
-        recipeTXT, recipeJSON = await extract_recipe_info(ricetta_audio, dw['caption'],[],[])
+        recipeTXT, recipeJSON = await extract_recipe_info(ricetta_audio, dw['caption'], [], [])
         logger.info(f"recipe_info : {str(recipeJSON)} - {recipeJSON['titolo']}")
+        
         folderName_new = sanitize_folder_name(recipeJSON['titolo'])
 
         text_filename = f"{recipeJSON['titolo']}_originale.txt"
         text_path = os.path.join(video_folder_post, text_filename)
-        
+                
         with open(text_path, 'w', encoding='utf-8') as f:
             f.write(ricetta_audio)
-            f.write("/n /n")
+            f.write("\n\n")
             f.write(dw['caption'])
 
         json_filename = f"{recipeJSON['titolo']}_elaborata.txt"
@@ -174,10 +176,10 @@ async def process_video(url: str):
 
         with open(recipe_info_path, 'w', encoding='utf-8') as f:
             f.write(str(recipeTXT))
-        
+                
         recipeJSON['ricetta_audio'] = ricetta_audio
         recipeJSON['ricetta_caption'] = dw['caption']
-        recipeJSON['video']=os.path.join(BASE_FOLDER,folderName_new, f"{recipeJSON['titolo']}.mp4")
+        recipeJSON['video'] = os.path.join(BASE_FOLDER, folderName_new, f"{recipeJSON['titolo']}.mp4")
 
         json_filename = f"{recipeJSON['titolo']}.json"
         recipe_info_path = os.path.join(video_folder_post, json_filename)
@@ -187,31 +189,17 @@ async def process_video(url: str):
 
         logger.info(f"end  extract_recipe_info: {recipe_info_path}")
 
-        logger.info(f"process video completata per: {url}")
-        recipeJSON['error'] = []
-        return recipeJSON, recipeTXT
-       else:
-        recipeJSON['error'] = dw['error']
-        return recipeJSON
-       
-    except Exception as e:
-        logger.error(f"Errore durante process video {url}: {e}")
-        recipeJSON['error'] = [e]
-        return recipeJSON
-
-async def import_recipe(urls: List[str]) -> Dict:
-    all_responses = []  # Lista per raccogliere tutte le risposte
-
-    for videourl in urls:
-        recipeJSON, recipeTXT = await process_video(videourl)
-        logger.info(f"video ricetta processata {str(recipeJSON['titolo'])}")
-
-        if len(recipeJSON['error']) == 0:
-            responseRabitHole = saveRecipeInRabitHole(recipeJSON, recipeTXT)
-            logger.info(f"ricetta memorizza nella memoria dichiarativa del Cheshire Cat {str(recipeJSON['titolo'])}")
-            all_responses.append(json.loads(responseRabitHole))  # Aggiungi la risposta in formato JSON alla lista
-        else:
-            all_responses.append(recipeJSON['error'])  # Aggiungi l'errore alla lista
-
-    return all_responses  # Restituisci tutte le risposte
+        recipeJSON['error'] = ""
+        logger.info(f"process_video completato per: {recipe}")
     
+        responseRabitHole = saveRecipeInRabitHole(recipeJSON, recipeTXT)
+        logger.info(f"ricetta memorizza nella memoria dichiarativa del Cheshire Cat {str(responseRabitHole['filename'])}")
+        importedJSON.append(recipeJSON) 
+        
+      except Exception as e:
+       logger.error(f"Errore durante process_video {recipe}: {e}")
+       recipeJSON['error'] = e
+       importedJSON.push(recipeJSON)
+       raise importedJSON
+      
+    return importedJSON
