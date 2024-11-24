@@ -5,7 +5,10 @@ Caption recipe: {recipe_caption}
 Ingredients: {ingredients}
 Actions: {actions}
 
-Provide the answer in the following JSON format:
+Always reply in the following valid JSON format, ensuring that:
+1. All keys and values are enclosed in double quotes (").
+2. The output strictly adheres to the JSON standard.
+
 {
  "titolo": "Indica il nome della ricetta",
  "categoria": "Specifica la categoria della ricetta (es. antipasto, primo, dolce, ecc.",

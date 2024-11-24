@@ -1,8 +1,9 @@
 import os
 import instaloader
 import logging
-from typing import Dict, Any
 import re
+
+from typing import Dict, Any
 
 BASE_FOLDER = os.path.join(os.getcwd(), "static/preprocess_video")
 
@@ -12,8 +13,18 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s',
     filename='backend.log'
 )
-
 logger = logging.getLogger(__name__)
+
+
+ISTA_USERNAME = os.getenv("ISTA_USERNAME")
+ISTA_PASSWORD = os.getenv("ISTA_PASSWORD")
+
+logger.info(f"ISTA_USERNAME {ISTA_USERNAME} ISTA_PASSWORD {ISTA_PASSWORD} ")
+
+if not ISTA_USERNAME:
+    logger.error(f"ISTA_USERNAME non è stata impostata {ISTA_USERNAME} ISTA_PASSWORD {ISTA_PASSWORD} ")
+
+    raise ValueError("ISTA_USERNAME non è stata impostata. Imposta la variabile d'ambiente ISTA_USERNAME")
 
 def sanitize_folder_name(folder_name: str) -> str:
     return re.sub(r'[<>:"/\\|?*]', '_', folder_name)
@@ -38,7 +49,7 @@ async def scarica_contenuto_reel(url: str) -> Dict[str, Any]:
         )
         
         # Login (opzionale ma consigliato per evitare limitazioni)
-        L.login(os.getenv("ISTA_USERNAME"), os.getenv("ISTA_PASSWORD"))
+        # L.login(ISTA_USERNAME, ISTA_PASSWORD)
         
         shortcode = url.split("/")[-2]
         post = instaloader.Post.from_shortcode(L.context, shortcode)
@@ -57,7 +68,7 @@ async def scarica_contenuto_reel(url: str) -> Dict[str, Any]:
         }
         
         logger.info(f"Download completato per {url}")
-        logger.info(f"Download completato per {str(res)}")
+        logger.info(f" {str(res)}")
         result.append(res)
         return  result
     except instaloader.exceptions.InstaloaderException as e:
@@ -84,7 +95,7 @@ async def scarica_contenuti_account(username: str):
      )
 
     # Login (opzionale, ma consigliato per evitare limitazioni)
-    L.login(os.getenv("ISTA_USERNAME"), os.getenv("ISTA_PASSWORD"))
+    L.login(ISTA_USERNAME, ISTA_PASSWORD)
     
     profile = instaloader.Profile.from_username(L.context, username)
        

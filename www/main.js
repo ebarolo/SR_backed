@@ -71,7 +71,7 @@ import {
 var routes = [
   {
     path: "",
-    loadChildren: () => import("./tabs.routes-RJOX2UVX.js").then((m) => m.routes)
+    loadChildren: () => import("./tabs.routes-JFUFJESR.js").then((m) => m.routes)
   }
 ];
 

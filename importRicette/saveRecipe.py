@@ -2,17 +2,18 @@ import os
 import logging
 import shutil
 import subprocess
+import re
+import asyncio
+import yt_dlp
+
 from typing import List, Dict, Any
 from datetime import datetime
-import asyncio
 from functools import wraps
-import re
-import yt_dlp
 from yt_dlp.utils import DownloadError
 from openai import OpenAI
 from tenacity import retry, stop_after_attempt, wait_exponential
-import json
 
+from importRicette.utility import sanitize_text, sanitize_filename, sanitize_folder_name
 from importRicette.analizeRecipe import extract_recipe_info
 from importRicette.rag import saveRecipeInRabitHole
 from importRicette.instaLoader import scarica_contenuto_reel, scarica_contenuti_account
@@ -24,7 +25,7 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
     raise ValueError("La chiave API di OpenAI non è stata impostata. Imposta la variabile d'ambiente OPENAI_API_KEY.")
 
-client = OpenAI(api_key=OPENAI_API_KEY)
+clientOpenAI = OpenAI(api_key=OPENAI_API_KEY)
 
 # Configurazione del logging
 logging.basicConfig(
@@ -41,13 +42,6 @@ def create_date_folder() -> str:
     date_folder = os.path.join(BASE_FOLDER, today)
     os.makedirs(date_folder, exist_ok=True)
     return date_folder
-
-def sanitize_filename(filename: str) -> str:
-    return "".join(c for c in filename if c.isalnum() or c.isspace()).strip()
-
-def sanitize_folder_name(folder_name: str) -> str:
-    # Sostituisce i caratteri non validi con un carattere di sottolineatura
-    return re.sub(r'[<>:"/\\|?*]', '_', folder_name)
 
 def rename_file(video_folder,file_name:str):
      # Rinominare tutti i file nella cartella video_folder_new mantenendo l'estensione originale
@@ -77,7 +71,7 @@ async def whisper_speech_recognition(audio_file_path: str, language: str) -> str
         with open(audio_file_path, "rb") as audio_file:
             # Usiamo asyncio.to_thread per eseguire la chiamata bloccante in un thread separato
             transcription = await asyncio.to_thread(
-                client.audio.transcriptions.create,
+                clientOpenAI.audio.transcriptions.create,
                 model="whisper-1", 
                 file=audio_file
             )
@@ -130,11 +124,12 @@ async def process_video(recipe: str):
       recipeJSON = {}
       try:
         logger.info(f"video scaricato: {str(dw)}")
-
-        rename_file(dw['percorso_video'], dw['titolo'])
+        captionSanit = sanitize_text(dw['caption'])
+        titleSanit = sanitize_text(dw['titolo'])
+        rename_file(dw['percorso_video'], titleSanit)
 
         video_folder_pre = os.path.join(os.getcwd(), dw['percorso_video'])
-        video_folder_post = os.path.join(BASE_FOLDER, dw['titolo'])
+        video_folder_post = os.path.join(BASE_FOLDER, titleSanit)
                 
         if os.path.exists(video_folder_pre):
            shutil.copytree(video_folder_pre, video_folder_post, dirs_exist_ok=True) 
@@ -158,18 +153,18 @@ async def process_video(recipe: str):
                 
         # Estrai informazioni dalla ricetta
         logger.info(f"start extract_recipe_info: {ricetta_audio}")
-        recipeTXT, recipeJSON = await extract_recipe_info(ricetta_audio, dw['caption'], [], [])
+        recipeTXT, recipeJSON = await extract_recipe_info(ricetta_audio, captionSanit, [], [])
         logger.info(f"recipe_info : {str(recipeJSON)} - {recipeJSON['titolo']}")
         
         folderName_new = sanitize_folder_name(recipeJSON['titolo'])
 
         text_filename = f"{recipeJSON['titolo']}_originale.txt"
         text_path = os.path.join(video_folder_post, text_filename)
-                
+
         with open(text_path, 'w', encoding='utf-8') as f:
             f.write(ricetta_audio)
             f.write("\n\n")
-            f.write(dw['caption'])
+            f.write(captionSanit)
 
         json_filename = f"{recipeJSON['titolo']}_elaborata.txt"
         recipe_info_path = os.path.join(video_folder_post, json_filename)
@@ -178,11 +173,12 @@ async def process_video(recipe: str):
             f.write(str(recipeTXT))
                 
         recipeJSON['ricetta_audio'] = ricetta_audio
-        recipeJSON['ricetta_caption'] = dw['caption']
+        recipeJSON['ricetta_caption'] = captionSanit
         recipeJSON['video'] = os.path.join(BASE_FOLDER, folderName_new, f"{recipeJSON['titolo']}.mp4")
 
         json_filename = f"{recipeJSON['titolo']}.json"
         recipe_info_path = os.path.join(video_folder_post, json_filename)
+        #recipeJSONTXT = str(recipeJSON).replace("'", '"')
 
         with open(recipe_info_path, 'w', encoding='utf-8') as f:
             f.write(str(recipeJSON))
@@ -191,10 +187,12 @@ async def process_video(recipe: str):
 
         recipeJSON['error'] = ""
         logger.info(f"process_video completato per: {recipe}")
-    
-        responseRabitHole = saveRecipeInRabitHole(recipeJSON, recipeTXT)
-        logger.info(f"ricetta memorizza nella memoria dichiarativa del Cheshire Cat {str(responseRabitHole['filename'])}")
-        importedJSON.append(recipeJSON) 
+        importedJSON.append(recipeJSON)
+        
+        if(True):
+         responseRabitHole = saveRecipeInRabitHole(recipeJSON, recipeTXT)
+         logger.info(f"ricetta memorizza nella memoria dichiarativa del Cheshire Cat {str(responseRabitHole['filename'])}")
+         importedJSON.append(recipeJSON) 
         
       except Exception as e:
        logger.error(f"Errore durante process_video {recipe}: {e}")
