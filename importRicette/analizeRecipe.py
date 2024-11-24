@@ -34,6 +34,28 @@ def timeout(seconds):
         return wrapper
     return decorator
 
+# Funzione per convertire il testo in un dizionario
+def testo_a_dizionario(testo):
+    risultato = {}
+    linee = testo.strip().split('\n')
+    chiave_corrente = None
+    valore_corrente = []
+    for linea in linee:
+        if not linea.strip():
+            continue
+        # Verifica se la linea è una chiave
+        if re.match(r'^\w+:', linea):
+            if chiave_corrente:
+                risultato[chiave_corrente] = '\n'.join(valore_corrente).strip()
+            chiave_corrente, resto = linea.split(':', 1)
+            chiave_corrente = chiave_corrente.strip()
+            valore_corrente = [resto.strip()]
+        else:
+            valore_corrente.append(linea.strip())
+    if chiave_corrente:
+        risultato[chiave_corrente] = '\n'.join(valore_corrente).strip()
+    return risultato
+
 def read_prompt_files(recipe_audio_text="", recipe_capiton_text="", ingredients=None, actions=None, file_name=""):
     """
     Legge i file di prompt e sostituisce le variabili con i valori forniti.
@@ -139,6 +161,7 @@ async def analyze_recipe_frames(base64Frames):
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
 @timeout(90)  # 1 minuto e 30 secondi di timeout
 async def extract_recipe_info(recipe_audio_text: str, recipe_caption_text: str, ingredients: any, actions: any) -> str:
+
     user_prompt, system_prompt = read_prompt_files(recipe_audio_text, recipe_caption_text, ingredients, actions, "prompt_user_TXT.txt")
     logger.info(f"user_prompt: {user_prompt}")
     logger.info(f"system_prompt: {system_prompt}")
@@ -169,36 +192,56 @@ async def extract_recipe_info(recipe_audio_text: str, recipe_caption_text: str, 
         logger.error(f"Errore durante extract_recipe_info: {str(e)}")
         raise e
     
-    user_prompt, system_prompt = read_prompt_files(recipe_audio_text, recipe_caption_text, ingredients, actions, "prompt_user_JSON.txt")
-    logger.info(f"user_prompt: {user_prompt}")
-    logger.info(f"system_prompt: {system_prompt}")
-
     try:
-        OpenAIresponseJSON = await asyncio.to_thread(
-            OpenAIclient.chat.completions.create,
-            model="gpt-4o",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
-            response_format={ "type": "json_object" },
-            temperature=1.2
-        )
+     # Convertire il testo in un dizionario
+     dati = testo_a_dizionario(recipeTXT)
+     logger.info (f"testo_a_dizionario: {str(dati)}")
 
-        try:
-            recipeJSON = json.loads(OpenAIresponseJSON.choices[0].message.content)
-            logger.info(f"extract_recipe_info: {str(recipeJSON)}")
-            
-        except json.JSONDecodeError:
-            logger.error(f"Errore durante OpenAIresponseJSON convert in json: {str(e)}")
-            raise
-            
-        except Exception as e:  
-            logger.error(f"Errore durante chiamata rest OpenAIresponseJSON : {str(e)}")
-            raise
+     # Convertire stringhe in liste o altri tipi appropriati
+     if 'ingredienti' in dati:
+      ingredienti = dati['ingredienti'].split('\n')
+      ingredienti = [item.lstrip('- ').strip() for item in ingredienti]
+      dati['ingredienti'] = ingredienti
 
+     if 'preparazione' in dati:
+      preparazione = dati['preparazione'].split('\n')
+      preparazione = [re.sub(r'^\d+\.\s*', '', item).strip() for item in preparazione]
+      dati['preparazione'] = preparazione
+
+     logger.info (f"Conversione txt in json: {str(dati)}")
+
+     #recipeJSON = json.dumps(dati, ensure_ascii=False, indent=4)
     except Exception as e:
-        logger.error(f"Errore durante extract_recipe_info json: {str(e)}")
-        raise
+     logger.error(f"Errore durante conversione txt in json: {str(e)}")
+     raise e
+
+
+    # try:
+    #     OpenAIresponseJSON = await asyncio.to_thread(
+    #         OpenAIclient.chat.completions.create,
+    #         model="gpt-4o",
+    #         messages=[
+    #             {"role": "system", "content": system_prompt},
+    #             {"role": "user", "content": user_prompt}
+    #         ],
+    #         response_format={ "type": "json_object" },
+    #         temperature=1.2
+    #     )
+
+    #     try:
+    #         recipeJSON = json.loads(OpenAIresponseJSON.choices[0].message.content)
+    #         logger.info(f"OpenAIresponseJSON convert in json: {str(recipeJSON)}")
+            
+    #     except json.JSONDecodeError:
+    #         logger.error(f"Errore durante OpenAIresponseJSON convert in json: {str(e)}")
+    #         raise
+            
+        # except Exception as e:  
+        #     logger.error(f"Errore durante chiamata rest OpenAIresponseJSON : {str(e)}")
+        #     raise
+
+    # except Exception as e:
+    #     logger.error(f"Errore durante extract_recipe_info json: {str(e)}")
+    #     raise
     
-    return recipeTXT, recipeJSON
+    return recipeTXT, dati

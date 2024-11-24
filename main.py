@@ -31,10 +31,14 @@ def serve(path):
 @app.route('/process_url', methods=['POST'])
 async def process_url():
     if 'url' not in request.json:
-        return jsonify({"error": "URL mancante nella richiesta"}), 500
+        return jsonify({"error": "URL mancante nella richiesta"}), 400
     
-    response = await process_video(request.json['url'])
-    return jsonify({"message": response}), 200
+    try:
+        response = await process_video(request.json['url'])
+        return jsonify({"message": response}), 200
+    except Exception as e:
+        logger.error(f"Errore durante il processamento dell'URL: {str(e)}")
+        return jsonify({"message": str([e])}), 500
 
 @app.route('/getRecipeList', methods=['GET'])
 async def getRecipeList():
