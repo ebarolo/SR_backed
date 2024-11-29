@@ -9,7 +9,7 @@ BASE_FOLDER = os.path.join(os.getcwd(), "static/preprocess_video")
 
 # Configurazione del logging
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     filename='backend.log'
 )

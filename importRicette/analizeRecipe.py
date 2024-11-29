@@ -15,7 +15,7 @@ OpenAIclient = OpenAI(api_key=OPENAI_API_KEY)
 
 # Configurazione del logging
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     filename='backend.log'
 )
@@ -189,59 +189,125 @@ async def extract_recipe_info(recipe_audio_text: str, recipe_caption_text: str, 
             raise e
 
     except Exception as e:
-        logger.error(f"Errore durante extract_recipe_info: {str(e)}")
+        logger.error(f"Errore durante OpenAIresponseTXT: {str(e)}")
         raise e
     
+    user_prompt, system_prompt = read_prompt_files(recipe_audio_text, recipe_caption_text, ingredients, actions, "prompt_user_JSON.txt")
+    logger.info(f"user_prompt: {user_prompt}")
+    logger.info(f"system_prompt: {system_prompt}")
+
     try:
-     # Convertire il testo in un dizionario
-     dati = testo_a_dizionario(recipeTXT)
-     logger.info (f"testo_a_dizionario: {str(dati)}")
-
-     # Convertire stringhe in liste o altri tipi appropriati
-     if 'ingredienti' in dati:
-      ingredienti = dati['ingredienti'].split('\n')
-      ingredienti = [item.lstrip('- ').strip() for item in ingredienti]
-      dati['ingredienti'] = ingredienti
-
-     if 'preparazione' in dati:
-      preparazione = dati['preparazione'].split('\n')
-      preparazione = [re.sub(r'^\d+\.\s*', '', item).strip() for item in preparazione]
-      dati['preparazione'] = preparazione
-
-     logger.info (f"Conversione txt in json: {str(dati)}")
-
-     #recipeJSON = json.dumps(dati, ensure_ascii=False, indent=4)
-    except Exception as e:
-     logger.error(f"Errore durante conversione txt in json: {str(e)}")
-     raise e
-
-
-    # try:
-    #     OpenAIresponseJSON = await asyncio.to_thread(
-    #         OpenAIclient.chat.completions.create,
-    #         model="gpt-4o",
-    #         messages=[
-    #             {"role": "system", "content": system_prompt},
-    #             {"role": "user", "content": user_prompt}
-    #         ],
-    #         response_format={ "type": "json_object" },
-    #         temperature=1.2
-    #     )
-
-    #     try:
-    #         recipeJSON = json.loads(OpenAIresponseJSON.choices[0].message.content)
-    #         logger.info(f"OpenAIresponseJSON convert in json: {str(recipeJSON)}")
-            
-    #     except json.JSONDecodeError:
-    #         logger.error(f"Errore durante OpenAIresponseJSON convert in json: {str(e)}")
-    #         raise
-            
-        # except Exception as e:  
-        #     logger.error(f"Errore durante chiamata rest OpenAIresponseJSON : {str(e)}")
-        #     raise
-
-    # except Exception as e:
-    #     logger.error(f"Errore durante extract_recipe_info json: {str(e)}")
-    #     raise
+     OpenAI_JSON = OpenAIclient.chat.completions.create(
+      model="gpt-4o-2024-08-06",
+      messages=[
+       {
+      "role": "system",
+      "content": [
+        {
+          "type": "text",
+          "text": system_prompt
+        }
+      ]
+    },
+       {
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": user_prompt
+        }
+      ]
+    },
+      ],
+      response_format={
+    "type": "json_schema",
+    "json_schema": {
+      "name": "recipe_schema",
+      "strict": True,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "titolo": {
+            "type": "string",
+            "description": "The title of the recipe."
+          },
+          "categoria": {
+            "type": "string",
+            "description": "The category of the recipe."
+          },
+          "tempo_di_preparazione": {
+            "type": "string",
+            "description": "Preparation time for the recipe."
+          },
+          "tempo_cottura": {
+            "type": "string",
+            "description": "Cooking time for the recipe."
+          },
+          "ingredienti": {
+            "type": "array",
+            "description": "List of ingredients required for the recipe.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "preparazione": {
+            "type": "array",
+            "description": "Step-by-step preparation instructions.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "consigli_dello_chef": {
+            "type": "string",
+            "description": "Tips from the chef related to the recipe."
+          },
+          "ricetta_audio": {
+            "type": "string",
+            "description": "Audio description of the recipe."
+          },
+          "ricetta_caption": {
+            "type": "string",
+            "description": "Caption or description of the recipe for sharing."
+          },
+          "video": {
+            "type": "string",
+            "description": "File path or URL of the instructional video."
+          }
+        },
+        "required": [
+          "titolo",
+          "categoria",
+          "tempo_di_preparazione",
+          "tempo_cottura",
+          "ingredienti",
+          "preparazione",
+          "consigli_dello_chef",
+          "ricetta_audio",
+          "ricetta_caption",
+          "video"
+        ],
+        "additionalProperties": False
+      }
+    }
+  },
+      temperature=1.2,
+      top_p=1,
+      frequency_penalty=0,
+      presence_penalty=0
+     )
     
-    return recipeTXT, dati
+     logger.info(f"recipeJSON: {str(OpenAI_JSON.choices[0].message.content)}")
+
+     try:
+      recipeJSON = json.loads(OpenAI_JSON.choices[0].message.content)
+      return recipeTXT, recipeJSON
+     
+     except json.JSONDecodeError:
+      logger.error(f"OpenAI_JSON JSONDecodeError: {str(json.JSONDecodeError.msg)} at line {str(json.JSONDecodeError.lineno)} column {str(json.JSONDecodeError.colno)}")
+     raise json.JSONDecodeError
+    
+    except Exception as e:
+     logger.error(f"Errore durante OpenAIresponseJSON: {str(e)}")
+     raise e
+    
+    
