@@ -1,11 +1,11 @@
-Analyze the following audio transcript of a recipe. Extract the information needed for its preparation.
+Analyze the following audio transcript of a recipe. Extract all the information needed for its preparation.
 
 Audio transcript: {recipe_audio}
 Caption recipe: {recipe_caption}
 Ingredients: {ingredients}
 Actions: {actions}
 
-Provide the answer in the following TXT:
+Provide the answer in the following TXT format:
 
 titolo: [Indica il nome della ricetta]
 

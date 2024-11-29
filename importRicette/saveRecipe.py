@@ -154,7 +154,7 @@ async def process_video(recipe: str):
         # Estrai informazioni dalla ricetta
         logger.info(f"start extract_recipe_info: {ricetta_audio}")
         recipeTXT, recipeJSON = await extract_recipe_info(ricetta_audio, captionSanit, [], [])
-        logger.info(f"recipe_info : {str(recipeJSON)} - {recipeJSON['titolo']}")
+        logger.info(f"recipe_info : {recipeJSON['titolo']}")
         
         folderName_new = sanitize_folder_name(recipeJSON['titolo'])
 
@@ -191,7 +191,7 @@ async def process_video(recipe: str):
         
         if(True):
          responseRabitHole = saveRecipeInRabitHole(recipeJSON, recipeTXT)
-         logger.info(f"ricetta memorizza nella memoria dichiarativa del Cheshire Cat {str(responseRabitHole['filename'])}")
+         logger.info(f"ricetta memorizza nella memoria dichiarativa del Cheshire Cat {type(responseRabitHole.content)}")
          importedJSON.append(recipeJSON) 
         
       except Exception as e:
