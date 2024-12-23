@@ -1,6 +1,4 @@
 import re
-import json
-from slugify import slugify
 
 # Sanificazione iniziale del testo
 def sanitize_text(text):

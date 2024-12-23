@@ -1,6 +1,6 @@
 import {
   PlyrPlayerComponent
-} from "./chunk-W6RQMKWS.js";
+} from "./chunk-DQZA7ITP.js";
 import {
   CommonModule,
   IonBackButton2 as IonBackButton,
@@ -35,7 +35,7 @@ import {
   ɵɵtext,
   ɵɵtextInterpolate,
   ɵɵtextInterpolate1
-} from "./chunk-ASZ7S43O.js";
+} from "./chunk-CVZKNICT.js";
 import "./chunk-CHE7QSOJ.js";
 import "./chunk-KQEJHESJ.js";
 import "./chunk-PSJYXVUC.js";
@@ -164,4 +164,4 @@ var RicettaPage = _RicettaPage;
 export {
   RicettaPage
 };
-//# sourceMappingURL=ricetta.page-WSGEQIGW.js.map
+//# sourceMappingURL=ricetta.page-ZBWQZBV3.js.map

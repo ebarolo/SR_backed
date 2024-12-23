@@ -189,7 +189,7 @@ async def process_video(recipe: str):
         logger.info(f"process_video completato per: {recipe}")
         importedJSON.append(recipeJSON)
         
-        if(True):
+        if(False):
          responseRabitHole = saveRecipeInRabitHole(recipeJSON, recipeTXT)
          logger.info(f"ricetta memorizza nella memoria dichiarativa del Cheshire Cat {type(responseRabitHole.content)}")
          importedJSON.append(recipeJSON) 

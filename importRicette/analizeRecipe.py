@@ -5,6 +5,7 @@ import logging
 import asyncio
 import json
 import re
+from pydantic import BaseModel
 
 from functools import wraps
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -169,7 +170,7 @@ async def extract_recipe_info(recipe_audio_text: str, recipe_caption_text: str, 
     try:
         OpenAIresponseTXT = await asyncio.to_thread(
             OpenAIclient.chat.completions.create,
-            model="gpt-4o",
+            model="gpt-4o-2024-08-06",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}

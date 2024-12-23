@@ -1,4 +1,10 @@
 import {
+  addIcons,
+  ellipse,
+  square,
+  triangle
+} from "./chunk-RXKXPMNG.js";
+import {
   EnvironmentInjector,
   IonLabel,
   IonTabBar,
@@ -11,7 +17,7 @@ import {
   ɵɵelementEnd,
   ɵɵelementStart,
   ɵɵtext
-} from "./chunk-ASZ7S43O.js";
+} from "./chunk-CVZKNICT.js";
 import "./chunk-CHE7QSOJ.js";
 import "./chunk-KQEJHESJ.js";
 import "./chunk-PSJYXVUC.js";
@@ -28,44 +34,6 @@ import "./chunk-XIXT7DF6.js";
 import "./chunk-CC56LK7W.js";
 import "./chunk-K3HSXS64.js";
 import "./chunk-FSIFXKME.js";
-
-// node_modules/ionicons/dist/esm-es5/utils-2c56d1c8.js
-var CACHED_MAP;
-var getIconMap = function() {
-  if (typeof window === "undefined") {
-    return /* @__PURE__ */ new Map();
-  } else {
-    if (!CACHED_MAP) {
-      var t = window;
-      t.Ionicons = t.Ionicons || {};
-      CACHED_MAP = t.Ionicons.map = t.Ionicons.map || /* @__PURE__ */ new Map();
-    }
-    return CACHED_MAP;
-  }
-};
-var addIcons = function(t) {
-  Object.keys(t).forEach(function(e) {
-    addToIconMap(e, t[e]);
-    var r = e.replace(/([a-z0-9]|(?=[A-Z]))([A-Z0-9])/g, "$1-$2").toLowerCase();
-    if (e !== r) {
-      addToIconMap(r, t[e]);
-    }
-  });
-};
-var addToIconMap = function(t, e) {
-  var r = getIconMap();
-  var n = r.get(t);
-  if (n === void 0) {
-    r.set(t, e);
-  } else if (n !== e) {
-    console.warn('[Ionicons Warning]: Multiple icons were mapped to name "'.concat(t, '". Ensure that multiple icons are not mapped to the same icon name.'));
-  }
-};
-
-// node_modules/ionicons/icons/index.mjs
-var ellipse = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' class='ionicon' viewBox='0 0 512 512'><path d='M256 464c-114.69 0-208-93.31-208-208S141.31 48 256 48s208 93.31 208 208-93.31 208-208 208z'/></svg>";
-var square = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' class='ionicon' viewBox='0 0 512 512'><path d='M416 464H96a48.05 48.05 0 01-48-48V96a48.05 48.05 0 0148-48h320a48.05 48.05 0 0148 48v320a48.05 48.05 0 01-48 48z'/></svg>";
-var triangle = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' class='ionicon' viewBox='0 0 512 512'><path d='M464 464H48a16 16 0 01-14.07-23.62l208-384a16 16 0 0128.14 0l208 384A16 16 0 01464 464z'/></svg>";
 
 // src/app/pages/tabs/tabs.page.ts
 var _TabsPage = class _TabsPage {
@@ -103,19 +71,19 @@ var routes = [
     children: [
       {
         path: "chat_bot",
-        loadComponent: () => import("./chat_bot.page-DT374LVP.js").then((m) => m.ChatBotPage)
+        loadComponent: () => import("./chat_bot.page-ACAYXK5U.js").then((m) => m.ChatBotPage)
       },
       {
         path: "import_recipe",
-        loadComponent: () => import("./import_recipe.page-ZZK5J7OX.js").then((m) => m.ImportRecipePage)
+        loadComponent: () => import("./import_recipe.page-KOER25YQ.js").then((m) => m.ImportRecipePage)
       },
       {
         path: "ricette",
-        loadComponent: () => import("./ricette.page-3PFOOXLV.js").then((m) => m.RicettePage)
+        loadComponent: () => import("./ricette.page-O5DYYQKR.js").then((m) => m.RicettePage)
       },
       {
         path: "ricetta",
-        loadComponent: () => import("./ricetta.page-WSGEQIGW.js").then((m) => m.RicettaPage)
+        loadComponent: () => import("./ricetta.page-ZBWQZBV3.js").then((m) => m.RicettaPage)
       },
       {
         path: "",
@@ -133,4 +101,4 @@ var routes = [
 export {
   routes
 };
-//# sourceMappingURL=tabs.routes-JFUFJESR.js.map
+//# sourceMappingURL=tabs.routes-4OKHQUAR.js.map

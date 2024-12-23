@@ -66,7 +66,6 @@ import {
   IonContent,
   IonGrid,
   IonHeader,
-  IonInput,
   IonItem,
   IonList,
   IonModal,
@@ -75,6 +74,7 @@ import {
   IonRouterOutlet,
   IonRow,
   IonTabs,
+  IonTextarea,
   IonTitle,
   IonToolbar,
   Location,
@@ -84,7 +84,9 @@ import {
   NG_VALIDATORS,
   NG_VALUE_ACCESSOR,
   NavController,
+  NgClass,
   NgControlStatus,
+  NgForOf,
   NgIf,
   NgModel,
   NgModule,
@@ -141,12 +143,12 @@ import {
   ɵɵrestoreView,
   ɵɵtemplate,
   ɵɵtext,
-  ɵɵtextInterpolate,
+  ɵɵtextInterpolate1,
   ɵɵtwoWayBindingSet,
   ɵɵtwoWayListener,
   ɵɵtwoWayProperty,
   ɵɵviewQuery
-} from "./chunk-ASZ7S43O.js";
+} from "./chunk-CVZKNICT.js";
 import "./chunk-CHE7QSOJ.js";
 import "./chunk-KQEJHESJ.js";
 import "./chunk-PSJYXVUC.js";
@@ -2532,7 +2534,7 @@ IonInfiniteScrollContent = __decorate([ProxyCmp({
   }, null);
 })();
 var _a34;
-var IonInput2 = (_a34 = class {
+var IonInput = (_a34 = class {
   constructor(c, r, z) {
     __publicField(this, "z");
     __publicField(this, "el");
@@ -2597,12 +2599,12 @@ __publicField(_a34, "\u0275cmp", /* @__PURE__ */ \u0275\u0275defineComponent({
   encapsulation: 2,
   changeDetection: 0
 })), _a34);
-IonInput2 = __decorate([ProxyCmp({
+IonInput = __decorate([ProxyCmp({
   inputs: ["autocapitalize", "autocomplete", "autocorrect", "autofocus", "clearInput", "clearInputIcon", "clearOnEdit", "color", "counter", "counterFormatter", "debounce", "disabled", "enterkeyhint", "errorText", "fill", "helperText", "inputmode", "label", "labelPlacement", "max", "maxlength", "min", "minlength", "mode", "multiple", "name", "pattern", "placeholder", "readonly", "required", "shape", "spellcheck", "step", "type", "value"],
   methods: ["setFocus", "getInputElement"]
-})], IonInput2);
+})], IonInput);
 (() => {
-  (typeof ngDevMode === "undefined" || ngDevMode) && setClassMetadata(IonInput2, [{
+  (typeof ngDevMode === "undefined" || ngDevMode) && setClassMetadata(IonInput, [{
     type: Component,
     args: [{
       selector: "ion-input",
@@ -5253,7 +5255,7 @@ IonText = __decorate([ProxyCmp({
   }, null);
 })();
 var _a80;
-var IonTextarea = (_a80 = class {
+var IonTextarea2 = (_a80 = class {
   constructor(c, r, z) {
     __publicField(this, "z");
     __publicField(this, "el");
@@ -5312,12 +5314,12 @@ __publicField(_a80, "\u0275cmp", /* @__PURE__ */ \u0275\u0275defineComponent({
   encapsulation: 2,
   changeDetection: 0
 })), _a80);
-IonTextarea = __decorate([ProxyCmp({
+IonTextarea2 = __decorate([ProxyCmp({
   inputs: ["autoGrow", "autocapitalize", "autofocus", "clearOnEdit", "color", "cols", "counter", "counterFormatter", "debounce", "disabled", "enterkeyhint", "errorText", "fill", "helperText", "inputmode", "label", "labelPlacement", "maxlength", "minlength", "mode", "name", "placeholder", "readonly", "required", "rows", "shape", "spellcheck", "value", "wrap"],
   methods: ["setFocus", "getInputElement"]
-})], IonTextarea);
+})], IonTextarea2);
 (() => {
-  (typeof ngDevMode === "undefined" || ngDevMode) && setClassMetadata(IonTextarea, [{
+  (typeof ngDevMode === "undefined" || ngDevMode) && setClassMetadata(IonTextarea2, [{
     type: Component,
     args: [{
       selector: "ion-textarea",
@@ -6476,7 +6478,7 @@ var appInitialize = (config, doc, zone) => {
     }
   };
 };
-var DIRECTIVES = [IonAccordion, IonAccordionGroup, IonActionSheet, IonAlert, IonApp, IonAvatar, IonBackdrop, IonBadge, IonBreadcrumb, IonBreadcrumbs, IonButton2, IonButtons, IonCard, IonCardContent, IonCardHeader, IonCardSubtitle, IonCardTitle, IonCheckbox, IonChip, IonCol2, IonContent2, IonDatetime, IonDatetimeButton, IonFab, IonFabButton, IonFabList, IonFooter, IonGrid2, IonHeader2, IonIcon, IonImg, IonInfiniteScroll, IonInfiniteScrollContent, IonInput2, IonInputPasswordToggle, IonItem2, IonItemDivider, IonItemGroup, IonItemOption, IonItemOptions, IonItemSliding, IonLabel, IonList2, IonListHeader, IonLoading, IonMenu, IonMenuButton, IonMenuToggle, IonNavLink, IonNote, IonPicker, IonPickerColumn, IonPickerColumnOption, IonPickerLegacy, IonProgressBar, IonRadio, IonRadioGroup, IonRange, IonRefresher, IonRefresherContent, IonReorder, IonReorderGroup, IonRippleEffect, IonRow2, IonSearchbar, IonSegment, IonSegmentButton, IonSegmentContent, IonSegmentView, IonSelect, IonSelectModal, IonSelectOption, IonSkeletonText, IonSpinner, IonSplitPane, IonTab, IonTabBar, IonTabButton, IonText, IonTextarea, IonThumbnail, IonTitle2, IonToast, IonToggle, IonToolbar2];
+var DIRECTIVES = [IonAccordion, IonAccordionGroup, IonActionSheet, IonAlert, IonApp, IonAvatar, IonBackdrop, IonBadge, IonBreadcrumb, IonBreadcrumbs, IonButton2, IonButtons, IonCard, IonCardContent, IonCardHeader, IonCardSubtitle, IonCardTitle, IonCheckbox, IonChip, IonCol2, IonContent2, IonDatetime, IonDatetimeButton, IonFab, IonFabButton, IonFabList, IonFooter, IonGrid2, IonHeader2, IonIcon, IonImg, IonInfiniteScroll, IonInfiniteScrollContent, IonInput, IonInputPasswordToggle, IonItem2, IonItemDivider, IonItemGroup, IonItemOption, IonItemOptions, IonItemSliding, IonLabel, IonList2, IonListHeader, IonLoading, IonMenu, IonMenuButton, IonMenuToggle, IonNavLink, IonNote, IonPicker, IonPickerColumn, IonPickerColumnOption, IonPickerLegacy, IonProgressBar, IonRadio, IonRadioGroup, IonRange, IonRefresher, IonRefresherContent, IonReorder, IonReorderGroup, IonRippleEffect, IonRow2, IonSearchbar, IonSegment, IonSegmentButton, IonSegmentContent, IonSegmentView, IonSelect, IonSelectModal, IonSelectOption, IonSkeletonText, IonSpinner, IonSplitPane, IonTab, IonTabBar, IonTabButton, IonText, IonTextarea2, IonThumbnail, IonTitle2, IonToast, IonToggle, IonToolbar2];
 var DECLARATIONS = [
   // generated proxies
   ...DIRECTIVES,
@@ -6542,39 +6544,71 @@ var IonicModule = _IonicModule;
 })();
 
 // src/app/pages/import_recipe/import_recipe.page.ts
+function ImportRecipePage_ion_item_17_Template(rf, ctx) {
+  if (rf & 1) {
+    \u0275\u0275elementStart(0, "ion-item", 6);
+    \u0275\u0275text(1);
+    \u0275\u0275elementEnd();
+  }
+  if (rf & 2) {
+    const url_r1 = ctx.$implicit;
+    const ctx_r1 = \u0275\u0275nextContext();
+    \u0275\u0275property("ngClass", ctx_r1.urlClasses[url_r1]);
+    \u0275\u0275advance();
+    \u0275\u0275textInterpolate1(" ", url_r1, " ");
+  }
+}
 var _ImportRecipePage = class _ImportRecipePage {
   constructor(http, loadingController2) {
     this.http = http;
     this.loadingController = loadingController2;
     this.videoUrl = "";
     this.resultMessage = "";
+    this.urls = [];
+    this.urlClasses = {};
     this.isLoading = false;
   }
+  extractUrls() {
+    const pattern = /https:\/\/www\.instagram\.com\/(?:reel|p)\/[A-Za-z0-9_-]+\/\?(?:[A-Za-z0-9=&;]+)/g;
+    console.log("extractUrls ", this.videoUrl, this.videoUrl.match(pattern));
+    this.urls = this.videoUrl.match(pattern) || [];
+    this.urls.forEach((url) => {
+      this.urlClasses[url] = "neutral";
+    });
+    console.log("this.urls ", this.urls);
+  }
   inviaUrl() {
-    return __async(this, null, function* () {
+    if (!this.urls) {
+      this.resultMessage = "Nessun URL disponibile per l'invio.";
+      return;
+    }
+    this.urls.forEach((url, index) => {
       this.isLoading = true;
-      if (!this.videoUrl) {
+      if (!url) {
         this.resultMessage = "Per favore, inserisci un URL valido.";
         this.isLoading = false;
+        this.urlClasses[url] = "error";
         return;
       }
       const urlPattern = /^(ftp|http|https):\/\/[^ "]+$/;
-      if (!urlPattern.test(this.videoUrl)) {
+      if (!urlPattern.test(url)) {
         this.resultMessage = "L'URL fornito non \xE8 valido.";
         this.isLoading = false;
-        return;
+        this.urlClasses[url] = "error";
       }
-      this.resultMessage = " in elaborazione...";
-      this.http.post("/process_url", { url: this.videoUrl }).subscribe({
+      this.resultMessage = "In elaborazione...";
+      this.http.post("/process_url", { url }).subscribe({
         next: (response) => __async(this, null, function* () {
           console.log("Risposta dal server:", response);
           this.resultMessage = response.message;
           this.isLoading = false;
+          this.urlClasses[url] = "success";
         }),
         error: (error) => __async(this, null, function* () {
           console.error("Errore durante l'invio:", error.message);
           this.resultMessage = error.message;
           this.isLoading = false;
+          this.urlClasses[url] = "error";
         })
       });
     });
@@ -6583,46 +6617,48 @@ var _ImportRecipePage = class _ImportRecipePage {
 _ImportRecipePage.\u0275fac = function ImportRecipePage_Factory(__ngFactoryType__) {
   return new (__ngFactoryType__ || _ImportRecipePage)(\u0275\u0275directiveInject(HttpClient), \u0275\u0275directiveInject(LoadingController));
 };
-_ImportRecipePage.\u0275cmp = /* @__PURE__ */ \u0275\u0275defineComponent({ type: _ImportRecipePage, selectors: [["app-import_recipe"]], standalone: true, features: [\u0275\u0275StandaloneFeature], decls: 25, vars: 5, consts: [[3, "translucent"], [3, "fullscreen"], ["collapse", "condense"], ["size", "large"], ["id", "container"], ["size", "10"], ["lines", "none"], ["type", "text", "fill", "solid", "label", "Video Url", "labelPlacement", "floating", "errorText", "Invalid video url", 3, "ngModelChange", "ngModel"], ["expand", "block", "size", "medium", 3, "click", "disabled"], ["id", "result"]], template: function ImportRecipePage_Template(rf, ctx) {
+_ImportRecipePage.\u0275cmp = /* @__PURE__ */ \u0275\u0275defineComponent({ type: _ImportRecipePage, selectors: [["app-import_recipe"]], standalone: true, features: [\u0275\u0275StandaloneFeature], decls: 19, vars: 5, consts: [[3, "translucent"], [3, "fullscreen"], ["size", "10"], ["placeholder", "inserisci url", 3, "ngModelChange", "ionChange", "ngModel"], ["expand", "block", "size", "medium", 3, "click", "disabled"], [3, "ngClass", 4, "ngFor", "ngForOf"], [3, "ngClass"]], template: function ImportRecipePage_Template(rf, ctx) {
   if (rf & 1) {
     \u0275\u0275elementStart(0, "ion-header", 0)(1, "ion-toolbar")(2, "ion-title");
     \u0275\u0275text(3, " importa ricetta ");
     \u0275\u0275elementEnd()()();
-    \u0275\u0275elementStart(4, "ion-content", 1)(5, "ion-header", 2)(6, "ion-toolbar")(7, "ion-title", 3);
-    \u0275\u0275text(8, "importa ricetta");
-    \u0275\u0275elementEnd()()();
-    \u0275\u0275elementStart(9, "div", 4)(10, "ion-grid")(11, "ion-row");
-    \u0275\u0275element(12, "ion-col");
-    \u0275\u0275elementStart(13, "ion-col", 5)(14, "ion-list")(15, "ion-item", 6)(16, "ion-input", 7);
-    \u0275\u0275twoWayListener("ngModelChange", function ImportRecipePage_Template_ion_input_ngModelChange_16_listener($event) {
+    \u0275\u0275elementStart(4, "ion-content", 1)(5, "ion-grid")(6, "ion-row");
+    \u0275\u0275element(7, "ion-col");
+    \u0275\u0275elementStart(8, "ion-col", 2)(9, "ion-textarea", 3);
+    \u0275\u0275twoWayListener("ngModelChange", function ImportRecipePage_Template_ion_textarea_ngModelChange_9_listener($event) {
       \u0275\u0275twoWayBindingSet(ctx.videoUrl, $event) || (ctx.videoUrl = $event);
       return $event;
     });
+    \u0275\u0275listener("ionChange", function ImportRecipePage_Template_ion_textarea_ionChange_9_listener() {
+      return ctx.extractUrls();
+    });
     \u0275\u0275elementEnd()();
-    \u0275\u0275elementStart(17, "ion-item", 6)(18, "ion-button", 8);
-    \u0275\u0275listener("click", function ImportRecipePage_Template_ion_button_click_18_listener() {
+    \u0275\u0275elementStart(10, "ion-col")(11, "ion-button", 4);
+    \u0275\u0275listener("click", function ImportRecipePage_Template_ion_button_click_11_listener() {
       return ctx.inviaUrl();
     });
-    \u0275\u0275text(19, "Invia");
-    \u0275\u0275elementEnd()()()();
-    \u0275\u0275element(20, "ion-col");
-    \u0275\u0275elementEnd();
-    \u0275\u0275elementStart(21, "ion-row")(22, "ion-col")(23, "div", 9);
-    \u0275\u0275text(24);
-    \u0275\u0275elementEnd()()()()()();
+    \u0275\u0275text(12, "Invia");
+    \u0275\u0275elementEnd()()();
+    \u0275\u0275elementStart(13, "ion-row");
+    \u0275\u0275element(14, "ion-col");
+    \u0275\u0275elementStart(15, "ion-col", 2)(16, "ion-list");
+    \u0275\u0275template(17, ImportRecipePage_ion_item_17_Template, 2, 2, "ion-item", 5);
+    \u0275\u0275elementEnd()();
+    \u0275\u0275element(18, "ion-col");
+    \u0275\u0275elementEnd()()();
   }
   if (rf & 2) {
     \u0275\u0275property("translucent", true);
     \u0275\u0275advance(4);
     \u0275\u0275property("fullscreen", true);
-    \u0275\u0275advance(12);
+    \u0275\u0275advance(5);
     \u0275\u0275twoWayProperty("ngModel", ctx.videoUrl);
     \u0275\u0275advance(2);
     \u0275\u0275property("disabled", ctx.isLoading);
     \u0275\u0275advance(6);
-    \u0275\u0275textInterpolate(ctx.resultMessage);
+    \u0275\u0275property("ngForOf", ctx.urls);
   }
-}, dependencies: [IonButton, IonGrid, IonRow, IonCol, IonList, IonItem, IonInput, IonHeader, IonToolbar, IonTitle, IonContent, FormsModule, NgControlStatus, NgModel] });
+}, dependencies: [IonTextarea, CommonModule, NgClass, NgForOf, IonButton, IonGrid, IonRow, IonCol, IonList, IonItem, IonHeader, IonToolbar, IonTitle, IonContent, FormsModule, NgControlStatus, NgModel], styles: ["\n\n.success[_ngcontent-%COMP%] {\n  --background: green;\n  color: white;\n}\n.error[_ngcontent-%COMP%] {\n  --background: red;\n  color: white;\n}\n.neutral[_ngcontent-%COMP%] {\n  --background: white;\n  color: inherit;\n}\n/*# sourceMappingURL=import_recipe.page.css.map */"] });
 var ImportRecipePage = _ImportRecipePage;
 (() => {
   (typeof ngDevMode === "undefined" || ngDevMode) && \u0275setClassDebugInfo(ImportRecipePage, { className: "ImportRecipePage" });
@@ -6652,4 +6688,4 @@ export {
    * (C) Ionic http://ionicframework.com - MIT License
    *)
 */
-//# sourceMappingURL=import_recipe.page-ZZK5J7OX.js.map
+//# sourceMappingURL=import_recipe.page-KOER25YQ.js.map

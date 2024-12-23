@@ -47,7 +47,7 @@ import {
   ɵɵelementEnd,
   ɵɵelementStart,
   ɵɵinject
-} from "./chunk-ASZ7S43O.js";
+} from "./chunk-CVZKNICT.js";
 import "./chunk-CHE7QSOJ.js";
 import "./chunk-KQEJHESJ.js";
 import "./chunk-PSJYXVUC.js";
@@ -71,7 +71,7 @@ import {
 var routes = [
   {
     path: "",
-    loadChildren: () => import("./tabs.routes-JFUFJESR.js").then((m) => m.routes)
+    loadChildren: () => import("./tabs.routes-4OKHQUAR.js").then((m) => m.routes)
   }
 ];
 
