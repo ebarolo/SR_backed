@@ -33,7 +33,7 @@ import {
   ɵɵtemplate,
   ɵɵtext,
   ɵɵtextInterpolate
-} from "./chunk-ASZ7S43O.js";
+} from "./chunk-CVZKNICT.js";
 import "./chunk-CHE7QSOJ.js";
 import "./chunk-KQEJHESJ.js";
 import "./chunk-PSJYXVUC.js";
@@ -54,11 +54,11 @@ import {
 } from "./chunk-FSIFXKME.js";
 
 // src/app/pages/ricette/ricette.page.ts
-function RicettePage_ion_chip_14_Template(rf, ctx) {
+function RicettePage_ion_chip_10_Template(rf, ctx) {
   if (rf & 1) {
     const _r1 = \u0275\u0275getCurrentView();
-    \u0275\u0275elementStart(0, "ion-chip", 8);
-    \u0275\u0275listener("click", function RicettePage_ion_chip_14_Template_ion_chip_click_0_listener() {
+    \u0275\u0275elementStart(0, "ion-chip", 6);
+    \u0275\u0275listener("click", function RicettePage_ion_chip_10_Template_ion_chip_click_0_listener() {
       const categoria_r2 = \u0275\u0275restoreView(_r1).$implicit;
       const ctx_r2 = \u0275\u0275nextContext();
       return \u0275\u0275resetView(ctx_r2.searchByCat(categoria_r2));
@@ -72,11 +72,11 @@ function RicettePage_ion_chip_14_Template(rf, ctx) {
     \u0275\u0275textInterpolate(categoria_r2);
   }
 }
-function RicettePage_ion_item_16_Template(rf, ctx) {
+function RicettePage_ion_item_12_Template(rf, ctx) {
   if (rf & 1) {
     const _r4 = \u0275\u0275getCurrentView();
-    \u0275\u0275elementStart(0, "ion-item", 9);
-    \u0275\u0275listener("click", function RicettePage_ion_item_16_Template_ion_item_click_0_listener() {
+    \u0275\u0275elementStart(0, "ion-item", 7);
+    \u0275\u0275listener("click", function RicettePage_ion_item_12_Template_ion_item_click_0_listener() {
       const recipe_r5 = \u0275\u0275restoreView(_r4).$implicit;
       const ctx_r2 = \u0275\u0275nextContext();
       return \u0275\u0275resetView(ctx_r2.goToRecipe(recipe_r5));
@@ -96,8 +96,8 @@ var _RicettePage = class _RicettePage {
   constructor(http, router) {
     this.http = http;
     this.router = router;
-    this.responseJson = [{ titolo: "" }];
-    this.recipeFinded = [{ titolo: "" }];
+    this.responseJson = [];
+    this.recipeFinded = [];
     this.categorie = [];
   }
   ngOnInit() {
@@ -157,33 +157,30 @@ var _RicettePage = class _RicettePage {
 _RicettePage.\u0275fac = function RicettePage_Factory(__ngFactoryType__) {
   return new (__ngFactoryType__ || _RicettePage)(\u0275\u0275directiveInject(HttpClient), \u0275\u0275directiveInject(Router));
 };
-_RicettePage.\u0275cmp = /* @__PURE__ */ \u0275\u0275defineComponent({ type: _RicettePage, selectors: [["app-ricette"]], standalone: true, features: [\u0275\u0275StandaloneFeature], decls: 18, vars: 5, consts: [[3, "translucent"], [3, "fullscreen"], ["collapse", "condense"], ["size", "large"], ["size", "10"], ["placeholder", "cerca ricetta", 3, "ionInput", "debounce"], [3, "click", 4, "ngFor", "ngForOf"], [3, "button", "click", 4, "ngFor", "ngForOf"], [3, "click"], [3, "click", "button"]], template: function RicettePage_Template(rf, ctx) {
+_RicettePage.\u0275cmp = /* @__PURE__ */ \u0275\u0275defineComponent({ type: _RicettePage, selectors: [["app-ricette"]], standalone: true, features: [\u0275\u0275StandaloneFeature], decls: 14, vars: 5, consts: [[3, "translucent"], [3, "fullscreen"], ["size", "10"], ["placeholder", "cerca ricetta", 3, "ionInput", "debounce"], [3, "click", 4, "ngFor", "ngForOf"], [3, "button", "click", 4, "ngFor", "ngForOf"], [3, "click"], [3, "click", "button"]], template: function RicettePage_Template(rf, ctx) {
   if (rf & 1) {
     \u0275\u0275elementStart(0, "ion-header", 0)(1, "ion-toolbar")(2, "ion-title");
     \u0275\u0275text(3, "ricette");
     \u0275\u0275elementEnd()()();
-    \u0275\u0275elementStart(4, "ion-content", 1)(5, "ion-header", 2)(6, "ion-toolbar")(7, "ion-title", 3);
-    \u0275\u0275text(8, "ricette");
-    \u0275\u0275elementEnd()()();
-    \u0275\u0275elementStart(9, "ion-grid")(10, "ion-row");
-    \u0275\u0275element(11, "ion-col");
-    \u0275\u0275elementStart(12, "ion-col", 4)(13, "ion-searchbar", 5);
-    \u0275\u0275listener("ionInput", function RicettePage_Template_ion_searchbar_ionInput_13_listener($event) {
+    \u0275\u0275elementStart(4, "ion-content", 1)(5, "ion-grid")(6, "ion-row");
+    \u0275\u0275element(7, "ion-col");
+    \u0275\u0275elementStart(8, "ion-col", 2)(9, "ion-searchbar", 3);
+    \u0275\u0275listener("ionInput", function RicettePage_Template_ion_searchbar_ionInput_9_listener($event) {
       return ctx.searchRecipe($event);
     });
     \u0275\u0275elementEnd();
-    \u0275\u0275template(14, RicettePage_ion_chip_14_Template, 2, 1, "ion-chip", 6);
-    \u0275\u0275elementStart(15, "ion-list");
-    \u0275\u0275template(16, RicettePage_ion_item_16_Template, 3, 2, "ion-item", 7);
+    \u0275\u0275template(10, RicettePage_ion_chip_10_Template, 2, 1, "ion-chip", 4);
+    \u0275\u0275elementStart(11, "ion-list");
+    \u0275\u0275template(12, RicettePage_ion_item_12_Template, 3, 2, "ion-item", 5);
     \u0275\u0275elementEnd()();
-    \u0275\u0275element(17, "ion-col");
+    \u0275\u0275element(13, "ion-col");
     \u0275\u0275elementEnd()()();
   }
   if (rf & 2) {
     \u0275\u0275property("translucent", true);
     \u0275\u0275advance(4);
     \u0275\u0275property("fullscreen", true);
-    \u0275\u0275advance(9);
+    \u0275\u0275advance(5);
     \u0275\u0275property("debounce", 1e3);
     \u0275\u0275advance();
     \u0275\u0275property("ngForOf", ctx.categorie);
@@ -198,4 +195,4 @@ var RicettePage = _RicettePage;
 export {
   RicettePage
 };
-//# sourceMappingURL=ricette.page-3PFOOXLV.js.map
+//# sourceMappingURL=ricette.page-O5DYYQKR.js.map

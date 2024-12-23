@@ -78133,6 +78133,7 @@ export {
   ChangeDetectorRef,
   DOCUMENT2 as DOCUMENT,
   Location,
+  NgClass,
   NgForOf,
   NgIf,
   NgTemplateOutlet,
@@ -78180,9 +78181,14 @@ export {
   IonButtons,
   IonCard,
   IonCardContent,
+  IonCardHeader,
+  IonCardTitle,
   IonChip,
   IonCol,
   IonContent,
+  IonFab,
+  IonFabButton,
+  IonFabList,
   IonFooter,
   IonGrid,
   IonHeader,
@@ -78198,8 +78204,10 @@ export {
   IonToolbar,
   IonTabs2,
   provideIonicAngular,
+  IonIcon,
   IonInput,
-  IonSearchbar
+  IonSearchbar,
+  IonTextarea
 };
 /*! Bundled license information:
 
@@ -78967,4 +78975,4 @@ export {
    * (C) Ionic http://ionicframework.com - MIT License
    *)
 */
-//# sourceMappingURL=chunk-ASZ7S43O.js.map
+//# sourceMappingURL=chunk-CVZKNICT.js.map
