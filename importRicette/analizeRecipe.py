@@ -23,8 +23,12 @@ class Recipe(BaseModel):
   tags:list[str]
   nutritional_info:list[str]
   cuisine_type:str
-
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+  ricetta_audio:str
+  ricetta_caption:str
+  video:str
+  error:str
+  
+OPENAI_API_KEY = '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'
 OpenAIclient = OpenAI(api_key=OPENAI_API_KEY)
 
 # Configurazione del logging
