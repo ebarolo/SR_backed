@@ -11,6 +11,19 @@ from functools import wraps
 from tenacity import retry, stop_after_attempt, wait_exponential
 from openai import OpenAI
 
+class Recipe(BaseModel):
+  recipe_id: str
+  title: str
+  category: list[str]
+  prepration_time: int
+  cooking_time: int
+  ingredients: list[str]
+  prepration_step: list[str]
+  chef_advise: str
+  tags:list[str]
+  nutritional_info:list[str]
+  cuisine_type:str
+
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OpenAIclient = OpenAI(api_key=OPENAI_API_KEY)
 
@@ -161,38 +174,31 @@ async def analyze_recipe_frames(base64Frames):
  
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
 @timeout(90)  # 1 minuto e 30 secondi di timeout
-async def extract_recipe_info(recipe_audio_text: str, recipe_caption_text: str, ingredients: any, actions: any) -> str:
+async def extract_recipe_info(recipe_audio_text: str, recipe_caption_text: str, ingredients: any, actions: any):
 
     user_prompt, system_prompt = read_prompt_files(recipe_audio_text, recipe_caption_text, ingredients, actions, "prompt_user_TXT.txt")
     logger.info(f"user_prompt: {user_prompt}")
     logger.info(f"system_prompt: {system_prompt}")
 
     try:
-        OpenAIresponseTXT = await asyncio.to_thread(
-            OpenAIclient.chat.completions.create,
+      OpenAIresponse = OpenAIclient.beta.chat.completions.parse(
             model="gpt-4o-2024-08-06",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
             ],
-            temperature=1.2
+            response_format=Recipe,
+            temperature=0.9
         )
 
-        try:
-            recipeTXT = OpenAIresponseTXT.choices[0].message.content
-           
-            recipeTXT = re.sub(r',\s*}$', '}', recipeTXT)  # Rimuove l'ultima virgola se presente
-            recipeTXT = re.sub(r'"{2,}', '"', recipeTXT)   # Rimuove eventuali virgolette multiple
-            logger.info(f"recipeTXT: {str(recipeTXT)}")
-            
-        except Exception as e:  
-            logger.error(f"Errore durante OpenAIresponse convert in txt: {str(e)}")
-            raise e
-
+      logger.info(f"OpenAIresponse: {str(OpenAIresponse.choices[0].message.content)}")
+      return OpenAIresponse.choices[0].message.parsed
+  
     except Exception as e:
-        logger.error(f"Errore durante OpenAIresponseTXT: {str(e)}")
-        raise e
+      logger.error(f"Errore durante OpenAIresponse: {str(e)}")
+      raise e
     
+    ''''
     user_prompt, system_prompt = read_prompt_files(recipe_audio_text, recipe_caption_text, ingredients, actions, "prompt_user_JSON.txt")
     logger.info(f"user_prompt: {user_prompt}")
     logger.info(f"system_prompt: {system_prompt}")
@@ -291,17 +297,15 @@ async def extract_recipe_info(recipe_audio_text: str, recipe_caption_text: str, 
       }
     }
   },
-      temperature=1.2,
-      top_p=1,
-      frequency_penalty=0,
-      presence_penalty=0
+      temperature=0.9,
+      
      )
     
      logger.info(f"recipeJSON: {str(OpenAI_JSON.choices[0].message.content)}")
 
      try:
       recipeJSON = json.loads(OpenAI_JSON.choices[0].message.content)
-      return recipeTXT, recipeJSON
+      recipeJSON
      
      except json.JSONDecodeError:
       logger.error(f"OpenAI_JSON JSONDecodeError: {str(json.JSONDecodeError.msg)} at line {str(json.JSONDecodeError.lineno)} column {str(json.JSONDecodeError.colno)}")
@@ -310,5 +314,6 @@ async def extract_recipe_info(recipe_audio_text: str, recipe_caption_text: str, 
     except Exception as e:
      logger.error(f"Errore durante OpenAIresponseJSON: {str(e)}")
      raise e
+     '''
     
     

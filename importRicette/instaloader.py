@@ -2,7 +2,6 @@ import os
 import instaloader
 import logging
 import re
-
 from typing import Dict, Any
 
 BASE_FOLDER = os.path.join(os.getcwd(), "static/preprocess_video")
@@ -14,7 +13,6 @@ logging.basicConfig(
     filename='backend.log'
 )
 logger = logging.getLogger(__name__)
-
 
 ISTA_USERNAME = os.getenv("ISTA_USERNAME")
 ISTA_PASSWORD = os.getenv("ISTA_PASSWORD")

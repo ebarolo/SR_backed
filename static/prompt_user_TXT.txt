@@ -1,22 +1,19 @@
-Analyze the following audio transcript of a recipe. Extract all the information needed for its preparation.
+Analyze the following text: Audio transcript, Caption recipe, Ingredients and Actions of a recipe.
 
 Audio transcript: {recipe_audio}
 Caption recipe: {recipe_caption}
 Ingredients: {ingredients}
 Actions: {actions}
 
-Provide the answer in the following TXT format:
-
-titolo: [Indica il nome della ricetta]
-
-categoria: [Specifica la categoria della ricetta (es. antipasto, primo, dolce, ecc.)]
-
-tempo_di_preparazione: [Specifica il tempo di preparazione degli ingredienti e della ricetta]
-
-tempo_cottura: [Specifica il tempo di cottura]
-
-ingredienti: [Elenca tutti gli ingredienti con le quantità, formattandoli in modo chiaro e dettagliato]
-
-preparazione: [Descrivi i passaggi della preparazione in modo ordinato e numerato, per facilitare la comprensione]
-
-consigli_dello_chef: [Includi eventuali suggerimenti o trucchi per un risultato ottimale]
+Your goal is extract all the information requested for the recipe ands answer with the following the schema provided.
+- recipe_id: 
+- title: Indica il nome della ricetta
+- category: Array  di testo per specificare la categoria della ricetta (es. antipasto, primo, dolce, ecc.)
+- preparation_time: Specifica il tempo di preparazione degli ingredienti e della ricetta in minuti, con solo un numero intero
+- cooking_time: Specifica il tempo di cottura in minuti con un numero intero
+- ingredients: Array  di testo con tutti gli ingredienti con le quantità, formattandoli in modo chiaro e dettagliato
+- prepration_step: Array  di testo descrivendo tutti i passaggi della preparazione in modo ordinato, per facilitare la comprensione
+- chef_advise: Suggerimenti di impiattamento, trucchi per un risultato ottimale, ecc...
+- tags:
+- nutritional_info:
+- cuisine_type: 
