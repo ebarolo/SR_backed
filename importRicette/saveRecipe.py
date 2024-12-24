@@ -16,9 +16,9 @@ from importRicette.utility import sanitize_text, sanitize_filename, sanitize_fol
 from importRicette.analizeRecipe import Recipe, extract_recipe_info
 #from importRicette.rag import saveRecipeInRabitHole
 from importRicette.instaLoader import scarica_contenuto_reel, scarica_contenuti_account
-from RAG.main import initialize_app
+#from RAG.main import initialize_app
 
-qdrant_db_manager = initialize_app()
+#qdrant_db_manager = initialize_app()
 
 os.environ["OPENAI_API_KEY"] = "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"
 
@@ -191,6 +191,7 @@ async def process_video(recipe: str):
        recipesImported.append(ricetta.model_dump())
        raise e
 
+     if(False):
       try: 
        qdrant_db_manager.add_or_update_recipe(ricetta.model_dump())
       except Exception as e:

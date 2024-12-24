@@ -1,9 +1,8 @@
 import logging
-from langchain.embeddings import HuggingFaceEmbeddings
-
+from langchain_community.embeddings import HuggingFaceEmbeddings
 logger = logging.getLogger(__name__)
 
-def load_embedding_model(model_name: str = "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"):
+def load_embedding_model(model_name: str = "sentence-transformers/distiluse-base-multilingual-cased-v2"):
     """
     Carica il modello di embedding da HuggingFace e restituisce un oggetto Embeddings
     compatibile con LangChain.
