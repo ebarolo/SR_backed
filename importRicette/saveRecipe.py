@@ -5,17 +5,16 @@ import subprocess
 import re
 import asyncio
 import yt_dlp
-
+from yt_dlp.utils import DownloadError
 from typing import List, Dict, Any
 from datetime import datetime
 from functools import wraps
-from yt_dlp.utils import DownloadError
 from openai import OpenAI
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from importRicette.utility import sanitize_text, sanitize_filename, sanitize_folder_name
 from importRicette.analizeRecipe import extract_recipe_info
-from importRicette.rag import saveRecipeInRabitHole
+#from importRicette.rag import saveRecipeInRabitHole
 from importRicette.instaLoader import scarica_contenuto_reel, scarica_contenuti_account
 
 BASE_FOLDER = os.path.join(os.getcwd(), "static/ricette")
@@ -23,7 +22,7 @@ BASE_FOLDER = os.path.join(os.getcwd(), "static/ricette")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 if not OPENAI_API_KEY:
-    raise ValueError("La chiave API di OpenAI non è stata impostata. Imposta la variabile d'ambiente OPENAI_API_KEY.")
+ raise ValueError("La chiave API di OpenAI non è stata impostata. Imposta la variabile d'ambiente OPENAI_API_KEY.")
 
 clientOpenAI = OpenAI(api_key=OPENAI_API_KEY)
 
@@ -153,12 +152,12 @@ async def process_video(recipe: str):
                 
         # Estrai informazioni dalla ricetta
         logger.info(f"start extract_recipe_info: {ricetta_audio}")
-        recipeTXT, recipeJSON = await extract_recipe_info(ricetta_audio, captionSanit, [], [])
-        logger.info(f"recipe_info : {recipeJSON['titolo']}")
+        recipe = await extract_recipe_info(ricetta_audio, captionSanit, [], [])
+        logger.info(f"recipe_info : {recipe.title}")
         
-        folderName_new = sanitize_folder_name(recipeJSON['titolo'])
+        folderName_new = sanitize_folder_name(recipe.title)
 
-        text_filename = f"{recipeJSON['titolo']}_originale.txt"
+        text_filename = f"{recipe.title}_originale.txt"
         text_path = os.path.join(video_folder_post, text_filename)
 
         with open(text_path, 'w', encoding='utf-8') as f:
@@ -166,17 +165,17 @@ async def process_video(recipe: str):
             f.write("\n\n")
             f.write(captionSanit)
 
-        json_filename = f"{recipeJSON['titolo']}_elaborata.txt"
-        recipe_info_path = os.path.join(video_folder_post, json_filename)
+        recipe_filename = f"{recipe.title}_elaborata.txt"
+        recipe_info_path = os.path.join(video_folder_post, recipe_filename)
 
         with open(recipe_info_path, 'w', encoding='utf-8') as f:
-            f.write(str(recipeTXT))
+            f.write(str(recipe))
                 
-        recipeJSON['ricetta_audio'] = ricetta_audio
-        recipeJSON['ricetta_caption'] = captionSanit
-        recipeJSON['video'] = os.path.join(BASE_FOLDER, folderName_new, f"{recipeJSON['titolo']}.mp4")
+        recipe.ricetta_audio = ricetta_audio
+        recipe.ricetta_caption = captionSanit
+        recipe.video = os.path.join(BASE_FOLDER, folderName_new, f"{recipe.title}.mp4")
 
-        json_filename = f"{recipeJSON['titolo']}.json"
+        json_filename = f"{recipe.title}.json"
         recipe_info_path = os.path.join(video_folder_post, json_filename)
         #recipeJSONTXT = str(recipeJSON).replace("'", '"')
 
