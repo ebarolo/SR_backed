@@ -35,10 +35,10 @@ async def process_url():
     
     try:
         response = await process_video(request.json['url'])
-        return jsonify({"message": response}), 200
+        return {"message": response}, 200
     except Exception as e:
         logger.error(f"Errore durante il processamento dell'URL: {str(e)}")
-        return jsonify({"message": response}), 500
+        return {"message": response}, 500
 
 @app.route('/getRecipeList', methods=['GET'])
 async def getRecipeList():

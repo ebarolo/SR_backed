@@ -14,15 +14,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-ISTA_USERNAME = os.getenv("ISTA_USERNAME")
-ISTA_PASSWORD = os.getenv("ISTA_PASSWORD")
+#ISTA_USERNAME = os.getenv("ISTA_USERNAME")
+#ISTA_PASSWORD = os.getenv("ISTA_PASSWORD")
 
-logger.info(f"ISTA_USERNAME {ISTA_USERNAME} ISTA_PASSWORD {ISTA_PASSWORD} ")
+#logger.info(f"ISTA_USERNAME {ISTA_USERNAME} ISTA_PASSWORD {ISTA_PASSWORD} ")
 
-if not ISTA_USERNAME:
-    logger.error(f"ISTA_USERNAME non è stata impostata {ISTA_USERNAME} ISTA_PASSWORD {ISTA_PASSWORD} ")
-
-    raise ValueError("ISTA_USERNAME non è stata impostata. Imposta la variabile d'ambiente ISTA_USERNAME")
+#if not ISTA_USERNAME:
+#    logger.error(f"ISTA_USERNAME non è stata impostata {ISTA_USERNAME} ISTA_PASSWORD {ISTA_PASSWORD} ")
+#   raise ValueError("ISTA_USERNAME non è stata impostata. Imposta la variabile d'ambiente ISTA_USERNAME")
 
 def sanitize_folder_name(folder_name: str) -> str:
     return re.sub(r'[<>:"/\\|?*]', '_', folder_name)
@@ -77,7 +76,7 @@ async def scarica_contenuto_reel(url: str) -> Dict[str, Any]:
             "percorso_video": "",
             "caption": ""
         })
-        raise result
+        raise Exception(str(e))
 
 async def scarica_contenuti_account(username: str):
   result = []
@@ -93,7 +92,7 @@ async def scarica_contenuti_account(username: str):
      )
 
     # Login (opzionale, ma consigliato per evitare limitazioni)
-    L.login(ISTA_USERNAME, ISTA_PASSWORD)
+    #L.login(ISTA_USERNAME, ISTA_PASSWORD)
     
     profile = instaloader.Profile.from_username(L.context, username)
        
@@ -117,10 +116,10 @@ async def scarica_contenuti_account(username: str):
   
   except instaloader.exceptions.InstaloaderException as e:
    logger.error(f"Errore specifico di scarica_contenuti_account: {str(e)}")
-  raise result.append({
-            "error": str(e),
-            "titolo": "",
-            "percorso_video": "",
-            "caption": ""
-        })
+  result.append({
+    "error": str(e),
+    "titolo": "",
+    "percorso_video": "",
+    "caption": ""
+})
 

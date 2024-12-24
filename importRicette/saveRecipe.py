@@ -3,6 +3,7 @@ import logging
 import shutil
 import subprocess
 import re
+import json
 import asyncio
 import yt_dlp
 from yt_dlp.utils import DownloadError
@@ -11,16 +12,20 @@ from datetime import datetime
 from functools import wraps
 from openai import OpenAI
 from tenacity import retry, stop_after_attempt, wait_exponential
+from dotenv import load_dotenv
 
 from importRicette.utility import sanitize_text, sanitize_filename, sanitize_folder_name
-from importRicette.analizeRecipe import extract_recipe_info
+from importRicette.analizeRecipe import Recipe, extract_recipe_info
 #from importRicette.rag import saveRecipeInRabitHole
 from importRicette.instaLoader import scarica_contenuto_reel, scarica_contenuti_account
 
+os.environ["OPENAI_API_KEY"] = "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"
+
+#load_dotenv()  # take environment variables from .env.
+
 BASE_FOLDER = os.path.join(os.getcwd(), "static/ricette")
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-
+OPENAI_API_KEY ='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'
 if not OPENAI_API_KEY:
  raise ValueError("La chiave API di OpenAI non è stata impostata. Imposta la variabile d'ambiente OPENAI_API_KEY.")
 
@@ -110,7 +115,7 @@ async def download_video(url: str) -> Dict[str, Any]:
         raise
 
 async def process_video(recipe: str):
-    importedJSON = []
+    recipesImported = []
     urlPattern = r'^(ftp|http|https):\/\/[^ "]+$'
 
     if not re.match(urlPattern, recipe):
@@ -120,7 +125,6 @@ async def process_video(recipe: str):
 
     for dw in dws:
      if len(dw['error']) == 0:
-      recipeJSON = {}
       try:
         logger.info(f"video scaricato: {str(dw)}")
         captionSanit = sanitize_text(dw['caption'])
@@ -152,12 +156,12 @@ async def process_video(recipe: str):
                 
         # Estrai informazioni dalla ricetta
         logger.info(f"start extract_recipe_info: {ricetta_audio}")
-        recipe = await extract_recipe_info(ricetta_audio, captionSanit, [], [])
-        logger.info(f"recipe_info : {recipe.title}")
+        ricetta:Recipe = await extract_recipe_info(ricetta_audio, captionSanit, [], [])
+        logger.info(f"recipe_info : {ricetta.title}")
         
-        folderName_new = sanitize_folder_name(recipe.title)
+        folderName_new = sanitize_folder_name(ricetta.title)
 
-        text_filename = f"{recipe.title}_originale.txt"
+        text_filename = f"{ricetta.title}_originale.txt"
         text_path = os.path.join(video_folder_post, text_filename)
 
         with open(text_path, 'w', encoding='utf-8') as f:
@@ -165,28 +169,22 @@ async def process_video(recipe: str):
             f.write("\n\n")
             f.write(captionSanit)
 
-        recipe_filename = f"{recipe.title}_elaborata.txt"
+        ricetta.ricetta_audio = ricetta_audio
+        ricetta.ricetta_caption = captionSanit
+        ricetta.video = os.path.join(BASE_FOLDER, folderName_new, f"{recipe.title}.mp4")
+        
+        recipe_filename = f"{ricetta.title}_elaborata.txt"
         recipe_info_path = os.path.join(video_folder_post, recipe_filename)
 
         with open(recipe_info_path, 'w', encoding='utf-8') as f:
-            f.write(str(recipe))
-                
-        recipe.ricetta_audio = ricetta_audio
-        recipe.ricetta_caption = captionSanit
-        recipe.video = os.path.join(BASE_FOLDER, folderName_new, f"{recipe.title}.mp4")
-
-        json_filename = f"{recipe.title}.json"
-        recipe_info_path = os.path.join(video_folder_post, json_filename)
-        #recipeJSONTXT = str(recipeJSON).replace("'", '"')
-
-        with open(recipe_info_path, 'w', encoding='utf-8') as f:
-            f.write(str(recipeJSON))
-
-        logger.info(f"end  extract_recipe_info: {recipe_info_path}")
-
-        recipeJSON['error'] = ""
-        logger.info(f"process_video completato per: {recipe}")
-        importedJSON.append(recipeJSON)
+          for key in ricetta.__dict__:
+            value = getattr(ricetta, key)
+            f.write(f"{key}: {value}")
+            f.write("\n\n")
+               
+        ricetta.error = ""
+        logger.info(f"process_video completato per: {ricetta}")
+        recipesImported.append(ricetta.model_dump())
         
         if(False):
          responseRabitHole = saveRecipeInRabitHole(recipeJSON, recipeTXT)
@@ -194,9 +192,9 @@ async def process_video(recipe: str):
          importedJSON.append(recipeJSON) 
         
       except Exception as e:
-       logger.error(f"Errore durante process_video {recipe}: {e}")
-       recipeJSON['error'] = e
-       importedJSON.push(recipeJSON)
-       raise importedJSON
+       logger.error(f"Errore durante process_video {ricetta}: {e}")
+       ricetta.error = e
+       recipesImported.append(ricetta.model_dump())
+       raise e
       
-    return importedJSON
+    return recipesImported
