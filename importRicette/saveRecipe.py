@@ -3,29 +3,24 @@ import logging
 import shutil
 import subprocess
 import re
-import json
 import asyncio
 import yt_dlp
-from yt_dlp.utils import DownloadError
-from typing import List, Dict, Any
+from typing import Dict, Any
 from datetime import datetime
 from functools import wraps
 from openai import OpenAI
 from tenacity import retry, stop_after_attempt, wait_exponential
-from dotenv import load_dotenv
 
 from importRicette.utility import sanitize_text, sanitize_filename, sanitize_folder_name
 from importRicette.analizeRecipe import Recipe, extract_recipe_info
-#from importRicette.rag import saveRecipeInRabitHole
 from importRicette.instaLoader import scarica_contenuto_reel, scarica_contenuti_account
+from RAG.rag import add_document
 
 os.environ["OPENAI_API_KEY"] = "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"
 
-#load_dotenv()  # take environment variables from .env.
-
 BASE_FOLDER = os.path.join(os.getcwd(), "static/ricette")
-
 OPENAI_API_KEY ='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'
+
 if not OPENAI_API_KEY:
  raise ValueError("La chiave API di OpenAI non è stata impostata. Imposta la variabile d'ambiente OPENAI_API_KEY.")
 
@@ -185,14 +180,18 @@ async def process_video(recipe: str):
         ricetta.error = ""
         logger.info(f"process_video completato per: {ricetta}")
         recipesImported.append(ricetta.model_dump())
-        
-        if(False):
-         responseRabitHole = saveRecipeInRabitHole(recipeJSON, recipeTXT)
-         logger.info(f"ricetta memorizza nella memoria dichiarativa del Cheshire Cat {type(responseRabitHole.content)}")
-         importedJSON.append(recipeJSON) 
+
+        if(True):
+         text_for_embedding = f"{ricetta.title}\n{' '.join(ricetta.prepration_step)}\n{' '.join(ricetta.ingredients)}"
+         result = add_document(text_for_embedding, ricetta)
+         logger.info(f"add ricetta VectorDB {result}")
+
+        # responseRabitHole = saveRecipeInRabitHole(recipeJSON, recipeTXT)
+        # logger.info(f"ricetta memorizza nella memoria dichiarativa del Cheshire Cat {type(responseRabitHole.content)}")
+        # importedJSON.append(recipeJSON) 
         
       except Exception as e:
-       logger.error(f"Errore durante process_video {ricetta}: {e}")
+       logger.error(f"Errore durante process_video {ricetta.title} : {e}")
        ricetta.error = e
        recipesImported.append(ricetta.model_dump())
        raise e
