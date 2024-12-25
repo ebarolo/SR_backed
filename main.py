@@ -31,14 +31,21 @@ def serve(path):
 @app.route('/process_url', methods=['POST'])
 async def process_url():
     if 'url' not in request.json:
-        return jsonify({"error": "URL mancante nella richiesta"}), 400
-    
+     return jsonify({"error": "URL mancante nella richiesta"}), 400
     try:
+<<<<<<< HEAD
+     response = await process_video(request.json['url'])
+     return {"message": response}, 200
+    except Exception as e:
+     logger.error(f"Errore durante il processamento dell'URL: {str(e)}")
+     return {"message": response}, 500
+=======
         response = await process_video(request.json['url'])
-        return {"message": response}, 200
+        return jsonify({"message": response}), 200
     except Exception as e:
         logger.error(f"Errore durante il processamento dell'URL: {str(e)}")
-        return {"message": response}, 500
+        return jsonify({"message": response}), 500
+>>>>>>> parent of c106840 (new format for import ricette)
 
 @app.route('/getRecipeList', methods=['GET'])
 async def getRecipeList():
