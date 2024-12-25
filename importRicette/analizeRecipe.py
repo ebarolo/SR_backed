@@ -11,13 +11,17 @@ from functools import wraps
 from tenacity import retry, stop_after_attempt, wait_exponential
 from openai import OpenAI
 
+class ingredient(BaseModel):
+ nome:str
+ qt:int
+   
 class Recipe(BaseModel):
   recipe_id: str
   title: str
   category: list[str]
   prepration_time: int
   cooking_time: int
-  ingredients: list[str]
+  ingredients: ingredient
   prepration_step: list[str]
   chef_advise: str
   tags:list[str]
@@ -158,14 +162,13 @@ async def analyze_recipe_frames(base64Frames):
         ],
     },
   ]
-  logger.info({PROMPT_MESSAGES})
+  #logger.info({PROMPT_MESSAGES})
   params = {
     "model": "gpt-4o-mini",
     "messages": PROMPT_MESSAGES,
     "max_tokens": 700,
    }
 
- 
   result = await asyncio.to_thread(
      OpenAIclient.chat.completions.create(params)
    )
