@@ -3,7 +3,6 @@ import os
 import base64
 import logging
 import asyncio
-import json
 import re
 from pydantic import BaseModel
 
@@ -12,8 +11,9 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from openai import OpenAI
 
 class ingredient(BaseModel):
- nome:str
+ name:str
  qt:int
+ um:str
    
 class Recipe(BaseModel):
   recipe_id: str
@@ -21,20 +21,24 @@ class Recipe(BaseModel):
   category: list[str]
   prepration_time: int
   cooking_time: int
-  ingredients: ingredient
+  ingredients: list[ingredient]
   prepration_step: list[str]
   chef_advise: str
   tags:list[str]
   nutritional_info:list[str]
   cuisine_type:str
-
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+  ricetta_audio:str
+  ricetta_caption:str
+  video:str
+  error:str
+  
+OPENAI_API_KEY = "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"
 OpenAIclient = OpenAI(api_key=OPENAI_API_KEY)
 
 # Configurazione del logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
+    format='%(asctime)s - %(levelname)s - %(pathname)s:%(lineno)d:%(funcName)s - %(message)s',
     filename='backend.log'
 )
 

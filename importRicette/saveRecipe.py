@@ -1,8 +1,8 @@
 import os
 import logging
 import shutil
-import subprocess
 import re
+import subprocess
 import asyncio
 import yt_dlp
 from typing import Dict, Any
@@ -14,12 +14,12 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from importRicette.utility import sanitize_text, sanitize_filename, sanitize_folder_name
 from importRicette.analizeRecipe import Recipe, extract_recipe_info
 from importRicette.instaLoader import scarica_contenuto_reel, scarica_contenuti_account
-from RAG.rag import add_document
 
 os.environ["OPENAI_API_KEY"] = "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"
 
 BASE_FOLDER = os.path.join(os.getcwd(), "static/ricette")
 OPENAI_API_KEY ='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'
+enableRag = True
 
 if not OPENAI_API_KEY:
  raise ValueError("La chiave API di OpenAI non è stata impostata. Imposta la variabile d'ambiente OPENAI_API_KEY.")
@@ -28,9 +28,9 @@ clientOpenAI = OpenAI(api_key=OPENAI_API_KEY)
 
 # Configurazione del logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    filename='backend.log'
+  level=logging.INFO,
+  format='%(asctime)s - %(levelname)s - %(pathname)s:%(lineno)d:%(funcName)s - %(message)s',
+  filename='backend.log'
 )
 
 logger = logging.getLogger(__name__)
@@ -176,22 +176,40 @@ async def process_video(recipe: str):
             value = getattr(ricetta, key)
             f.write(f"{key}: {value}")
             f.write("\n\n")
-               
+
+        recipe_filename = f"{ricetta.title}_embedding.txt"
+        recipe_info_path = os.path.join(video_folder_post, recipe_filename)
+
+        with open(recipe_info_path, 'w', encoding='utf-8') as f:
+         
+         if hasattr(ricetta, 'ingredients'):
+        
+          ingredients_text = ' '.join([f' {str(ing.qt)} {ing.um} {ing.name},' if ing.qt > 0 else f' {ing.um} {ing.name},' for ing in ricetta.ingredients])
+         else:
+          ingredients_text = ''
+         # Poi compongo il testo finale
+         text_for_embedding = f"{ricetta.title}\n{' '.join(ricetta.prepration_step)}\n{ingredients_text}"
+         
+         f.write(text_for_embedding)   
+
         ricetta.error = ""
         logger.info(f"process_video completato per: {ricetta}")
-        recipesImported.append(ricetta.model_dump())
+        recipesImported.append(text_for_embedding, ricetta.model_dump())
 
-        if(True):
-         text_for_embedding = f"{ricetta.title}\n{' '.join(ricetta.prepration_step)}\n{' '.join(ricetta.ingredients)}"
-         result = add_document(text_for_embedding, ricetta)
-         logger.info(f"add ricetta VectorDB {result}")
+        if(enableRag):
+         from RAG.dbQdrant import add_recipe
+
+         logger.info(f"add ricetta to qDrant {ricetta.model_dump()}")
+
+         result = add_recipe(ricetta.model_dump())
+         logger.info(f"added ricetta {result}")
 
         # responseRabitHole = saveRecipeInRabitHole(recipeJSON, recipeTXT)
         # logger.info(f"ricetta memorizza nella memoria dichiarativa del Cheshire Cat {type(responseRabitHole.content)}")
         # importedJSON.append(recipeJSON) 
         
       except Exception as e:
-       logger.error(f"Errore durante process_video {ricetta.title} : {e}")
+       logger.error(f"Errore durante process_video : {e}")
        ricetta.error = e
        recipesImported.append(ricetta.model_dump())
        raise e

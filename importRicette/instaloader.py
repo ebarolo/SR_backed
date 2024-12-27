@@ -9,20 +9,20 @@ BASE_FOLDER = os.path.join(os.getcwd(), "static/preprocess_video")
 # Configurazione del logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
+    format='%(asctime)s - %(levelname)s - %(pathname)s:%(lineno)d:%(funcName)s - %(message)s',
     filename='backend.log'
 )
 logger = logging.getLogger(__name__)
 
-ISTA_USERNAME = os.getenv("ISTA_USERNAME")
-ISTA_PASSWORD = os.getenv("ISTA_PASSWORD")
+#ISTA_USERNAME = os.getenv("ISTA_USERNAME")
+#ISTA_PASSWORD = os.getenv("ISTA_PASSWORD")
 
-logger.info(f"ISTA_USERNAME {ISTA_USERNAME} ISTA_PASSWORD {ISTA_PASSWORD} ")
+#logger.info(f"ISTA_USERNAME {ISTA_USERNAME} ISTA_PASSWORD {ISTA_PASSWORD} ")
 
-if not ISTA_USERNAME:
-    logger.error(f"ISTA_USERNAME non è stata impostata {ISTA_USERNAME} ISTA_PASSWORD {ISTA_PASSWORD} ")
+#if not ISTA_USERNAME:
+#    logger.error(f"ISTA_USERNAME non è stata impostata {ISTA_USERNAME} ISTA_PASSWORD {ISTA_PASSWORD} ")
 
-    raise ValueError("ISTA_USERNAME non è stata impostata. Imposta la variabile d'ambiente ISTA_USERNAME")
+#    raise ValueError("ISTA_USERNAME non è stata impostata. Imposta la variabile d'ambiente ISTA_USERNAME")
 
 def sanitize_folder_name(folder_name: str) -> str:
     return re.sub(r'[<>:"/\\|?*]', '_', folder_name)
@@ -93,7 +93,7 @@ async def scarica_contenuti_account(username: str):
      )
 
     # Login (opzionale, ma consigliato per evitare limitazioni)
-    L.login(ISTA_USERNAME, ISTA_PASSWORD)
+    #L.login(ISTA_USERNAME, ISTA_PASSWORD)
     
     profile = instaloader.Profile.from_username(L.context, username)
        
