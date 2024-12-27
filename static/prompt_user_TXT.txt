@@ -5,13 +5,13 @@ Caption recipe: {recipe_caption}
 Ingredients: {ingredients}
 Actions: {actions}
 
-Your goal is extract all the information requested for the recipe ands answer with the following the schema provided.
-- recipe_id: 
+Your goal is extract all the information requested for the recipe ands answer with the following schema provided.
+- recipe_id:
 - title: Indica il nome della ricetta
 - category: Array  di testo per specificare la categoria della ricetta (es. antipasto, primo, dolce, ecc.)
 - preparation_time: Specifica il tempo di preparazione degli ingredienti e della ricetta in minuti, con solo un numero intero
 - cooking_time: Specifica il tempo di cottura in minuti con un numero intero
-- ingredients: Array di testo che contenga tutti gli ingredienti e le relative quantità,  in modo chiaro e dettagliato
+- ingredients: Array di testo che contenga tutti gli ingredienti e le relative quantità con unità di misura,  in modo chiaro, preciso e dettagliato
 - prepration_step: Array  di testo descrivendo tutti i passaggi della preparazione in modo ordinato, per facilitare la comprensione
 - chef_advise: Suggerimenti di impiattamento, trucchi per un risultato ottimale, ecc...
 - tags:
