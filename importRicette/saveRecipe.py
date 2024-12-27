@@ -14,6 +14,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from importRicette.utility import sanitize_text, sanitize_filename, sanitize_folder_name
 from importRicette.analizeRecipe import Recipe, extract_recipe_info
 from importRicette.instaLoader import scarica_contenuto_reel, scarica_contenuti_account
+from RAG.dbQdrant import add_recipe
 
 os.environ["OPENAI_API_KEY"] = "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"
 
@@ -193,15 +194,14 @@ async def process_video(recipe: str):
          f.write(text_for_embedding)   
 
         ricetta.error = ""
+        recipesImported.append(ricetta.model_dump())
         logger.info(f"process_video completato per: {ricetta}")
-        recipesImported.append(text_for_embedding, ricetta.model_dump())
 
         if(enableRag):
-         from RAG.dbQdrant import add_recipe
 
          logger.info(f"add ricetta to qDrant {ricetta.model_dump()}")
 
-         result = add_recipe(ricetta.model_dump())
+         result = add_recipe(text_for_embedding, ricetta.model_dump())
          logger.info(f"added ricetta {result}")
 
         # responseRabitHole = saveRecipeInRabitHole(recipeJSON, recipeTXT)
