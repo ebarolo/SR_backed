@@ -1,3 +1,6 @@
+import os
+os.environ['OBJC_DISABLE_INITIALIZE_FORK_SAFETY'] = 'YES'
+
 from qdrant_client import QdrantClient, models
 from sentence_transformers import SentenceTransformer, util
 import logging
