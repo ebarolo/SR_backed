@@ -10,17 +10,20 @@ from datetime import datetime
 from functools import wraps
 from openai import OpenAI
 from tenacity import retry, stop_after_attempt, wait_exponential
+import multiprocessing as mp
 
 from importRicette.utility import sanitize_text, sanitize_filename, sanitize_folder_name
 from importRicette.analizeRecipe import Recipe, extract_recipe_info
 from importRicette.instaLoader import scarica_contenuto_reel, scarica_contenuti_account
-from RAG.dbQdrant import add_recipe
+from RAG.dbQdrant import vectorEngine
 
+mp.set_start_method('spawn', force=True)
 os.environ["OPENAI_API_KEY"] = "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"
 
 BASE_FOLDER = os.path.join(os.getcwd(), "static/ricette")
 OPENAI_API_KEY ='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'
 enableRag = True
+collectionName = 'smart_Recipe'
 
 if not OPENAI_API_KEY:
  raise ValueError("La chiave API di OpenAI non è stata impostata. Imposta la variabile d'ambiente OPENAI_API_KEY.")
@@ -36,6 +39,14 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+def is_number(value):
+    """Verifica se il valore è un numero."""
+    try:
+        float(str(value))
+        return True
+    except (ValueError, TypeError):
+        return False
+    
 def create_date_folder() -> str:
     """Crea una cartella con la data odierna se non esiste già."""
     today = datetime.now().strftime("%Y-%m-%d")
@@ -169,14 +180,36 @@ async def process_video(recipe: str):
         ricetta.ricetta_caption = captionSanit
         ricetta.video = os.path.join(BASE_FOLDER, folderName_new, f"{recipe.title}.mp4")
         
-        recipe_filename = f"{ricetta.title}_elaborata.txt"
+        
+        recipe_filename = f"{ricetta.title}_elaborata.tx"
         recipe_info_path = os.path.join(video_folder_post, recipe_filename)
 
         with open(recipe_info_path, 'w', encoding='utf-8') as f:
+            for key in ricetta.__dict__:
+                value = getattr(ricetta, key)
+                f.write(f'{key}: {value}')
+                f.write('\n')
+        
+        '''
+        recipe_filename = f"{ricetta.title}.json"
+        recipe_info_path = os.path.join(video_folder_post, recipe_filename)
+        json_txt = "{"
+        with open(recipe_info_path, 'w', encoding='utf-8') as f:
+          
           for key in ricetta.__dict__:
             value = getattr(ricetta, key)
-            f.write(f"{key}: {value}")
-            f.write("\n\n")
+            json_txt += f'"{key}": "{value}"'
+            json_txt += f",\n"
+          json_txt.rstrip(json_txt[-2])
+          json_txt += "}"
+          json_t = json_txt.replace('"[', '[')
+          json_t = json_txt.replace(']"', ']')
+          json_t = json_txt.replace('\'', '"')
+          
+          jsontxt = str(ricetta.model_dump())
+          jsontxt =jsontxt.replace("'", "\"")
+          f.write(jsontxt)   
+        '''
 
         recipe_filename = f"{ricetta.title}_embedding.txt"
         recipe_info_path = os.path.join(video_folder_post, recipe_filename)
@@ -196,22 +229,47 @@ async def process_video(recipe: str):
         ricetta.error = ""
         recipesImported.append(ricetta.model_dump())
         logger.info(f"process_video completato per: {ricetta}")
+      except Exception as e:
+       logger.error(f"Errore durante process_video : {e}")
+       ricetta.error = e
+       raise e
+      try:
+       if(enableRag):
 
-        if(enableRag):
+         logger.info(f"enableRag for {ricetta.model_dump()}")
 
-         logger.info(f"add ricetta to qDrant {ricetta.model_dump()}")
+         qdrant = vectorEngine(collectionName)
+         ricetta.recipe_id = abs(hash(ricetta.title))
+         logger.info("ricetta id "+str(ricetta.recipe_id))
 
-         result = add_recipe(text_for_embedding, ricetta.model_dump())
-         logger.info(f"added ricetta {result}")
+         if hasattr(ricetta, 'ingredients'):
+            ingredients_text = ' '.join([f'{str(ing.qt)} {ing.um} {ing.name}' if ing.qt > 0 else f'{ing.um} {ing.name}' for ing in ricetta.ingredients]) # Fixed: Access dictionary elements using keys
+            # Removing trailing comma and adding space
+            ingredients_text = ingredients_text.replace(',', '').strip() + ' '
+         else:
+            ingredients_text = ''
+            # Poi compongo il testo finale
+            text_for_embedding = f"{ricetta.title}\n{ingredients_text}\n{' '.join(ricetta.prepration_step)}"
+         logger.info("text_for_embedding \n\n")
+         logger.info(text_for_embedding)
+
+         qdrant = vectorEngine(collectionName)
+
+         resqd = qdrant.add_documents(text_for_embedding=text_for_embedding, meta=ricetta.model_dump())
+         logger.info("resp qdrant "+str(resqd))       
+         
+         recipesImported.append(ricetta.model_dump())
+         logger.info(f"added ricetta")
 
         # responseRabitHole = saveRecipeInRabitHole(recipeJSON, recipeTXT)
         # logger.info(f"ricetta memorizza nella memoria dichiarativa del Cheshire Cat {type(responseRabitHole.content)}")
         # importedJSON.append(recipeJSON) 
         
       except Exception as e:
-       logger.error(f"Errore durante process_video : {e}")
-       ricetta.error = e
-       recipesImported.append(ricetta.model_dump())
-       raise e
-      
+        logger.error (f"Rag err {e}")
+        ricetta.error = e
+        recipesImported.append(ricetta.model_dump())
+
+        raise
+    
     return recipesImported
