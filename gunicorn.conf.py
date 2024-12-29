@@ -18,7 +18,7 @@ max_requests_jitter = 50
 preload_app = True
 
 # Binding
-bind = '127.0.0.1:3040'
+bind = '127.0.0.1:9090'
 
 # Logging
 accesslog = 'access.log'
