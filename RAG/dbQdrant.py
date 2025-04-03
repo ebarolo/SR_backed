@@ -64,12 +64,6 @@ class vectorEngine:
 
             self.qdrant.create_payload_index(
              collection_name=self.collection_name,
-             field_name="ingredients",
-             field_schema=models.PayloadSchemaType.KEYWORD
-            )
-
-            self.qdrant.create_payload_index(
-             collection_name=self.collection_name,
              field_name="prepration_time",
              field_schema=models.PayloadSchemaType.INTEGER
             )
@@ -82,8 +76,8 @@ class vectorEngine:
             # Indici per gli ingredienti
             self.qdrant.create_payload_index(
               collection_name=self.collection_name,
-              field_name="ingredients.name",
-              field_schema=models.PayloadSchemaType.KEYWORD
+              field_name="ingredients_text",
+              field_schema=models.PayloadSchemaType.TEXT
             )
 
     def add_documents(self, text_for_embedding, meta):
@@ -96,7 +90,7 @@ class vectorEngine:
 
         try:
          embedding = self.embedder.encode(text_for_embedding, device='cpu')
-         print(embedding.tolist())
+         #print(embedding.tolist())
 
          result= self.qdrant.upsert(
           collection_name=self.collection_name,
@@ -157,8 +151,8 @@ class vectorEngine:
                             match=models.MatchValue(value=valore)
                         )
                     )
-        print("filter codition")
-        print(filter_conditions)
+        #print("filter codition")
+        #print(filter_conditions)
 
         if filter_conditions:
          search_filters = models.Filter(

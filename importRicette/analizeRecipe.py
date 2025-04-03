@@ -4,33 +4,13 @@ import base64
 import logging
 import asyncio
 import re
-from pydantic import BaseModel
 
 from functools import wraps
 from tenacity import retry, stop_after_attempt, wait_exponential
 from openai import OpenAI
 
-class ingredient(BaseModel):
- name:str
- qt:int
- um:str
-   
-class Recipe(BaseModel):
-  recipe_id: str
-  title: str
-  category: list[str]
-  prepration_time: int
-  cooking_time: int
-  ingredients: list[ingredient]
-  prepration_step: list[str]
-  chef_advise: str
-  tags:list[str]
-  nutritional_info:list[str]
-  cuisine_type:str
-  ricetta_audio:str
-  ricetta_caption:str
-  video:str
-  error:str
+from models import recipe
+
   
 OPENAI_API_KEY = "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"
 OpenAIclient = OpenAI(api_key=OPENAI_API_KEY)
@@ -181,7 +161,7 @@ async def analyze_recipe_frames(base64Frames):
  
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
 @timeout(90)  # 1 minuto e 30 secondi di timeout
-async def extract_recipe_info(recipe_audio_text: str, recipe_caption_text: str, ingredients: any, actions: any):
+async def extract_recipe_info(recipe_audio_text: str, recipe_caption_text: str, ingredients: any, actions: any) -> recipe:
 
     user_prompt, system_prompt = read_prompt_files(recipe_audio_text, recipe_caption_text, ingredients, actions, "prompt_user_TXT.txt")
     logger.info(f"user_prompt: {user_prompt}")
@@ -194,7 +174,7 @@ async def extract_recipe_info(recipe_audio_text: str, recipe_caption_text: str, 
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
             ],
-            response_format=Recipe,
+            response_format=recipe,
             temperature=0.9
         )
 
@@ -203,7 +183,7 @@ async def extract_recipe_info(recipe_audio_text: str, recipe_caption_text: str, 
   
     except Exception as e:
       logger.error(f"Errore durante OpenAIresponse: {str(e)}")
-      raise e
+      raise
     
     ''''
     user_prompt, system_prompt = read_prompt_files(recipe_audio_text, recipe_caption_text, ingredients, actions, "prompt_user_JSON.txt")

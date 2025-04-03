@@ -1,8 +1,9 @@
 import os
 import instaloader
 import logging
-import re
 from typing import Dict, Any
+
+from utility import sanitize_text, sanitize_filename, sanitize_folder_name
 
 BASE_FOLDER = os.path.join(os.getcwd(), "static/preprocess_video")
 
@@ -12,6 +13,7 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(pathname)s:%(lineno)d:%(funcName)s - %(message)s',
     filename='backend.log'
 )
+
 logger = logging.getLogger(__name__)
 
 #ISTA_USERNAME = os.getenv("ISTA_USERNAME")
@@ -24,15 +26,6 @@ logger = logging.getLogger(__name__)
 
 #    raise ValueError("ISTA_USERNAME non è stata impostata. Imposta la variabile d'ambiente ISTA_USERNAME")
 
-def sanitize_folder_name(folder_name: str) -> str:
-    return re.sub(r'[<>:"/\\|?*]', '_', folder_name)
-
-def create_safe_folder_name(title):
-    short_title = title.split('\r')[0]
-    safe_title = re.sub(r'[^\w\s-]', '', short_title)
-    safe_title = safe_title.strip()[:50]
-    safe_title = safe_title.replace(' ', '_')
-    return safe_title
 
 async def scarica_contenuto_reel(url: str) -> Dict[str, Any]:
     result = []
@@ -52,7 +45,7 @@ async def scarica_contenuto_reel(url: str) -> Dict[str, Any]:
         shortcode = url.split("/")[-2]
         post = instaloader.Post.from_shortcode(L.context, shortcode)
         
-        account_name = create_safe_folder_name(post.owner_username)
+        account_name = sanitize_folder_name(post.owner_username)
         folder_path = os.path.join("", f"{account_name}")
 
         os.makedirs(folder_path, exist_ok=True)
@@ -60,7 +53,7 @@ async def scarica_contenuto_reel(url: str) -> Dict[str, Any]:
             
         res = {
             "error": "",
-            "titolo": create_safe_folder_name(post.caption.split('\n')[0] if post.caption else str(post.mediaid)),
+            "titolo": sanitize_folder_name(post.caption.split('\n')[0] if post.caption else str(post.mediaid)),
             "percorso_video": folder_path,
             "caption": post.caption if post.caption else ""
         }
@@ -97,7 +90,7 @@ async def scarica_contenuti_account(username: str):
     
     profile = instaloader.Profile.from_username(L.context, username)
        
-    account_name = create_safe_folder_name(profile.username)
+    account_name = sanitize_folder_name(profile.username)
     folder_path = os.path.join("", f"{account_name}")
     os.makedirs(folder_path, exist_ok=True)
         
@@ -107,7 +100,7 @@ async def scarica_contenuti_account(username: str):
 
          res = {
           "error": "",
-          "titolo": create_safe_folder_name(post.caption.split('\n')[0] if post.caption else str(post.mediaid)),
+          "titolo": sanitize_folder_name(post.caption.split('\n')[0] if post.caption else str(post.mediaid)),
           "percorso_video": folder_path,
           "caption": post.caption if post.caption else ""
          }

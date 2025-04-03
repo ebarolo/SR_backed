@@ -5,25 +5,26 @@ import re
 import subprocess
 import asyncio
 import yt_dlp
+import multiprocessing as mp
+
 from typing import Dict, Any
-from datetime import datetime
 from functools import wraps
 from openai import OpenAI
 from tenacity import retry, stop_after_attempt, wait_exponential
-import multiprocessing as mp
 
-from importRicette.utility import sanitize_text, sanitize_filename, sanitize_folder_name
+from utility import sanitize_text, sanitize_filename, sanitize_folder_name, rename_files, rename_folder
 from importRicette.analizeRecipe import Recipe, extract_recipe_info
 from importRicette.instaLoader import scarica_contenuto_reel, scarica_contenuti_account
-from RAG.dbQdrant import vectorEngine
+#from RAG.dbQdrant import vectorEngine
+#from RAG.lamaIndex import vectorEngine
 
 mp.set_start_method('spawn', force=True)
 os.environ["OPENAI_API_KEY"] = "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"
 
 BASE_FOLDER = os.path.join(os.getcwd(), "static/ricette")
 OPENAI_API_KEY ='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'
-enableRag = True
-collectionName = 'smart_Recipe'
+
+enableRag = False
 
 if not OPENAI_API_KEY:
  raise ValueError("La chiave API di OpenAI non è stata impostata. Imposta la variabile d'ambiente OPENAI_API_KEY.")
@@ -38,30 +39,6 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
-
-def is_number(value):
-    """Verifica se il valore è un numero."""
-    try:
-        float(str(value))
-        return True
-    except (ValueError, TypeError):
-        return False
-    
-def create_date_folder() -> str:
-    """Crea una cartella con la data odierna se non esiste già."""
-    today = datetime.now().strftime("%Y-%m-%d")
-    date_folder = os.path.join(BASE_FOLDER, today)
-    os.makedirs(date_folder, exist_ok=True)
-    return date_folder
-
-def rename_file(video_folder,file_name:str):
-     # Rinominare tutti i file nella cartella video_folder_new mantenendo l'estensione originale
-    for filename in os.listdir(video_folder):
-        old_file_path = os.path.join(video_folder, filename)
-        name, ext = os.path.splitext(filename)  # Separare nome ed estensione
-        new_file_path = os.path.join(video_folder, f"{file_name}{ext}")
-        os.rename(old_file_path, new_file_path)
-    return ""
 
 def timeout(seconds):
     def decorator(func):
@@ -136,7 +113,7 @@ async def process_video(recipe: str):
         logger.info(f"video scaricato: {str(dw)}")
         captionSanit = sanitize_text(dw['caption'])
         titleSanit = sanitize_text(dw['titolo'])
-        rename_file(dw['percorso_video'], titleSanit)
+        rename_files(dw['percorso_video'], titleSanit)
 
         video_folder_pre = os.path.join(os.getcwd(), dw['percorso_video'])
         video_folder_post = os.path.join(BASE_FOLDER, titleSanit)
@@ -163,13 +140,15 @@ async def process_video(recipe: str):
                 
         # Estrai informazioni dalla ricetta
         logger.info(f"start extract_recipe_info: {ricetta_audio}")
-        ricetta:Recipe = await extract_recipe_info(ricetta_audio, captionSanit, [], [])
+        ricetta = await extract_recipe_info(ricetta_audio, captionSanit, [], [])
         logger.info(f"recipe_info : {ricetta.title}")
         
-        folderName_new = sanitize_folder_name(ricetta.title)
+        recipeNameSanit = sanitize_folder_name(ricetta.title)
+        recipe_folder = os.path.join(BASE_FOLDER, recipeNameSanit)
 
-        text_filename = f"{ricetta.title}_originale.txt"
-        text_path = os.path.join(video_folder_post, text_filename)
+        re_folder = rename_folder(video_folder_post,recipe_folder)
+        text_filename = f"{recipeNameSanit}_originale.txt"
+        text_path = os.path.join(recipe_folder, text_filename)
 
         with open(text_path, 'w', encoding='utf-8') as f:
             f.write(ricetta_audio)
@@ -178,11 +157,10 @@ async def process_video(recipe: str):
 
         ricetta.ricetta_audio = ricetta_audio
         ricetta.ricetta_caption = captionSanit
-        ricetta.video = os.path.join(BASE_FOLDER, folderName_new, f"{recipe.title}.mp4")
+        ricetta.video = os.path.join(BASE_FOLDER, recipeNameSanit, f"{recipe.title}.mp4")
         
-        
-        recipe_filename = f"{ricetta.title}_elaborata.tx"
-        recipe_info_path = os.path.join(video_folder_post, recipe_filename)
+        recipe_filename = f"{recipeNameSanit}_elaborata.tx"
+        recipe_info_path = os.path.join(recipe_folder, recipe_filename)
 
         with open(recipe_info_path, 'w', encoding='utf-8') as f:
             for key in ricetta.__dict__:
@@ -210,8 +188,8 @@ async def process_video(recipe: str):
           jsontxt =jsontxt.replace("'", "\"")
           f.write(jsontxt)   
         '''
-
-        recipe_filename = f"{ricetta.title}_embedding.txt"
+        '''
+        recipe_filename = f"{recipeNameSanit}_embedding.txt"
         recipe_info_path = os.path.join(video_folder_post, recipe_filename)
 
         with open(recipe_info_path, 'w', encoding='utf-8') as f:
@@ -225,6 +203,7 @@ async def process_video(recipe: str):
          text_for_embedding = f"{ricetta.title}\n{' '.join(ricetta.prepration_step)}\n{ingredients_text}"
          
          f.write(text_for_embedding)   
+        '''
 
         ricetta.error = ""
         recipesImported.append(ricetta.model_dump())
@@ -233,30 +212,17 @@ async def process_video(recipe: str):
        logger.error(f"Errore durante process_video : {e}")
        ricetta.error = e
        raise e
-      try:
-       if(enableRag):
 
+      if(enableRag):
+       try:
          logger.info(f"enableRag for {ricetta.model_dump()}")
 
-         qdrant = vectorEngine(collectionName)
+         vEngine = vectorEngine()
          ricetta.recipe_id = abs(hash(ricetta.title))
          logger.info("ricetta id "+str(ricetta.recipe_id))
 
-         if hasattr(ricetta, 'ingredients'):
-            ingredients_text = ' '.join([f'{str(ing.qt)} {ing.um} {ing.name}' if ing.qt > 0 else f'{ing.um} {ing.name}' for ing in ricetta.ingredients]) # Fixed: Access dictionary elements using keys
-            # Removing trailing comma and adding space
-            ingredients_text = ingredients_text.replace(',', '').strip() + ' '
-         else:
-            ingredients_text = ''
-            # Poi compongo il testo finale
-            text_for_embedding = f"{ricetta.title}\n{ingredients_text}\n{' '.join(ricetta.prepration_step)}"
-         logger.info("text_for_embedding \n\n")
-         logger.info(text_for_embedding)
-
-         qdrant = vectorEngine(collectionName)
-
-         resqd = qdrant.add_documents(text_for_embedding=text_for_embedding, meta=ricetta.model_dump())
-         logger.info("resp qdrant "+str(resqd))       
+         respvEngine = vEngine.add_documents(ricetta)
+         logger.info("resp qdrant "+str(respvEngine))       
          
          recipesImported.append(ricetta.model_dump())
          logger.info(f"added ricetta")
@@ -265,7 +231,7 @@ async def process_video(recipe: str):
         # logger.info(f"ricetta memorizza nella memoria dichiarativa del Cheshire Cat {type(responseRabitHole.content)}")
         # importedJSON.append(recipeJSON) 
         
-      except Exception as e:
+       except Exception as e:
         logger.error (f"Rag err {e}")
         ricetta.error = e
         recipesImported.append(ricetta.model_dump())
