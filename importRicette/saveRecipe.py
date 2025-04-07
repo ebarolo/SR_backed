@@ -4,17 +4,17 @@ import shutil
 import re
 import subprocess
 import asyncio
-import yt_dlp
 import multiprocessing as mp
-
 from typing import Dict, Any
 from functools import wraps
 from openai import OpenAI
 from tenacity import retry, stop_after_attempt, wait_exponential
+import yt_dlp
 
 from utility import sanitize_text, sanitize_filename, sanitize_folder_name, rename_files, rename_folder
-from importRicette.analizeRecipe import Recipe, extract_recipe_info
-from importRicette.instaLoader import scarica_contenuto_reel, scarica_contenuti_account
+from importRicette.analizeRecipe import extract_recipe_info
+from models import recipe
+from importRicette.instaloader import scarica_contenuto_reel, scarica_contenuti_account
 #from RAG.dbQdrant import vectorEngine
 #from RAG.lamaIndex import vectorEngine
 
@@ -157,7 +157,7 @@ async def process_video(recipe: str):
 
         ricetta.ricetta_audio = ricetta_audio
         ricetta.ricetta_caption = captionSanit
-        ricetta.video = os.path.join(BASE_FOLDER, recipeNameSanit, f"{recipe.title}.mp4")
+        ricetta.video = os.path.join(BASE_FOLDER, recipeNameSanit, f"{ricetta.title}.mp4")
         
         recipe_filename = f"{recipeNameSanit}_elaborata.tx"
         recipe_info_path = os.path.join(recipe_folder, recipe_filename)
@@ -210,19 +210,19 @@ async def process_video(recipe: str):
         logger.info(f"process_video completato per: {ricetta}")
       except Exception as e:
        logger.error(f"Errore durante process_video : {e}")
-       ricetta.error = e
+       ricetta.error = str(e)
        raise e
 
       if(enableRag):
        try:
          logger.info(f"enableRag for {ricetta.model_dump()}")
 
-         vEngine = vectorEngine()
+         #vEngine = vectorEngine()
          ricetta.recipe_id = abs(hash(ricetta.title))
          logger.info("ricetta id "+str(ricetta.recipe_id))
 
-         respvEngine = vEngine.add_documents(ricetta)
-         logger.info("resp qdrant "+str(respvEngine))       
+         #respvEngine = vEngine.add_documents(ricetta)
+         #logger.info("resp qdrant "+str(respvEngine))       
          
          recipesImported.append(ricetta.model_dump())
          logger.info(f"added ricetta")
@@ -233,7 +233,7 @@ async def process_video(recipe: str):
         
        except Exception as e:
         logger.error (f"Rag err {e}")
-        ricetta.error = e
+        ricetta.error = str(e)
         recipesImported.append(ricetta.model_dump())
 
         raise

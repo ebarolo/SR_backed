@@ -8,6 +8,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 import uvicorn
 from functools import lru_cache
+import logging
 
 # Import per integrazione con Qdrant e NLP
 from qdrant_client import QdrantClient, models as qmodels
@@ -21,7 +22,16 @@ from importRicette.saveRecipe import process_video
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./recipes.db")
 QDRANT_URL = os.getenv("QDRANT_URL", "https://cd762cc1-d29b-42aa-8fa4-660b5c79871f.europe-west3-0.gcp.cloud.qdrant.io:6333")
 QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "smart-recipe")
-QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")  
+QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.TI1jEYFRxKghin8baG_wtBiK-imMFOf98rOEejelcUI")  
+
+# Configurazione del logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(pathname)s:%(lineno)d:%(funcName)s - %(message)s',
+    filename='backend.log'
+)
+
+logger = logging.getLogger(__name__)
 
 # -------------------------------
 # Configurazione Database
@@ -171,10 +181,21 @@ def parse_ingredients(ingredients_str: str) -> List[str]:
 @app.post("/recipes/", response_model=RecipeResponse, status_code=status.HTTP_201_CREATED)
 async def create_recipe(video: VideoURL, db: Session = Depends(get_db)):
     try:
-        # Valida l'URL prima di processare il video
+        # Check for Instagram credentials if it's an Instagram URL
         url = str(video.url)
-        recipe_data = await process_video(url)
+        if 'instagram.com' in url:
+            #instagram_username = os.getenv("ISTA_USERNAME")
+            #instagram_password = os.getenv("ISTA_PASSWORD")
+            #if not instagram_username or not instagram_password:
+                #raise HTTPException(
+                #    status_code=status.HTTP_400_BAD_REQUEST, 
+                #    detail="Instagram credentials not configured. Set ISTA_USERNAME and ISTA_PASSWORD environment variables."
+                #)
         
+         # Valida l'URL prima di processare il video
+         recipe_data = await process_video(url)
+         logger.info(f" {recipe_data}")
+
         if not recipe_data or len(recipe_data) == 0:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, 
@@ -185,7 +206,8 @@ async def create_recipe(video: VideoURL, db: Session = Depends(get_db)):
         
         # Converti la lista degli ingredienti in una stringa
         ingredients_str = ", ".join([f"{ing['qt']} {ing['um']} {ing['name']}" for ing in recipe.get("ingredients", [])])
-        
+        logger.info(f"ingredients_str {ingredients_str}")
+
         db_recipe = Recipe(
             title=recipe.get("title", ""),
             description=recipe.get("description", ""),
@@ -203,6 +225,8 @@ async def create_recipe(video: VideoURL, db: Session = Depends(get_db)):
             cuisine_type=recipe.get("cuisine_type", "")
         )
         
+        logger.info(f"db_recipe {db_recipe}")
+
         db.add(db_recipe)
         db.commit()
         db.refresh(db_recipe)
@@ -210,6 +234,9 @@ async def create_recipe(video: VideoURL, db: Session = Depends(get_db)):
         # Genera l'embedding dalla descrizione della ricetta
         model = get_embedding_model()
         text_for_embedding = f"{db_recipe.title} {db_recipe.description} {db_recipe.ingredients}"
+
+        logger.info(f"text_for_embedding {text_for_embedding}")
+
         embedding = model.encode(text_for_embedding).tolist()
         
         # Inserisci l'embedding in Qdrant con un payload per il filtraggio
@@ -253,11 +280,14 @@ async def create_recipe(video: VideoURL, db: Session = Depends(get_db)):
             cuisine_type=db_recipe.cuisine_type
         )
     except ValueError as ve:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(ve))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail=f"{str(ve)}"
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-            detail=f"Errore durante la creazione della ricetta: {str(e)}"
+            detail=f"{str(e)}"
         )
 
 @app.get("/recipes/{recipe_id}", response_model=RecipeResponse)
