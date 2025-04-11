@@ -122,11 +122,16 @@ async def process_video(recipe: str):
            shutil.copytree(video_folder_pre, video_folder_post, dirs_exist_ok=True) 
            shutil.rmtree(video_folder_pre)
 
-        audio_filename = f"{os.path.splitext(os.path.basename(video_folder_post))[0]}.mp3"
-        audio_path = os.path.join(video_folder_post, audio_filename)
-                
-        video = f"{os.path.splitext(os.path.basename(video_folder_post))[0]}.mp4"
+        # Cerca il file video nella cartella
+        video_files = [f for f in os.listdir(video_folder_post) if f.endswith('.mp4')]
+        if not video_files:
+            raise FileNotFoundError(f"Nessun file video trovato in {video_folder_post}")
+            
+        video = video_files[0]  # Prendi il primo file video trovato
         v_path = os.path.join(video_folder_post, video)
+        
+        audio_filename = f"{os.path.splitext(video)[0]}.mp3"
+        audio_path = os.path.join(video_folder_post, audio_filename)
 
         logger.info(f"estrazione audio da video: {v_path}")
         await asyncio.to_thread(subprocess.run, [
