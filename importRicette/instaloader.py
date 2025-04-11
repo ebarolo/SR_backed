@@ -114,7 +114,8 @@ async def scarica_contenuti_account(username: str):
             download_geotags=False,
             download_comments=False,
             save_metadata=True,
-            compress_json=False
+            compress_json=False,
+            sanitize_paths=True
         )
 
         # Try to login if credentials are available
