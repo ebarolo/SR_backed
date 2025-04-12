@@ -1,24 +1,28 @@
 from pydantic import BaseModel
+from typing import List, Optional
 
-class ingredient(BaseModel):
- name:str
- qt:int
- um:str
-   
-class recipe(BaseModel):
-  recipe_id: str
-  title: str
-  category: list[str]
-  prepration_time: int
-  cooking_time: int
-  ingredients: list[ingredient]
-  prepration_step: list[str]
-  chef_advise: str
-  tags:list[str]
-  nutritional_info:list[str]
-  cuisine_type:str
-  ricetta_audio:str
-  ricetta_caption:str
-  ingredients_text:str
-  video:str
-  error:str
+class Ingredient(BaseModel):
+    name: str
+    qt: float
+    um: str
+
+class RecipeSchema(BaseModel):
+    title: str
+    category: List[str]
+    preparation_time: Optional[int]
+    cooking_time: Optional[int]
+    ingredients: List[Ingredient]
+    recipe_step: List[str]
+    description: str
+    diet: Optional[str]
+    technique: Optional[str] 
+    language: str
+    chef_advise: Optional[str]
+    tags: Optional[List[str]]
+    nutritional_info: Optional[List[str]] 
+    cuisine_type: Optional[str] 
+    ricetta_audio: Optional[str]
+    ricetta_caption: Optional[str] 
+    ingredients_text: Optional[str] 
+    video_path: Optional[str]
+ 
