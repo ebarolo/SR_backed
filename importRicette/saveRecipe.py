@@ -5,6 +5,7 @@ import re
 import subprocess
 import asyncio
 import multiprocessing as mp
+import traceback
 from typing import Dict, Any
 from functools import wraps
 from openai import OpenAI
@@ -13,10 +14,8 @@ import yt_dlp
 
 from utility import sanitize_text, sanitize_filename, sanitize_folder_name, rename_files, rename_folder
 from importRicette.analizeRecipe import extract_recipe_info
-from models import recipe
 from importRicette.instaloader import scarica_contenuto_reel, scarica_contenuti_account
-#from RAG.dbQdrant import vectorEngine
-#from RAG.lamaIndex import vectorEngine
+
 
 mp.set_start_method('spawn', force=True)
 os.environ["OPENAI_API_KEY"] = "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"
@@ -40,6 +39,14 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+def get_error_context():
+    """Get the current file, line number and function name where the error occurred"""
+    stack = traceback.extract_stack()
+    if len(stack) > 1:
+        frame = stack[-2]
+        return f"File: {frame.filename}, Line: {frame.lineno}, Function: {frame.name}"
+    return ""
+
 def timeout(seconds):
     def decorator(func):
         @wraps(func)
@@ -47,7 +54,8 @@ def timeout(seconds):
             try:
                 return await asyncio.wait_for(func(*args, **kwargs), timeout=seconds)
             except asyncio.TimeoutError:
-                logger.error(f"Timeout dopo {seconds} secondi nella funzione {func.__name__}")
+                error_context = get_error_context()
+                logger.error(f"Timeout dopo {seconds} secondi nella funzione {func.__name__} - {error_context}")
                 raise
         return wrapper
     return decorator
@@ -65,10 +73,12 @@ async def whisper_speech_recognition(audio_file_path: str, language: str) -> str
             )
         return transcription.text
     except FileNotFoundError:
-        logger.error(f"Errore: Il file audio '{audio_file_path}' non è stato trovato.")
+        error_context = get_error_context()
+        logger.error(f"Errore: Il file audio '{audio_file_path}' non è stato trovato. - {error_context}")
         raise
     except Exception as e:
-        logger.error(f"Errore durante il riconoscimento vocale: {str(e)}")
+        error_context = get_error_context()
+        logger.error(f"Errore durante il riconoscimento vocale: {str(e)} - {error_context}")
         raise
    
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
@@ -88,14 +98,17 @@ async def download_video(url: str) -> Dict[str, Any]:
             video_filename = ydl.prepare_filename(info)
         return {"video_title": video_title, "video_filename": video_filename}
     except yt_dlp.utils.DownloadError as e:
-        logger.error(f"Errore nel download del video {url}: {e}")
+        error_context = get_error_context()
+        logger.error(f"Errore nel download del video {url}: {e} - {error_context}")
         raise
     except KeyError as ke:
+        error_context = get_error_context()
         if 'config' in str(ke):
-            logger.error(f"Errore di configurazione durante l'estrazione: {ke}")
+            logger.error(f"Errore di configurazione durante l'estrazione: {ke} - {error_context}")
         raise
     except Exception as e:
-        logger.error(f"Errore imprevisto durante il download del video {url}: {e}")
+        error_context = get_error_context()
+        logger.error(f"Errore imprevisto durante il download del video {url}: {e} - {error_context}")
         raise
 
 async def process_video(recipe: str):
@@ -151,9 +164,9 @@ async def process_video(recipe: str):
         recipeNameSanit = sanitize_folder_name(ricetta.title)
         recipe_folder = os.path.join(BASE_FOLDER, recipeNameSanit)
 
-        re_folder = rename_folder(video_folder_post,recipe_folder)
+        re_folder = rename_folder(video_folder_post, recipe_folder)
         text_filename = f"{recipeNameSanit}_originale.txt"
-        text_path = os.path.join(recipe_folder, text_filename)
+        text_path = os.path.join(re_folder, text_filename)
 
         with open(text_path, 'w', encoding='utf-8') as f:
             f.write(ricetta_audio)
@@ -162,85 +175,21 @@ async def process_video(recipe: str):
 
         ricetta.ricetta_audio = ricetta_audio
         ricetta.ricetta_caption = captionSanit
-        ricetta.video = os.path.join(BASE_FOLDER, recipeNameSanit, f"{ricetta.title}.mp4")
+        ricetta.video_path = os.path.join(re_folder, f"{ricetta.title}.mp4")
         
         recipe_filename = f"{recipeNameSanit}_elaborata.tx"
-        recipe_info_path = os.path.join(recipe_folder, recipe_filename)
+        recipe_info_path = os.path.join(re_folder, recipe_filename)
 
         with open(recipe_info_path, 'w', encoding='utf-8') as f:
             for key in ricetta.__dict__:
                 value = getattr(ricetta, key)
                 f.write(f'{key}: {value}')
                 f.write('\n')
-        
-        '''
-        recipe_filename = f"{ricetta.title}.json"
-        recipe_info_path = os.path.join(video_folder_post, recipe_filename)
-        json_txt = "{"
-        with open(recipe_info_path, 'w', encoding='utf-8') as f:
-          
-          for key in ricetta.__dict__:
-            value = getattr(ricetta, key)
-            json_txt += f'"{key}": "{value}"'
-            json_txt += f",\n"
-          json_txt.rstrip(json_txt[-2])
-          json_txt += "}"
-          json_t = json_txt.replace('"[', '[')
-          json_t = json_txt.replace(']"', ']')
-          json_t = json_txt.replace('\'', '"')
-          
-          jsontxt = str(ricetta.model_dump())
-          jsontxt =jsontxt.replace("'", "\"")
-          f.write(jsontxt)   
-        '''
-        '''
-        recipe_filename = f"{recipeNameSanit}_embedding.txt"
-        recipe_info_path = os.path.join(video_folder_post, recipe_filename)
-
-        with open(recipe_info_path, 'w', encoding='utf-8') as f:
-         
-         if hasattr(ricetta, 'ingredients'):
-        
-          ingredients_text = ' '.join([f' {str(ing.qt)} {ing.um} {ing.name},' if ing.qt > 0 else f' {ing.um} {ing.name},' for ing in ricetta.ingredients])
-         else:
-          ingredients_text = ''
-         # Poi compongo il testo finale
-         text_for_embedding = f"{ricetta.title}\n{' '.join(ricetta.prepration_step)}\n{ingredients_text}"
-         
-         f.write(text_for_embedding)   
-        '''
-
-        ricetta.error = ""
+    
         recipesImported.append(ricetta.model_dump())
         logger.info(f"process_video completato per: {ricetta}")
       except Exception as e:
        logger.error(f"Errore durante process_video : {e}")
-       ricetta.error = str(e)
        raise e
 
-      if(enableRag):
-       try:
-         logger.info(f"enableRag for {ricetta.model_dump()}")
-
-         #vEngine = vectorEngine()
-         ricetta.recipe_id = abs(hash(ricetta.title))
-         logger.info("ricetta id "+str(ricetta.recipe_id))
-
-         #respvEngine = vEngine.add_documents(ricetta)
-         #logger.info("resp qdrant "+str(respvEngine))       
-         
-         recipesImported.append(ricetta.model_dump())
-         logger.info(f"added ricetta")
-
-        # responseRabitHole = saveRecipeInRabitHole(recipeJSON, recipeTXT)
-        # logger.info(f"ricetta memorizza nella memoria dichiarativa del Cheshire Cat {type(responseRabitHole.content)}")
-        # importedJSON.append(recipeJSON) 
-        
-       except Exception as e:
-        logger.error (f"Rag err {e}")
-        ricetta.error = str(e)
-        recipesImported.append(ricetta.model_dump())
-
-        raise
-    
     return recipesImported

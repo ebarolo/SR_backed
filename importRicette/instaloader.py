@@ -25,28 +25,34 @@ ISTA_PASSWORD = os.getenv("ISTA_PASSWORD")
 if not ISTA_USERNAME or not ISTA_PASSWORD:
     logger.warning("Instagram credentials not set. Some operations may fail due to rate limiting or access restrictions.")
 
+def get_instaloader():
+    L = instaloader.Instaloader(
+        download_videos=True,
+        download_video_thumbnails=True,
+        download_geotags=False,
+        download_comments=False,
+        save_metadata=True,
+        compress_json=False
+    )
+    
+    # Try to login if credentials are available
+    if ISTA_USERNAME and ISTA_PASSWORD:
+        try:
+            logger.info(f"Attempting to login with username: {ISTA_USERNAME}")
+            L.login(ISTA_USERNAME, ISTA_PASSWORD)
+            logger.info("Login successful")
+        except Exception as login_error:
+            logger.error(f"Login failed: {str(login_error)}")
+            logger.warning("Proceeding without authentication - some operations may be rate limited")
+    else:
+        logger.warning("No Instagram credentials available, proceeding without authentication")
+    
+    return L
+
 async def scarica_contenuto_reel(url: str) -> Dict[str, Any]:
     result = []
     try:
-        L = instaloader.Instaloader(
-            download_videos=True,
-            download_video_thumbnails=True,
-            download_geotags=False,
-            download_comments=False,
-            save_metadata=True,
-            compress_json=False
-        )
-        
-        # Try to login if credentials are available
-        try:
-            if ISTA_USERNAME and ISTA_PASSWORD:
-                logger.info(f"Attempting to login with username: {ISTA_USERNAME}")
-                L.login(ISTA_USERNAME, ISTA_PASSWORD)
-                logger.info("Login successful")
-            else:
-                logger.warning("No Instagram credentials available, proceeding without authentication")
-        except Exception as login_error:
-            logger.error(f"Login failed: {str(login_error)}")
+        L = get_instaloader()
         
         # Extract shortcode from URL with improved handling for different URL formats
         # Handle URLs like:
@@ -106,29 +112,9 @@ async def scarica_contenuto_reel(url: str) -> Dict[str, Any]:
 
 async def scarica_contenuti_account(username: str):
     result = []
-    # Scarica i post dell'account
     try:
-        L = instaloader.Instaloader(
-            download_videos=True,
-            download_video_thumbnails=True,
-            download_geotags=False,
-            download_comments=False,
-            save_metadata=True,
-            compress_json=False,
-            sanitize_paths=True
-        )
-
-        # Try to login if credentials are available
-        try:
-            if ISTA_USERNAME and ISTA_PASSWORD:
-                logger.info(f"Attempting to login with username: {ISTA_USERNAME}")
-                L.login(ISTA_USERNAME, ISTA_PASSWORD)
-                logger.info("Login successful")
-            else:
-                logger.warning("No Instagram credentials available, proceeding without authentication")
-        except Exception as login_error:
-            logger.error(f"Login failed: {str(login_error)}")
-        
+        L = get_instaloader()
+        # Scarica i post dell'account
         logger.info(f"Attempting to fetch profile: {username}")
         profile = instaloader.Profile.from_username(L.context, username)
        

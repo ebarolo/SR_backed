@@ -5,13 +5,17 @@ from typing import List, Optional, Dict, Any
 from sqlalchemy import create_engine, Column, Integer, String, Text, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, Mapped, mapped_column
-import uvicorn
 from functools import lru_cache
 import logging
+import uvicorn
+import traceback
+import sys
+import json
 
 # Import per integrazione con Qdrant e NLP
 from qdrant_client import QdrantClient, models as qmodels
 from sentence_transformers import SentenceTransformer
+from models import RecipeSchema
 
 from importRicette.saveRecipe import process_video
 
@@ -47,14 +51,13 @@ Base = declarative_base()
 # Modello SQLAlchemy per la ricetta
 class Recipe(Base):
     __tablename__ = "recipes"
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     title = Column(String, index=True)
     recipe_step = Column(Text)
     description = Column(Text)
     ingredients = Column(Text)  # memorizzati come stringa in formato JSON
     preparation_time = Column(Integer)  # tempo in minuti
     cooking_time = Column(Integer)
-    difficulty = Column(String)         # ad es. "facile", "media", "difficile"
     diet = Column(String)               # ad es. "vegano", "vegetariano", ecc.
     category = Column(String)           # ad es. "primo", "secondo", "dolce"
     technique = Column(String)          # ad es. "cottura al forno", "frittura"
@@ -74,40 +77,7 @@ Base.metadata.create_all(bind=engine)
 # -------------------------------
 # Schemi Pydantic
 # -------------------------------
-class Ingredient(BaseModel):
-    name: str
-    qt: float
-    um: str
-
-class Recipe(BaseModel):
-    recipe_id: str
-    title: str
-    category: List[str]
-    prepration_time: int
-    cooking_time: int
-    ingredients: List[Ingredient]
-    recipe_step: List[str]
-    description: str
-    difficulty: str
-    diet: str
-    technique: str
-    language: str = "it"
-    chef_advise: Optional[str] = None
-    tags: Optional[str] = None
-    nutritional_info: Optional[List[str]] = None
-    cuisine_type: Optional[str] = None
-    ricetta_audio: Optional[str] = None
-    ricetta_caption: Optional[str] = None
-    ingredients_text: Optional[str] = None
-    video: Optional[str] = None
-    
-    @validator('difficulty')
-    def validate_difficulty(cls, v):
-        allowed = ["facile", "media", "difficile"]
-        if v.lower() not in allowed:
-            raise ValueError(f"Difficoltà deve essere uno tra: {', '.join(allowed)}")
-        return v
-
+   
 class VideoURL(BaseModel):
     url: HttpUrl
     
@@ -173,10 +143,19 @@ def parse_ingredients(ingredients_str: str) -> List[str]:
         return []
     return [ing.strip() for ing in ingredients_str.split(",")]
 
+def get_error_context():
+    """Get the current file, line number and function name where the error occurred"""
+    exc_type, exc_value, exc_traceback = sys.exc_info()
+    if exc_traceback is not None:
+        # Prendi il frame più in basso dello stack trace (dove è avvenuto l'errore)
+        frame = traceback.extract_tb(exc_traceback)[-1]
+        return f"File: {frame.filename}, Line: {frame.lineno}, Function: {frame.name}"
+    return ""
+
 # -------------------------------
 # Endpoints API
 # -------------------------------
-@app.post("/recipes/", response_model=Recipe, status_code=status.HTTP_201_CREATED)
+@app.post("/recipes/", response_model=RecipeSchema, status_code=status.HTTP_201_CREATED)
 async def create_recipe(video: VideoURL, db: Session = Depends(get_db)):
     try:
         # Check for Instagram credentials if it's an Instagram URL
@@ -197,42 +176,47 @@ async def create_recipe(video: VideoURL, db: Session = Depends(get_db)):
          #logger.info(f"recipe description {RCdescription}")
 
         if not recipe_data or len(recipe_data) == 0:
+            error_context = get_error_context()
+            logger.error(f"Impossibile elaborare il video. Nessun dato ricevuto. - {error_context}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, 
-                detail="Impossibile elaborare il video. Nessun dato ricevuto."
+                detail=f"Impossibile elaborare il video. Nessun dato ricevuto. - {error_context}"
             )
         
         recipe = recipe_data[0]  # Prendi la prima ricetta elaborata
+        logger.info(f"recipe {recipe}")
         
-        # Converti la lista degli ingredienti in una stringa
-        ingredients_str = ", ".join([f"{ing['qt']} {ing['um']} {ing['name']}" for ing in recipe.get("ingredients", [])])
-        logger.info(f"ingredients_str {ingredients_str}")
+        # Convert lists to strings for database storage
+        ingredients_str = json.dumps(recipe.get("ingredients", []))
+        recipe_step_str = json.dumps(recipe.get("prepration_step", []))
+        category_str = json.dumps(recipe.get("category", []))
+        tags_str = json.dumps(recipe.get("tags", []))
+        nutritional_info_str = json.dumps(recipe.get("nutritional_info", []))
 
-        prepration_step = ", ".join([f"{step['step']}" for step in recipe.get("prepration_step", [])])
-        logger.info(f"prepration_step {prepration_step}")
-        
-        db_recipe = recipe
-        db_recipe.recipe_step = prepration_step
-        db_recipe.ingredients = ingredients_str
-       
-        #db_recipe = Recipe(
-        #    title=recipe.get("title", ""),
-        #    description=prepration_step,
-        #    ingredients=ingredients_str,
-        #    preparation_time=recipe.get("prepration_time", 0),  # Corretto il typo "prepration_time"
-        #    cooking_time=recipe.get("cooking_time", 0),
-        #    difficulty=recipe.get("difficulty", ""),
-        #    diet=recipe.get("diet", ""),
-        #    category=", ".join(recipe.get("category", [])),
-        #    technique=recipe.get("technique", ""),
-        #    language=recipe.get("language", "it"),
-        #    chef_advise=recipe.get("chef_advise", ""),
-        #    tags=", ".join(recipe.get("tags", [])),
-        #    nutritional_info=", ".join(recipe.get("nutritional_info", [])),
-        #    cuisine_type=recipe.get("cuisine_type", "")
-        #)
-        
-        #logger.info(f"db_recipe {db_recipe}")
+        # Create response data with required fields
+        response_data = {
+            "title": recipe.get("title", ""),
+            "recipe_step": recipe_step_str,
+            "description": recipe.get("ricetta_caption", ""),
+            "ingredients": ingredients_str,
+            "preparation_time": recipe.get("prepration_time"),
+            "cooking_time": recipe.get("cooking_time"),
+            "diet": recipe.get("diet", ""),
+            "category": category_str,
+            "technique": recipe.get("technique", ""),
+            "language": recipe.get("language", "it"),
+            "chef_advise": recipe.get("chef_advise", ""),
+            "tags": tags_str,
+            "nutritional_info": nutritional_info_str,
+            "cuisine_type": recipe.get("cuisine_type", ""),
+            "ricetta_audio": recipe.get("ricetta_audio", ""),
+            "ricetta_caption": recipe.get("ricetta_caption", ""),
+            "ingredients_text": recipe.get("ingredients_text", ""),
+            "video_path": recipe.get("video", "")
+        }
+
+        # Create a new Recipe object from the dictionary data
+        db_recipe = Recipe(**response_data)
 
         db.add(db_recipe)
         db.commit()
@@ -240,7 +224,7 @@ async def create_recipe(video: VideoURL, db: Session = Depends(get_db)):
         
         # Genera l'embedding dalla descrizione della ricetta
         model = get_embedding_model()
-        text_for_embedding = f"{db_recipe.title} {prepration_step} {ingredients_str}"
+        text_for_embedding = f"{db_recipe.title} {json.loads(db_recipe.recipe_step)} {json.loads(db_recipe.ingredients)}"
 
         logger.info(f"text_for_embedding {text_for_embedding}")
 
@@ -252,48 +236,66 @@ async def create_recipe(video: VideoURL, db: Session = Depends(get_db)):
             collection_name=QDRANT_COLLECTION,
             points=[
                 qmodels.PointStruct(
-                    id=recipe.id,
+                    id=db_recipe.id,
                     vector=embedding,
                     payload={
-                        "title": recipe.title,
-                        "diet": recipe.diet,
-                        "preparation_time": recipe.prepration_time,
-                        "cooking_time": recipe.cooking_time,
-                        "difficulty": recipe.difficulty,
-                        "category": recipe.category
+                        "title": db_recipe.title,
+                        "diet": db_recipe.diet,
+                        "preparation_time": db_recipe.preparation_time,
+                        "cooking_time": db_recipe.cooking_time,
+                        "category": json.loads(db_recipe.category)
                     }
                 )
             ]
         )
         
-        return recipe
+        # Converti le stringhe JSON di nuovo in liste per la risposta
+        response_data["recipe_step"] = json.loads(recipe_step_str)
+        response_data["ingredients"] = json.loads(ingredients_str)
+        response_data["category"] = json.loads(category_str)
+        response_data["tags"] = json.loads(tags_str)
+        response_data["nutritional_info"] = json.loads(nutritional_info_str)
+        
+        return response_data  # Return the properly formatted response data
     
     except ValueError as ve:
+        error_context = get_error_context()
+        logger.error(f"ValueError: {str(ve)} - {error_context}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, 
-            detail=f"{str(ve)}"
+            detail=f"{str(ve)} - {error_context}"
         )
     
     except Exception as e:
+        error_context = get_error_context()
+        logger.error(f"Unexpected error: {str(e)} - {error_context}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-            detail=f"{str(e)}"
+            detail=f"{str(e)} - {error_context}"
         )
 
-@app.get("/recipes/{recipe_id}", response_model=Recipe)
+@app.get("/recipes/{recipe_id}", response_model=RecipeSchema)
 def get_recipe(recipe_id: int, db: Session = Depends(get_db)):
-    recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
-    if not recipe:
+    try:
+        recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
+        if not recipe:
+            error_context = get_error_context()
+            logger.error(f"Ricetta non trovata con ID {recipe_id} - {error_context}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, 
+                detail=f"Ricetta non trovata - {error_context}"
+            )
+        
+        return recipe
+    except Exception as e:
+        error_context = get_error_context()
+        logger.error(f"Errore durante il recupero della ricetta: {str(e)} - {error_context}")
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, 
-            detail="Ricetta non trovata"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Errore durante il recupero della ricetta: {str(e)} - {error_context}"
         )
-    
-    #ingredients_list = parse_ingredients(recipe.ingredients)
-    
-    return recipe
 
-@app.get("/search/", response_model=List[Recipe])
+@app.get("/search/", response_model=List[RecipeSchema])
 def search_recipes(
     query: str,
     diet: Optional[str] = None,
@@ -343,9 +345,11 @@ def search_recipes(
         return ordered_recipes
     
     except Exception as e:
+        error_context = get_error_context()
+        logger.error(f"Errore durante la ricerca: {str(e)} - {error_context}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-            detail=f"Errore durante la ricerca: {str(e)}"
+            detail=f"Errore durante la ricerca: {str(e)} - {error_context}"
         )
 
 # -------------------------------

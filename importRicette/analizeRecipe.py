@@ -9,7 +9,7 @@ from functools import wraps
 from tenacity import retry, stop_after_attempt, wait_exponential
 from openai import OpenAI
 
-from models import recipe
+from models import RecipeSchema
 
   
 OPENAI_API_KEY = "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"
@@ -161,11 +161,11 @@ async def analyze_recipe_frames(base64Frames):
  
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
 @timeout(90)  # 1 minuto e 30 secondi di timeout
-async def extract_recipe_info(recipe_audio_text: str, recipe_caption_text: str, ingredients: any, actions: any) -> recipe:
+async def extract_recipe_info(recipe_audio_text: str, recipe_caption_text: str, ingredients: any, actions: any) -> RecipeSchema:
 
     user_prompt, system_prompt = read_prompt_files(recipe_audio_text, recipe_caption_text, ingredients, actions, "prompt_user_TXT.txt")
-    logger.info(f"user_prompt: {user_prompt}")
-    logger.info(f"system_prompt: {system_prompt}")
+    #logger.info(f"user_prompt: {user_prompt}")
+    #logger.info(f"system_prompt: {system_prompt}")
 
     try:
       OpenAIresponse = OpenAIclient.beta.chat.completions.parse(
@@ -174,8 +174,8 @@ async def extract_recipe_info(recipe_audio_text: str, recipe_caption_text: str, 
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
             ],
-            response_format=recipe,
-            temperature=0.9
+            response_format=RecipeSchema,
+            temperature=1
         )
 
       logger.info(f"OpenAIresponse: {str(OpenAIresponse.choices[0].message.content)}")
@@ -184,123 +184,3 @@ async def extract_recipe_info(recipe_audio_text: str, recipe_caption_text: str, 
     except Exception as e:
       logger.error(f"Errore durante OpenAIresponse: {str(e)}")
       raise
-    
-    ''''
-    user_prompt, system_prompt = read_prompt_files(recipe_audio_text, recipe_caption_text, ingredients, actions, "prompt_user_JSON.txt")
-    logger.info(f"user_prompt: {user_prompt}")
-    logger.info(f"system_prompt: {system_prompt}")
-
-    try:
-     OpenAI_JSON = OpenAIclient.chat.completions.create(
-      model="gpt-4o-2024-08-06",
-      messages=[
-       {
-      "role": "system",
-      "content": [
-        {
-          "type": "text",
-          "text": system_prompt
-        }
-      ]
-    },
-       {
-      "role": "user",
-      "content": [
-        {
-          "type": "text",
-          "text": user_prompt
-        }
-      ]
-    },
-      ],
-      response_format={
-    "type": "json_schema",
-    "json_schema": {
-      "name": "recipe_schema",
-      "strict": True,
-      "schema": {
-        "type": "object",
-        "properties": {
-          "titolo": {
-            "type": "string",
-            "description": "The title of the recipe."
-          },
-          "categoria": {
-            "type": "string",
-            "description": "The category of the recipe."
-          },
-          "tempo_di_preparazione": {
-            "type": "string",
-            "description": "Preparation time for the recipe."
-          },
-          "tempo_cottura": {
-            "type": "string",
-            "description": "Cooking time for the recipe."
-          },
-          "ingredienti": {
-            "type": "array",
-            "description": "List of ingredients required for the recipe.",
-            "items": {
-              "type": "string"
-            }
-          },
-          "preparazione": {
-            "type": "array",
-            "description": "Step-by-step preparation instructions.",
-            "items": {
-              "type": "string"
-            }
-          },
-          "consigli_dello_chef": {
-            "type": "string",
-            "description": "Tips from the chef related to the recipe."
-          },
-          "ricetta_audio": {
-            "type": "string",
-            "description": "Audio description of the recipe."
-          },
-          "ricetta_caption": {
-            "type": "string",
-            "description": "Caption or description of the recipe for sharing."
-          },
-          "video": {
-            "type": "string",
-            "description": "File path or URL of the instructional video."
-          }
-        },
-        "required": [
-          "titolo",
-          "categoria",
-          "tempo_di_preparazione",
-          "tempo_cottura",
-          "ingredienti",
-          "preparazione",
-          "consigli_dello_chef",
-          "ricetta_audio",
-          "ricetta_caption",
-          "video"
-        ],
-        "additionalProperties": False
-      }
-    }
-  },
-      temperature=0.9,
-      
-     )
-    
-     logger.info(f"recipeJSON: {str(OpenAI_JSON.choices[0].message.content)}")
-
-     try:
-      recipeJSON = json.loads(OpenAI_JSON.choices[0].message.content)
-      recipeJSON
-     
-     except json.JSONDecodeError:
-      logger.error(f"OpenAI_JSON JSONDecodeError: {str(json.JSONDecodeError.msg)} at line {str(json.JSONDecodeError.lineno)} column {str(json.JSONDecodeError.colno)}")
-     raise json.JSONDecodeError
-    
-    except Exception as e:
-     logger.error(f"Errore durante OpenAIresponseJSON: {str(e)}")
-     raise e
-     '''
-    
-    
