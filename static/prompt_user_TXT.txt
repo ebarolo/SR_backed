@@ -5,4 +5,4 @@ Caption recipe: {recipe_caption}
 Ingredients: {ingredients}
 Actions: {actions}
 
-Your goal is extract all the information requested to answer in the correct way to the response_format 
+Your goal is extract all the information requested to answer in the correct way to the response_format, use fluent Italian without grammatical and/or spelling errors, with a high accuracy. 

@@ -32,8 +32,9 @@ def get_instaloader():
         download_geotags=False,
         download_comments=False,
         save_metadata=True,
-        compress_json=False
-    )
+        compress_json=False,
+        sanitize_paths=True
+        )
     
     # Try to login if credentials are available
     if ISTA_USERNAME and ISTA_PASSWORD:

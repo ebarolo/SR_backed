@@ -15,6 +15,7 @@ import yt_dlp
 from utility import sanitize_text, sanitize_filename, sanitize_folder_name, rename_files, rename_folder
 from importRicette.analizeRecipe import extract_recipe_info
 from importRicette.instaloader import scarica_contenuto_reel, scarica_contenuti_account
+from models import RecipeDBSchema
 
 
 mp.set_start_method('spawn', force=True)
@@ -111,6 +112,8 @@ async def download_video(url: str) -> Dict[str, Any]:
         logger.error(f"Errore imprevisto durante il download del video {url}: {e} - {error_context}")
         raise
 
+
+
 async def process_video(recipe: str):
     recipesImported = []
     urlPattern = r'^(ftp|http|https):\/\/[^ "]+$'
@@ -159,12 +162,13 @@ async def process_video(recipe: str):
         # Estrai informazioni dalla ricetta
         logger.info(f"start extract_recipe_info: {ricetta_audio}")
         ricetta = await extract_recipe_info(ricetta_audio, captionSanit, [], [])
-        logger.info(f"recipe_info : {ricetta.title}")
+        logger.info(f"recipe_info : {ricetta}")
         
         recipeNameSanit = sanitize_folder_name(ricetta.title)
         recipe_folder = os.path.join(BASE_FOLDER, recipeNameSanit)
-
         re_folder = rename_folder(video_folder_post, recipe_folder)
+
+        '''
         text_filename = f"{recipeNameSanit}_originale.txt"
         text_path = os.path.join(re_folder, text_filename)
 
@@ -172,21 +176,14 @@ async def process_video(recipe: str):
             f.write(ricetta_audio)
             f.write("\n\n")
             f.write(captionSanit)
+        '''
+        # Convert the RecipeAIResponse object to a RecipeDBSchema object
+        ricettaRES = RecipeDBSchema(**ricetta.model_dump())
+        ricettaRES.ricetta_audio = ricetta_audio
+        ricettaRES.ricetta_caption = captionSanit
+        ricettaRES.video_path = os.path.join(re_folder, f"{ricetta.title}.mp4")
 
-        ricetta.ricetta_audio = ricetta_audio
-        ricetta.ricetta_caption = captionSanit
-        ricetta.video_path = os.path.join(re_folder, f"{ricetta.title}.mp4")
-        
-        recipe_filename = f"{recipeNameSanit}_elaborata.tx"
-        recipe_info_path = os.path.join(re_folder, recipe_filename)
-
-        with open(recipe_info_path, 'w', encoding='utf-8') as f:
-            for key in ricetta.__dict__:
-                value = getattr(ricetta, key)
-                f.write(f'{key}: {value}')
-                f.write('\n')
-    
-        recipesImported.append(ricetta.model_dump())
+        recipesImported.append(ricettaRES.model_dump())
         logger.info(f"process_video completato per: {ricetta}")
       except Exception as e:
        logger.error(f"Errore durante process_video : {e}")

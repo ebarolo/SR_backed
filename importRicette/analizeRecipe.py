@@ -4,14 +4,14 @@ import base64
 import logging
 import asyncio
 import re
+import json
 
 from functools import wraps
 from tenacity import retry, stop_after_attempt, wait_exponential
 from openai import OpenAI
 
-from models import RecipeSchema
+from models import RecipeAIResponse
 
-  
 OPENAI_API_KEY = "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"
 OpenAIclient = OpenAI(api_key=OPENAI_API_KEY)
 
@@ -137,7 +137,7 @@ async def analyze_recipe_frames(base64Frames):
     {
         "role": "user",
         "content": [
-            "These are frames from a video recipe that I want to upload. Identify the visible ingredients and the actions that are executed. Provide the answer in JSON format with three keys: ‘ingredients’ , ‘actions’, description.",
+            "These are frames from a video recipe that I want to upload. Identify the visible ingredients and the actions that are executed. Provide the answer in JSON format with three keys: 'ingredients' , 'actions', description.",
             *map(lambda x: {"image": x, "resize": 768}, base64Frames[0::50]),
         ],
     },
@@ -160,26 +160,165 @@ async def analyze_recipe_frames(base64Frames):
   raise
  
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
-@timeout(90)  # 1 minuto e 30 secondi di timeout
-async def extract_recipe_info(recipe_audio_text: str, recipe_caption_text: str, ingredients: any, actions: any) -> RecipeSchema:
+@timeout(180)  # 3 minuti
+async def extract_recipe_info(recipe_audio_text: str, recipe_caption_text: str, ingredients: any, actions: any) -> RecipeAIResponse:
 
     user_prompt, system_prompt = read_prompt_files(recipe_audio_text, recipe_caption_text, ingredients, actions, "prompt_user_TXT.txt")
-    #logger.info(f"user_prompt: {user_prompt}")
-    #logger.info(f"system_prompt: {system_prompt}")
 
     try:
-      OpenAIresponse = OpenAIclient.beta.chat.completions.parse(
-            model="gpt-4o-2024-08-06",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
+      OpenAIresponse = OpenAIclient.responses.create(
+         model="gpt-4o-mini",
+         input=[{"role": "developer",
+                "content": [{
+                   "type": "input_text",
+                   "text": system_prompt
+                   }]
+                },{
+      "role": "user",
+      "content": [
+        {
+          "type": "input_text",
+          "text": user_prompt
+        }
+      ]
+    },],
+         text={ "format": {
+            "type": "json_schema",
+            "name": "recipe_schema",
+            "strict": True,
+            "schema": {
+               "type": "object",
+               "properties": {
+                  "title": {
+                     "type": "string",
+                     "description": "The title of the recipe."
+                     },
+                "category": {
+            "type": "array",
+            "description": "The categories the recipe belongs to.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "preparation_time": {
+            "type": "number",
+            "description": "The preparation time in minutes."
+          },
+          "cooking_time": {
+            "type": "number",
+            "description": "The cooking time in minutes."
+          },
+          "ingredients": {
+            "type": "array",
+            "description": "The list of ingredients required for the recipe.",
+            "items": {
+              "$ref": "#/$defs/ingredient"
+            }
+          },
+          "recipe_step": {
+            "type": "array",
+            "description": "Step-by-step instructions for preparing the recipe.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "description": {
+            "type": "string",
+            "description": "A short description of the recipe."
+          },
+          "diet": {
+            "type": "string",
+            "description": "Diet type associated with the recipe."
+          },
+          "technique": {
+            "type": "string",
+            "description": "Cooking technique used in the recipe."
+          },
+          "language": {
+            "type": "string",
+            "description": "The language of the recipe."
+          },
+          "chef_advise": {
+            "type": "string",
+            "description": "Advice or tips from the chef."
+          },
+          "tags": {
+            "type": "array",
+            "description": "Tags related to the recipe.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "nutritional_info": {
+            "type": "array",
+            "description": "Nutritional information pertaining to the recipe.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "cuisine_type": {
+            "type": "string",
+            "description": "Type of cuisine the recipe represents."
+          }
+        },
+        "required": [
+          "title",
+          "category",
+          "preparation_time",
+          "cooking_time",
+          "ingredients",
+          "recipe_step",
+          "description",
+          "diet",
+          "technique",
+          "language",
+          "chef_advise",
+          "tags",
+          "nutritional_info",
+          "cuisine_type"
+        ],
+        "additionalProperties": False,
+        "$defs": {
+          "ingredient": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "The name of the ingredient."
+              },
+              "qt": {
+                "type": "number",
+                "description": "The quantity of the ingredient."
+              },
+              "um": {
+                "type": "string",
+                "description": "The unit of measurement for the ingredient."
+              }
+            },
+            "required": [
+              "name",
+              "qt",
+              "um"
             ],
-            response_format=RecipeSchema,
-            temperature=1
+            "additionalProperties": False
+          }
+        }
+      }
+    }
+  },
+         store=True
         )
-
-      logger.info(f"OpenAIresponse: {str(OpenAIresponse.choices[0].message.content)}")
-      return OpenAIresponse.choices[0].message.parsed
+      # Parse the response into a RecipeSchema object
+      response_content = OpenAIresponse.output[0].content[0]
+      if isinstance(response_content, str):
+          recipe_data = json.loads(response_content)
+      elif hasattr(response_content, 'text'):
+          recipe_data = json.loads(response_content.text)
+      else:
+          recipe_data = response_content
+      
+      
+      return RecipeAIResponse(**recipe_data)
   
     except Exception as e:
       logger.error(f"Errore durante OpenAIresponse: {str(e)}")

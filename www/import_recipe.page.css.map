@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": ["src/app/pages/import_recipe/import_recipe.page.scss"],
-  "sourcesContent": [".success {\n  --background: green; // Colore per il messaggio di successo\n  color: white; // Colore del testo\n}\n\n.error {\n  --background: red; // Colore per il messaggio di errore\n  color: white; // Colore del testo\n}\n\n.neutral{\n  --background: white;\n  color: inherit;\n}\n"],
-  "mappings": ";AAAA,CAAA;AACE,gBAAA;AACA,SAAA;;AAGF,CAAA;AACE,gBAAA;AACA,SAAA;;AAGF,CAAA;AACE,gBAAA;AACA,SAAA;;",
-  "names": []
-}
