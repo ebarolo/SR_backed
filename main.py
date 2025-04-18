@@ -15,7 +15,7 @@ import json
 # Import per integrazione con Qdrant e NLP
 from qdrant_client import QdrantClient, models as qmodels
 from sentence_transformers import SentenceTransformer
-from models import RecipeDBSchema
+from models import RecipeDBSchema, Ingredient
 
 from importRicette.saveRecipe import process_video
 
@@ -172,85 +172,89 @@ async def create_recipe(video: VideoURL, db: Session = Depends(get_db)):
          # Valida l'URL prima di processare il video
          recipe_data = await process_video(url)
          logger.info(f" {recipe_data}")
-         #RCdescription = recipe_data[0].get("description", "")
-         #logger.info(f"recipe description {RCdescription}")
+         
+         if not recipe_data:
+             error_context = get_error_context()
+             logger.error(f"Impossibile elaborare il video. Nessun dato ricevuto. - {error_context}")
+             raise HTTPException(
+                 status_code=status.HTTP_400_BAD_REQUEST, 
+                 detail=f"Impossibile elaborare il video. Nessun dato ricevuto. - {error_context}"
+             )
+         
+         # Convert RecipeDBSchema to SQLAlchemy Recipe model
+         db_recipe = Recipe(
+             title=recipe_data.title,
+             recipe_step=json.dumps(recipe_data.recipe_step),
+             description=recipe_data.description,
+             ingredients=json.dumps([ing.model_dump() for ing in recipe_data.ingredients]),
+             preparation_time=recipe_data.preparation_time,
+             cooking_time=recipe_data.cooking_time,
+             diet=recipe_data.diet,
+             category=json.dumps(recipe_data.category),
+             technique=recipe_data.technique,
+             language=recipe_data.language,
+             chef_advise=recipe_data.chef_advise,
+             tags=json.dumps(recipe_data.tags),
+             nutritional_info=json.dumps(recipe_data.nutritional_info),
+             cuisine_type=recipe_data.cuisine_type,
+             ricetta_audio=recipe_data.ricetta_audio,
+             ricetta_caption=recipe_data.ricetta_caption,
+             video_path=recipe_data.video_path
+         )
+         
+         db.add(db_recipe)
+         db.commit()
+         db.refresh(db_recipe)
+         
+         # Genera l'embedding dalla descrizione della ricetta
+         model = get_embedding_model()
+         text_for_embedding = f"{db_recipe.title} {db_recipe.recipe_step} {db_recipe.ingredients}"
 
-        if not recipe_data or len(recipe_data) == 0:
-            error_context = get_error_context()
-            logger.error(f"Impossibile elaborare il video. Nessun dato ricevuto. - {error_context}")
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, 
-                detail=f"Impossibile elaborare il video. Nessun dato ricevuto. - {error_context}"
-            )
-        
-        logger.info(f"recipe {recipe_data[0]}")
-        
-        # Convert lists to strings for database storage
-        ingredients_str = json.dumps(recipe_data[0].get("ingredients", []))
-        recipe_step_str = json.dumps(recipe_data[0].get("prepration_step", []))
-        category_str = json.dumps(recipe_data[0].get("category", []))
-        tags_str = json.dumps(recipe_data[0].get("tags", []))
-        nutritional_info_str = json.dumps(recipe_data[0].get("nutritional_info", []))
+         logger.info(f"text_for_embedding {text_for_embedding}")
 
-        db_recipe = {
-            "title": recipe_data[0].get("title", ""),
-            "recipe_step": recipe_step_str,
-            "description": recipe_data[0].get("ricetta_caption", ""),
-            "ingredients": ingredients_str,
-            "preparation_time": recipe_data[0].get("prepration_time"),
-            "cooking_time": recipe_data[0].get("cooking_time"),
-            "diet": recipe_data[0].get("diet", ""),
-            "category": category_str,
-            "technique": recipe_data[0].get("technique", ""),
-            "language": recipe_data[0].get("language", "it"),
-            "chef_advise": recipe_data[0].get("chef_advise", ""),
-            "tags": tags_str,
-            "nutritional_info": nutritional_info_str,
-            "cuisine_type": recipe_data[0].get("cuisine_type", ""),
-            "ricetta_audio": recipe_data[0].get("ricetta_audio", ""),
-            "ricetta_caption": recipe_data[0].get("ricetta_caption", ""),
-            "video_path": recipe_data[0].get("video_path", "")
-        }
-        
-        db.add(db_recipe)
-        db.commit()
-        db.refresh(db_recipe)
-        
-        # Genera l'embedding dalla descrizione della ricetta
-        model = get_embedding_model()
-        text_for_embedding = f"{db_recipe.title} {recipe_step_str} {ingredients_str}"
-
-        logger.info(f"text_for_embedding {text_for_embedding}")
-
-        embedding = model.encode(text_for_embedding).tolist()
-        
-        # Inserisci l'embedding in Qdrant con un payload per il filtraggio
-        client = get_qdrant_client()
-        client.upsert(
-            collection_name=QDRANT_COLLECTION,
-            points=[
-                qmodels.PointStruct(
-                    id=db_recipe.id,
-                    vector=embedding,
-                    payload={
-                        "title": db_recipe.title,
-                        "diet": db_recipe.diet,
-                        "preparation_time": db_recipe.preparation_time,
-                        "cooking_time": db_recipe.cooking_time,
-                        "category": category_str
-                    }
-                )
-            ]
-        )
-        
-        # Converti le stringhe JSON di nuovo in liste per la risposta
-        db_recipe["recipe_step"] = json.loads(recipe_step_str)
-        db_recipe["ingredients"] = json.loads(ingredients_str)
-        db_recipe["category"] = json.loads(category_str)
-        db_recipe["tags"] = json.loads(tags_str)
-        db_recipe["nutritional_info"] = json.loads(nutritional_info_str)
-        
-        return db_recipe  # Return the properly formatted response data
+         embedding = model.encode(text_for_embedding).tolist()
+         
+         # Inserisci l'embedding in Qdrant con un payload per il filtraggio
+         client = get_qdrant_client()
+         client.upsert(
+             collection_name=QDRANT_COLLECTION,
+             points=[
+                 qmodels.PointStruct(
+                     id=db_recipe.id,
+                     vector=embedding,
+                     payload={
+                         "title": db_recipe.title,
+                         "diet": db_recipe.diet,
+                         "preparation_time": db_recipe.preparation_time,
+                         "cooking_time": db_recipe.cooking_time,
+                         "category": db_recipe.category
+                     }
+                 )
+             ]
+         )
+         
+         # Convert the SQLAlchemy model back to RecipeDBSchema for response
+         response_data = RecipeDBSchema(
+             title=db_recipe.title,
+             category=json.loads(db_recipe.category),
+             preparation_time=db_recipe.preparation_time,
+             cooking_time=db_recipe.cooking_time,
+             ingredients=[Ingredient(**ing) for ing in json.loads(db_recipe.ingredients)],
+             recipe_step=json.loads(db_recipe.recipe_step),
+             description=db_recipe.description,
+             diet=db_recipe.diet,
+             technique=db_recipe.technique,
+             language=db_recipe.language,
+             chef_advise=db_recipe.chef_advise,
+             tags=json.loads(db_recipe.tags) if db_recipe.tags else [],
+             nutritional_info=json.loads(db_recipe.nutritional_info) if db_recipe.nutritional_info else [],
+             cuisine_type=db_recipe.cuisine_type,
+             ricetta_audio=db_recipe.ricetta_audio,
+             ricetta_caption=db_recipe.ricetta_caption,
+             video_path=db_recipe.video_path
+         )
+         
+         return response_data
     
     except ValueError as ve:
         error_context = get_error_context()

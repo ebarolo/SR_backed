@@ -11,8 +11,8 @@ class RecipeDBSchema(BaseModel):
     category: List[str]
     preparation_time: Optional[int]
     cooking_time: Optional[int]
-    ingredients: str
-    recipe_step: str
+    ingredients: List[Ingredient]
+    recipe_step: List[str]
     description: str
     diet: Optional[str]
     technique: Optional[str] 

@@ -11,6 +11,7 @@ from functools import wraps
 from openai import OpenAI
 from tenacity import retry, stop_after_attempt, wait_exponential
 import yt_dlp
+import json
 
 from utility import sanitize_text, sanitize_filename, sanitize_folder_name, rename_files, rename_folder
 from importRicette.analizeRecipe import extract_recipe_info
@@ -178,15 +179,26 @@ async def process_video(recipe: str):
             f.write(captionSanit)
         '''
         # Convert the RecipeAIResponse object to a RecipeDBSchema object
-        ricettaRES = RecipeDBSchema(**ricetta.model_dump())
-        ricettaRES.ricetta_audio = ricetta_audio
-        ricettaRES.ricetta_caption = captionSanit
-        ricettaRES.video_path = os.path.join(re_folder, f"{ricetta.title}.mp4")
-
-        recipesImported.append(ricettaRES.model_dump())
+        ricetta_dict = ricetta.model_dump()
+        
+        # Keep ingredients and recipe_step as lists
+        ricetta_dict['ingredients'] = ricetta_dict['ingredients']
+        ricetta_dict['recipe_step'] = ricetta_dict['recipe_step']
+        
+        # Keep category, tags, and nutritional_info as lists
+        ricetta_dict['category'] = ricetta_dict['category']
+        ricetta_dict['tags'] = ricetta_dict.get('tags', [])
+        ricetta_dict['nutritional_info'] = ricetta_dict.get('nutritional_info', [])
+        
+        # Add required fields
+        ricetta_dict['ricetta_audio'] = ricetta_audio
+        ricetta_dict['ricetta_caption'] = captionSanit
+        ricetta_dict['video_path'] = os.path.join(re_folder, f"{ricetta.title}.mp4")
+        
         logger.info(f"process_video completato per: {ricetta}")
+        return RecipeDBSchema(**ricetta_dict)
       except Exception as e:
        logger.error(f"Errore durante process_video : {e}")
        raise e
 
-    return recipesImported
+    
