@@ -113,8 +113,6 @@ async def download_video(url: str) -> Dict[str, Any]:
         logger.error(f"Errore imprevisto durante il download del video {url}: {e} - {error_context}")
         raise
 
-
-
 async def process_video(recipe: str):
     recipesImported = []
     urlPattern = r'^(ftp|http|https):\/\/[^ "]+$'

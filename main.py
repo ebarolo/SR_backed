@@ -236,11 +236,11 @@ async def create_recipe(video: VideoURL, db: Session = Depends(get_db)):
          # Convert the SQLAlchemy model back to RecipeDBSchema for response
          response_data = RecipeDBSchema(
              title=db_recipe.title,
-             category=json.loads(db_recipe.category),
+             category=json.loads(db_recipe.category) if db_recipe.category else [],
              preparation_time=db_recipe.preparation_time,
              cooking_time=db_recipe.cooking_time,
-             ingredients=[Ingredient(**ing) for ing in json.loads(db_recipe.ingredients)],
-             recipe_step=json.loads(db_recipe.recipe_step),
+             ingredients=[Ingredient(**ing) for ing in json.loads(db_recipe.ingredients)] if db_recipe.ingredients else [],
+             recipe_step=json.loads(db_recipe.recipe_step) if db_recipe.recipe_step else [],
              description=db_recipe.description,
              diet=db_recipe.diet,
              technique=db_recipe.technique,
@@ -328,19 +328,46 @@ def search_recipes(
             with_payload=True
         )
         
-        # Recupera gli ID delle ricette dai risultati e consulta il database
-        recipe_ids = [int(point.id) for point in results]
+        logger.info(f"Quadrant result {results}")
+
+        # Recupera gli ID delle ricette dai risultati con score superiore a 0.6
+        recipe_ids = [int(point.id) for point in results if point.score > 0.6]
         
         if not recipe_ids:
             return []
-            
-        recipes = db.query(Recipe).filter(Recipe.id.in_(recipe_ids)).all()
         
+        logger.info(f"recipe_ids {recipe_ids}")
+    
+        recipes = db.query(Recipe).filter(Recipe.id.in_(recipe_ids)).all()
+        logger.info(f"DB result {recipes}")
+
         # Ordina le ricette in base all'ordine dei risultati di Qdrant
         id_to_recipe = {recipe.id: recipe for recipe in recipes}
         ordered_recipes = [id_to_recipe.get(recipe_id) for recipe_id in recipe_ids if recipe_id in id_to_recipe]
         
-        return ordered_recipes
+        # Convert each recipe to RecipeDBSchema
+        return [
+            RecipeDBSchema(
+                title=recipe.title,
+                category=json.loads(recipe.category) if recipe.category else [],
+                preparation_time=recipe.preparation_time,
+                cooking_time=recipe.cooking_time,
+                ingredients=[Ingredient(**ing) for ing in json.loads(recipe.ingredients)] if recipe.ingredients else [],
+                recipe_step=json.loads(recipe.recipe_step) if recipe.recipe_step else [],
+                description=recipe.description,
+                diet=recipe.diet,
+                technique=recipe.technique,
+                language=recipe.language,
+                chef_advise=recipe.chef_advise,
+                tags=json.loads(recipe.tags) if recipe.tags else [],
+                nutritional_info=json.loads(recipe.nutritional_info) if recipe.nutritional_info else [],
+                cuisine_type=recipe.cuisine_type,
+                ricetta_audio=recipe.ricetta_audio,
+                ricetta_caption=recipe.ricetta_caption,
+                video_path=recipe.video_path
+            )
+            for recipe in ordered_recipes
+        ]
     
     except Exception as e:
         error_context = get_error_context()
