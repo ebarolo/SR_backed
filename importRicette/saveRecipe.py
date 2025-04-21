@@ -11,7 +11,6 @@ from functools import wraps
 from openai import OpenAI
 from tenacity import retry, stop_after_attempt, wait_exponential
 import yt_dlp
-import json
 
 from utility import sanitize_text, sanitize_filename, sanitize_folder_name, rename_files, rename_folder
 from importRicette.analizeRecipe import extract_recipe_info
@@ -22,7 +21,7 @@ from models import RecipeDBSchema
 mp.set_start_method('spawn', force=True)
 os.environ["OPENAI_API_KEY"] = "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"
 
-BASE_FOLDER = os.path.join(os.getcwd(), "static/ricette")
+BASE_FOLDER = os.path.join(os.getcwd(), "static/mediaRicette")
 OPENAI_API_KEY ='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'
 
 enableRag = False
@@ -114,7 +113,7 @@ async def download_video(url: str) -> Dict[str, Any]:
         raise
 
 async def process_video(recipe: str):
-    recipesImported = []
+    
     urlPattern = r'^(ftp|http|https):\/\/[^ "]+$'
 
     if not re.match(urlPattern, recipe):
@@ -123,36 +122,40 @@ async def process_video(recipe: str):
       dws = await scarica_contenuto_reel(recipe)
 
     for dw in dws:
-     if len(dw['error']) == 0:
-      try:
+     try:
         logger.info(f"video scaricato: {str(dw)}")
         captionSanit = sanitize_text(dw['caption'])
-        titleSanit = sanitize_text(dw['titolo'])
-        rename_files(dw['percorso_video'], titleSanit)
-
-        video_folder_pre = os.path.join(os.getcwd(), dw['percorso_video'])
-        video_folder_post = os.path.join(BASE_FOLDER, titleSanit)
-                
-        if os.path.exists(video_folder_pre):
-           shutil.copytree(video_folder_pre, video_folder_post, dirs_exist_ok=True) 
-           shutil.rmtree(video_folder_pre)
-
+        shortcode = dw['shortcode']
+       
+        video_folder_post = os.path.join(BASE_FOLDER, shortcode)
+        logger.info(f"video_folder_post: {video_folder_post}")       
+       
         # Cerca il file video nella cartella
         video_files = [f for f in os.listdir(video_folder_post) if f.endswith('.mp4')]
         if not video_files:
             raise FileNotFoundError(f"Nessun file video trovato in {video_folder_post}")
             
-        video = video_files[0]  # Prendi il primo file video trovato
-        v_path = os.path.join(video_folder_post, video)
+        video_path = os.path.join(video_folder_post, video_files[0])  # Percorso completo al file video
         
-        audio_filename = f"{os.path.splitext(video)[0]}.mp3"
+        audio_filename = f"{os.path.splitext(shortcode)[0]}.mp3"
         audio_path = os.path.join(video_folder_post, audio_filename)
 
-        logger.info(f"estrazione audio da video: {v_path}")
-        await asyncio.to_thread(subprocess.run, [
-          'ffmpeg', '-i', v_path, 
-          '-q:a', '0', '-map', 'a', audio_path
-        ], check=True)
+        logger.info(f"estrazione audio da video: {video_path}")
+        try:
+            process = await asyncio.to_thread(
+                subprocess.run,
+                ['ffmpeg', '-i', video_path, '-q:a', '0', '-map', 'a', audio_path],
+                check=True,
+                capture_output=True,
+                text=True
+            )
+            logger.info(f"Audio extraction successful: {audio_path}")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"ffmpeg command failed with exit code {e.returncode}")
+            logger.error(f"ffmpeg stdout: {e.stdout}")
+            logger.error(f"ffmpeg stderr: {e.stderr}")
+            logger.error(f"Command was: {e.cmd}")
+            raise Exception(f"Errore durante l'estrazione dell'audio: {e}")
                 
         logger.info(f"start speech_to_text: {audio_path}")
         ricetta_audio = await whisper_speech_recognition(audio_path, "it")
@@ -163,19 +166,6 @@ async def process_video(recipe: str):
         ricetta = await extract_recipe_info(ricetta_audio, captionSanit, [], [])
         logger.info(f"recipe_info : {ricetta}")
         
-        recipeNameSanit = sanitize_folder_name(ricetta.title)
-        recipe_folder = os.path.join(BASE_FOLDER, recipeNameSanit)
-        re_folder = rename_folder(video_folder_post, recipe_folder)
-
-        '''
-        text_filename = f"{recipeNameSanit}_originale.txt"
-        text_path = os.path.join(re_folder, text_filename)
-
-        with open(text_path, 'w', encoding='utf-8') as f:
-            f.write(ricetta_audio)
-            f.write("\n\n")
-            f.write(captionSanit)
-        '''
         # Convert the RecipeAIResponse object to a RecipeDBSchema object
         ricetta_dict = ricetta.model_dump()
         
@@ -191,12 +181,12 @@ async def process_video(recipe: str):
         # Add required fields
         ricetta_dict['ricetta_audio'] = ricetta_audio
         ricetta_dict['ricetta_caption'] = captionSanit
-        ricetta_dict['video_path'] = os.path.join(re_folder, f"{ricetta.title}.mp4")
+        ricetta_dict['shortcode'] = shortcode
         
         logger.info(f"process_video completato per: {ricetta}")
         return RecipeDBSchema(**ricetta_dict)
-      except Exception as e:
-       logger.error(f"Errore durante process_video : {e}")
-       raise e
+     except Exception as e:
+      logger.error(f"Errore durante process_video : {e}")
+     raise e
 
     

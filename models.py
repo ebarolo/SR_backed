@@ -23,7 +23,7 @@ class RecipeDBSchema(BaseModel):
     cuisine_type: Optional[str] 
     ricetta_audio: Optional[str]
     ricetta_caption: Optional[str] 
-    video_path: Optional[str]
+    shortcode: str
  
 class RecipeAIResponse(BaseModel):
     title: str

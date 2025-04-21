@@ -4,7 +4,7 @@ import datetime
 import logging
 import random
 
-BASE_FOLDER = os.path.join(os.getcwd(), "static/ricette")
+BASE_FOLDER = os.path.join(os.getcwd(), "static/mediaRicette")
 
 # Sanificazione iniziale del testo
 def sanitize_text(text):
@@ -38,13 +38,22 @@ def create_date_folder() -> str:
     return date_folder
 
 def rename_files(video_folder,file_name:str):
-     # Rinominare tutti i file nella cartella video_folder_new mantenendo l'estensione originale
-    for filename in os.listdir(video_folder):
-        old_file_path = os.path.join(video_folder, filename)
-        name, ext = os.path.splitext(filename)  # Separare nome ed estensione
-        new_file_path = os.path.join(video_folder, f"{file_name}{ext}")
-        os.rename(old_file_path, new_file_path)
-    return ""
+    # Check if the folder exists
+    if not os.path.exists(video_folder):
+        logging.error(f"Cannot rename files: folder {video_folder} does not exist")
+        return ""
+        
+    # Rinominare tutti i file nella cartella video_folder_new mantenendo l'estensione originale
+    try:
+        for filename in os.listdir(video_folder):
+            old_file_path = os.path.join(video_folder, filename)
+            name, ext = os.path.splitext(filename)  # Separare nome ed estensione
+            new_file_path = os.path.join(video_folder, f"{file_name}{ext}")
+            os.rename(old_file_path, new_file_path)
+        return ""
+    except Exception as e:
+        logging.error(f"Error renaming files in {video_folder}: {str(e)}")
+        return ""
 
 def rename_folder(percorso_vecchio: str, nuovo_nome: str) -> bool:
     """

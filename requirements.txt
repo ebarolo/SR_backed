@@ -1,21 +1,42 @@
-charset-normalizer==3.4.0
-decorator==5.1.1
-frozenlist==1.5.0
-instaloader==4.14.1
-ipython==9.1.0
-openai==1.72.0
-parso==0.8.4
-pydantic==2.11.2
-pydantic_core==2.33.1
-Pygments==2.19.1
-python-dateutil==2.9.0.post0
-requests==2.32.3
-tenacity==9.1.2
-websocket-client==1.8.0
-websockets==15.0.1
-yt-dlp==2025.3.31
-qdrant-client==1.13.3
-sentence-transformers==4.0.2
+# Web framework
 fastapi==0.115.12
-uvicorn==0.34.0
+uvicorn==0.34.2
+
+# Database clients and ORMs
 sqlalchemy==2.0.40
+pymongo==4.12.0
+
+# Vector database for semantic search
+qdrant-client==1.13.3
+sentence-transformers==4.1.0
+
+# HTTP & networking
+requests==2.32.3
+charset-normalizer==3.4.1
+websockets==15.0.1
+websocket-client==1.8.0
+
+# Google Cloud integrations
+google-cloud-storage==3.1.0  
+google-cloud-secret-manager==2.23.3
+
+# AI and OpenAI
+openai==1.75.0
+pydantic==2.11.3
+pydantic_core==2.33.1
+tenacity==9.1.2
+
+# Media downloaders
+instaloader==4.14.1
+yt-dlp==2025.3.31
+
+# Utilities
+python-dotenv==1.1.0
+python-dateutil==2.9.0.post0
+
+# Development tools
+ipython==9.1.0
+decorator==5.1.1
+parso==0.8.4
+Pygments==2.19.1
+frozenlist==1.6.0

@@ -69,7 +69,7 @@ class Recipe(Base):
     ricetta_audio = Column(String, nullable=True)
     ricetta_caption = Column(String, nullable=True)
     ingredients_text = Column(String, nullable=True)
-    video_path = Column(String, nullable=True)
+    shortcode = Column(String, nullable=True)
 
 # Creazione delle tabelle nel database
 Base.metadata.create_all(bind=engine)
@@ -156,7 +156,7 @@ def get_error_context():
 # Endpoints API
 # -------------------------------
 @app.post("/recipes/", response_model=RecipeDBSchema, status_code=status.HTTP_201_CREATED)
-async def create_recipe(video: VideoURL, db: Session = Depends(get_db)):
+async def insert_recipe(video: VideoURL, db: Session = Depends(get_db)):
     try:
         # Check for Instagram credentials if it's an Instagram URL
         url = str(video.url)
@@ -199,7 +199,7 @@ async def create_recipe(video: VideoURL, db: Session = Depends(get_db)):
              cuisine_type=recipe_data.cuisine_type,
              ricetta_audio=recipe_data.ricetta_audio,
              ricetta_caption=recipe_data.ricetta_caption,
-             video_path=recipe_data.video_path
+             shortcode=recipe_data.shortcode
          )
          
          db.add(db_recipe)
@@ -251,7 +251,7 @@ async def create_recipe(video: VideoURL, db: Session = Depends(get_db)):
              cuisine_type=db_recipe.cuisine_type,
              ricetta_audio=db_recipe.ricetta_audio,
              ricetta_caption=db_recipe.ricetta_caption,
-             video_path=db_recipe.video_path
+             shortcode=db_recipe.shortcode
          )
          
          return response_data
@@ -364,7 +364,7 @@ def search_recipes(
                 cuisine_type=recipe.cuisine_type,
                 ricetta_audio=recipe.ricetta_audio,
                 ricetta_caption=recipe.ricetta_caption,
-                video_path=recipe.video_path
+                shortcode=recipe.shortcode
             )
             for recipe in ordered_recipes
         ]

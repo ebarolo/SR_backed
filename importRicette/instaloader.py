@@ -33,8 +33,11 @@ def get_instaloader():
         download_comments=False,
         save_metadata=True,
         compress_json=False,
-        sanitize_paths=True
-        )
+        sanitize_paths=True,
+        post_metadata_txt_pattern="",  # Disable metadata txt files
+        dirname_pattern= os.path.join(os.getcwd(), "static", "mediaRicette", "{shortcode}"),
+        filename_pattern="{shortcode}"
+    )
     
     # Try to login if credentials are available
     if ISTA_USERNAME and ISTA_PASSWORD:
@@ -81,35 +84,58 @@ async def scarica_contenuto_reel(url: str) -> Dict[str, Any]:
             raise ValueError(f"Could not extract shortcode from URL: {url}")
             
         logger.info(f"Extracted shortcode: {shortcode}")
-        
-        post = instaloader.Post.from_shortcode(L.context, shortcode)
-        
-        account_name = sanitize_folder_name(post.owner_username)
-        folder_path = os.path.join("", f"{account_name}")
-
-        os.makedirs(folder_path, exist_ok=True)
-        L.download_post(post, folder_path)
+        # Create a folder named after the shortcode inside static/mediaRicette
+        shortcode_folder = os.path.join(os.getcwd(), "static", "mediaRicette", shortcode)
+        # Check if the folder already exists and contains files
+        if os.path.exists(shortcode_folder) and os.listdir(shortcode_folder):
+            logger.warning(f"Folder {shortcode_folder} already exists and contains files")
             
-        res = {
-            "error": "",
-            "titolo": sanitize_folder_name(post.caption.split('\n')[0] if post.caption else str(post.mediaid)),
-            "percorso_video": folder_path,
-            "caption": post.caption if post.caption else ""
-        }
+            raise ValueError(f"Content for shortcode {shortcode} already downloaded")
+
+        else:
+            os.makedirs(shortcode_folder, exist_ok=True)
         
-        logger.info(f"Download completato per {url}")
-        logger.info(f" {str(res)}")
-        result.append(res)
-        return result
+            # Set the dirname_pattern to the shortcode folder for this download
+            L.dirname_pattern = shortcode_folder
+        
+            logger.info(f"Created folder for download: {shortcode_folder}")
+            post = instaloader.Post.from_shortcode(L.context, shortcode)
+            # Log post attributes for debugging
+            logger.info(f"Post title: {post.title}")
+        
+            # Dump all available post attributes
+            post_attributes = {}
+            for attr in dir(post):
+            # Skip private attributes and methods
+                if not attr.startswith('_') and not callable(getattr(post, attr)):
+                 try:
+                     value = getattr(post, attr)
+                    # Convert complex objects to string representation to avoid serialization issues
+                     if not isinstance(value, (str, int, float, bool, type(None))):
+                        value = str(value)
+                     post_attributes[attr] = value
+                 except Exception as e:
+                    post_attributes[attr] = f"Error accessing attribute: {str(e)}"
+        
+            logger.info(f"Post attributes: {post_attributes}")
+
+            L.download_post(post, shortcode_folder)
+            
+            res = {
+                "error": "",
+                "shortcode": shortcode,
+                "caption": post.caption if post.caption else ""
+            }
+        
+            logger.info(f"Download completato per {url}")
+            logger.info(f" {str(res)}")
+            result.append(res)
+            return result
+            
     except instaloader.exceptions.InstaloaderException as e:
-        logger.error(f"Errore specifico di scarica_contenuto_reel: {str(e)}")
-        result.append({
-            "error": str(e),
-            "titolo": "",
-            "percorso_video": "",
-            "caption": ""
-        })
-        return result
+        logger.error(f"Errore di scarica_contenuto_reel: {str(e)}")
+        raise ValueError(f"Errore di scarica_contenuto_reel: {str(e)}")
+
 
 async def scarica_contenuti_account(username: str):
     result = []
