@@ -1,51 +1,54 @@
 import os
 from fastapi import FastAPI, HTTPException, Depends, Query, status
+from fastapi.staticfiles import StaticFiles
+
 from pydantic import BaseModel, HttpUrl, validator
 from typing import List, Optional, Dict, Any
-from sqlalchemy import create_engine, Column, Integer, String, Text, Float
+from sqlalchemy import Column, Integer, String, Text
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session, Mapped, mapped_column
+from sqlalchemy.orm import Session
 from functools import lru_cache
 import logging
-import uvicorn
 import traceback
 import sys
 import json
-
-# Import per integrazione con Qdrant e NLP
-from qdrant_client import QdrantClient, models as qmodels
+import uvicorn
+# Import per integrazione con MongoDB e NLP
 from sentence_transformers import SentenceTransformer
-from models import RecipeSchema
+from models import RecipeDBSchema, Ingredient
+from pymongo import MongoClient
+from pymongo.server_api import ServerApi
 
 from importRicette.saveRecipe import process_video
+from utility import get_error_context, timeout
 
 # -------------------------------
 # Configurazione tramite variabili d'ambiente
 # -------------------------------
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./recipes.db")
-QDRANT_URL = os.getenv("QDRANT_URL", "https://cd762cc1-d29b-42aa-8fa4-660b5c79871f.europe-west3-0.gcp.cloud.qdrant.io:6333")
-QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "smart-recipe")
-QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.TI1jEYFRxKghin8baG_wtBiK-imMFOf98rOEejelcUI")  
+#DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./recipes.db")
+#QDRANT_URL = os.getenv("QDRANT_URL", "https://cd762cc1-d29b-42aa-8fa4-660b5c79871f.europe-west3-0.gcp.cloud.qdrant.io:6333")
+#QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
+#QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "smart-recipe")
+#QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.TI1jEYFRxKghin8baG_wtBiK-imMFOf98rOEejelcUI")  
+MONGODB_URL = os.getenv("MONGODB_URL", "mongodb+srv://ebarolo:cAMV8Yfe9PnKLQ7z@smart-recider-1.n74uydt.mongodb.net/?retryWrites=true&w=majority&appName=smart-recider-1")
+MONGODB_DB = os.getenv("MONGODB_DB", "smart-recider-1")
+MONGODB_COLLECTION = os.getenv("MONGODB_COLLECTION", "recipes_vector")
+MONGO_SEARCH_INDEX = os.getenv("MONGO_SEARCH_INDEX", "smart-recipe-index")
 
 # Configurazione del logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(pathname)s:%(lineno)d:%(funcName)s - %(message)s',
-    filename='backend.log'
+    handlers=[
+        logging.FileHandler('backend.log'),
+        logging.StreamHandler()
+    ]
 )
 
 logger = logging.getLogger(__name__)
 
-# -------------------------------
-# Configurazione Database
-# -------------------------------
-engine = create_engine(
-    DATABASE_URL, 
-    connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {},
-    pool_pre_ping=True  # Verifica connessione attiva prima di usarla
-)
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+#SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 # Modello SQLAlchemy per la ricetta
@@ -69,10 +72,10 @@ class Recipe(Base):
     ricetta_audio = Column(String, nullable=True)
     ricetta_caption = Column(String, nullable=True)
     ingredients_text = Column(String, nullable=True)
-    video_path = Column(String, nullable=True)
+    shortcode = Column(String, nullable=True)
 
 # Creazione delle tabelle nel database
-Base.metadata.create_all(bind=engine)
+#Base.metadata.create_all(bind=engine)
 
 # -------------------------------
 # Schemi Pydantic
@@ -97,42 +100,48 @@ class SearchQuery(BaseModel):
 # -------------------------------
 # Inizializzazione FastAPI e Dependency per il DB
 # -------------------------------
-app = FastAPI(title="Backend Smart Recipe")
+app = FastAPI(title="Backend Smart Recipe", version="0.2")
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+# Mount mediaRicette directory explicitly to ensure all dynamic subfolders are accessible
+app.mount("/mediaRicette", StaticFiles(directory="static/mediaRicette"), name="mediaRicette")
+
+@app.get("/")
+async def root():
+    # In un template reale useresti Jinja2 o un'altra template-engine
+    return {
+        "message": "Vai su /static/index.html per provare i file statici"
+}
 
 # -------------------------------
-# Inizializzazione del modello NLP e Qdrant
+# Inizializzazione del modello NLP SentenceTransformer
 # -------------------------------
 @lru_cache(maxsize=1)
 def get_embedding_model():
     return SentenceTransformer("all-MiniLM-L6-v2")
 
+# -------------------------------
+# Inizializzazione MongoDB per semantic search
+# -------------------------------
 @lru_cache(maxsize=1)
-def get_qdrant_client():
-    client = QdrantClient(
-        url=QDRANT_URL,
-        api_key=QDRANT_API_KEY,
-        prefer_grpc=True
+def get_mongo_client():
+    return MongoClient(
+        MONGODB_URL,
+        server_api=ServerApi('1'),
+        retryWrites=True,
+        connectTimeoutMS=300000,
+        socketTimeoutMS=300000,
+        tlsAllowInvalidCertificates=True  # Fix for SSL certificate verification issue
     )
-    
-    try:
-        client.get_collection(collection_name=QDRANT_COLLECTION)
-    except Exception:
-        model = get_embedding_model()
-        client.recreate_collection(
-            collection_name=QDRANT_COLLECTION,
-            vectors_config=qmodels.VectorParams(
-                size=model.get_sentence_embedding_dimension(),
-                distance=qmodels.Distance.COSINE,
-            )
-        )
-    return client
+
+@lru_cache(maxsize=1)
+def get_mongo_collection():
+    client = get_mongo_client()
+    db = client[MONGODB_DB]
+    return db[MONGODB_COLLECTION]
+
+def get_db():
+    """Alias for get_mongo_collection to satisfy dependency injection"""
+    return get_mongo_collection()
 
 # -------------------------------
 # Helpers
@@ -143,138 +152,83 @@ def parse_ingredients(ingredients_str: str) -> List[str]:
         return []
     return [ing.strip() for ing in ingredients_str.split(",")]
 
-def get_error_context():
-    """Get the current file, line number and function name where the error occurred"""
-    exc_type, exc_value, exc_traceback = sys.exc_info()
-    if exc_traceback is not None:
-        # Prendi il frame più in basso dello stack trace (dove è avvenuto l'errore)
-        frame = traceback.extract_tb(exc_traceback)[-1]
-        return f"File: {frame.filename}, Line: {frame.lineno}, Function: {frame.name}"
-    return ""
-
-# -------------------------------
+ #-------------------------------
 # Endpoints API
 # -------------------------------
-@app.post("/recipes/", response_model=RecipeSchema, status_code=status.HTTP_201_CREATED)
-async def create_recipe(video: VideoURL, db: Session = Depends(get_db)):
+@app.post("/recipes/", response_model=RecipeDBSchema, status_code=status.HTTP_201_CREATED)
+async def insert_recipe(video: VideoURL):
     try:
-        # Check for Instagram credentials if it's an Instagram URL
         url = str(video.url)
-        if 'instagram.com' in url:
-            #instagram_username = os.getenv("ISTA_USERNAME")
-            #instagram_password = os.getenv("ISTA_PASSWORD")
-            #if not instagram_username or not instagram_password:
-                #raise HTTPException(
-                #    status_code=status.HTTP_400_BAD_REQUEST, 
-                #    detail="Instagram credentials not configured. Set ISTA_USERNAME and ISTA_PASSWORD environment variables."
-                #)
-        
-         # Valida l'URL prima di processare il video
-         recipe_data = await process_video(url)
-         logger.info(f" {recipe_data}")
-         #RCdescription = recipe_data[0].get("description", "")
-         #logger.info(f"recipe description {RCdescription}")
-
-        if not recipe_data or len(recipe_data) == 0:
+        recipe_data = await process_video(url)
+        logger.info(f"recipe_data: {recipe_data}")
+        if not recipe_data:
             error_context = get_error_context()
             logger.error(f"Impossibile elaborare il video. Nessun dato ricevuto. - {error_context}")
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, 
+                status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Impossibile elaborare il video. Nessun dato ricevuto. - {error_context}"
             )
-        
-        recipe = recipe_data[0]  # Prendi la prima ricetta elaborata
-        logger.info(f"recipe {recipe}")
-        
-        # Convert lists to strings for database storage
-        ingredients_str = json.dumps(recipe.get("ingredients", []))
-        recipe_step_str = json.dumps(recipe.get("prepration_step", []))
-        category_str = json.dumps(recipe.get("category", []))
-        tags_str = json.dumps(recipe.get("tags", []))
-        nutritional_info_str = json.dumps(recipe.get("nutritional_info", []))
-
-        # Create response data with required fields
-        response_data = {
-            "title": recipe.get("title", ""),
-            "recipe_step": recipe_step_str,
-            "description": recipe.get("ricetta_caption", ""),
-            "ingredients": ingredients_str,
-            "preparation_time": recipe.get("prepration_time"),
-            "cooking_time": recipe.get("cooking_time"),
-            "diet": recipe.get("diet", ""),
-            "category": category_str,
-            "technique": recipe.get("technique", ""),
-            "language": recipe.get("language", "it"),
-            "chef_advise": recipe.get("chef_advise", ""),
-            "tags": tags_str,
-            "nutritional_info": nutritional_info_str,
-            "cuisine_type": recipe.get("cuisine_type", ""),
-            "ricetta_audio": recipe.get("ricetta_audio", ""),
-            "ricetta_caption": recipe.get("ricetta_caption", ""),
-            "ingredients_text": recipe.get("ingredients_text", ""),
-            "video_path": recipe.get("video", "")
-        }
-
-        # Create a new Recipe object from the dictionary data
-        db_recipe = Recipe(**response_data)
-
-        db.add(db_recipe)
-        db.commit()
-        db.refresh(db_recipe)
-        
-        # Genera l'embedding dalla descrizione della ricetta
+        # Generate embedding
         model = get_embedding_model()
-        text_for_embedding = f"{db_recipe.title} {json.loads(db_recipe.recipe_step)} {json.loads(db_recipe.ingredients)}"
-
-        logger.info(f"text_for_embedding {text_for_embedding}")
-
+        text_for_embedding = f"{recipe_data.title} {' '.join(recipe_data.recipe_step)} {json.dumps([ing.model_dump() for ing in recipe_data.ingredients])}"
         embedding = model.encode(text_for_embedding).tolist()
-        
-        # Inserisci l'embedding in Qdrant con un payload per il filtraggio
-        client = get_qdrant_client()
-        client.upsert(
-            collection_name=QDRANT_COLLECTION,
-            points=[
-                qmodels.PointStruct(
-                    id=db_recipe.id,
-                    vector=embedding,
-                    payload={
-                        "title": db_recipe.title,
-                        "diet": db_recipe.diet,
-                        "preparation_time": db_recipe.preparation_time,
-                        "cooking_time": db_recipe.cooking_time,
-                        "category": json.loads(db_recipe.category)
-                    }
-                )
-            ]
+        # Prepare document for MongoDB
+        doc = {
+            "title": recipe_data.title,
+            "category": recipe_data.category,
+            "preparation_time": recipe_data.preparation_time,
+            "cooking_time": recipe_data.cooking_time,
+            "ingredients": [ing.model_dump() for ing in recipe_data.ingredients],
+            "recipe_step": recipe_data.recipe_step,
+            "description": recipe_data.description,
+            "diet": recipe_data.diet,
+            "technique": recipe_data.technique,
+            "language": recipe_data.language,
+            "chef_advise": recipe_data.chef_advise,
+            "tags": recipe_data.tags,
+            "nutritional_info": recipe_data.nutritional_info,
+            "cuisine_type": recipe_data.cuisine_type,
+            "ricetta_audio": recipe_data.ricetta_audio,
+            "ricetta_caption": recipe_data.ricetta_caption,
+            "shortcode": recipe_data.shortcode,
+            "embedding": embedding
+        }
+        mongo_coll = get_mongo_collection()
+        mongo_coll.replace_one(
+            {"shortcode": recipe_data.shortcode},
+            doc,
+            upsert=True
         )
-        
-        # Converti le stringhe JSON di nuovo in liste per la risposta
-        response_data["recipe_step"] = json.loads(recipe_step_str)
-        response_data["ingredients"] = json.loads(ingredients_str)
-        response_data["category"] = json.loads(category_str)
-        response_data["tags"] = json.loads(tags_str)
-        response_data["nutritional_info"] = json.loads(nutritional_info_str)
-        
-        return response_data  # Return the properly formatted response data
-    
-    except ValueError as ve:
-        error_context = get_error_context()
-        logger.error(f"ValueError: {str(ve)} - {error_context}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
-            detail=f"{str(ve)} - {error_context}"
+        # Return response
+        return RecipeDBSchema(
+            title=doc["title"],
+            category=doc["category"],
+            preparation_time=doc["preparation_time"],
+            cooking_time=doc["cooking_time"],
+            ingredients=[Ingredient(**ing) for ing in doc["ingredients"]],
+            recipe_step=doc["recipe_step"],
+            description=doc["description"],
+            diet=doc["diet"],
+            technique=doc["technique"],
+            language=doc["language"],
+            chef_advise=doc["chef_advise"],
+            tags=doc["tags"],
+            nutritional_info=doc["nutritional_info"],
+            cuisine_type=doc["cuisine_type"],
+            ricetta_audio=doc["ricetta_audio"],
+            ricetta_caption=doc["ricetta_caption"],
+            shortcode=doc["shortcode"]
         )
-    
+    except HTTPException as e:
+        raise e
     except Exception as e:
-        error_context = get_error_context()
-        logger.error(f"Unexpected error: {str(e)} - {error_context}")
+        logger.error(f" {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-            detail=f"{str(e)} - {error_context}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"{str(e)}"
         )
 
-@app.get("/recipes/{recipe_id}", response_model=RecipeSchema)
+@app.get("/recipes/{recipe_id}", response_model=RecipeDBSchema)
 def get_recipe(recipe_id: int, db: Session = Depends(get_db)):
     try:
         recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
@@ -295,61 +249,64 @@ def get_recipe(recipe_id: int, db: Session = Depends(get_db)):
             detail=f"Errore durante il recupero della ricetta: {str(e)} - {error_context}"
         )
 
-@app.get("/search/", response_model=List[RecipeSchema])
+@app.get("/search/")
 def search_recipes(
     query: str,
     diet: Optional[str] = None,
     max_preparation_time: Optional[int] = None,
     difficulty: Optional[str] = None,
-    limit: int = Query(5, ge=1, le=20),
-    db: Session = Depends(get_db)
+    limit: int = Query(5, ge=1, le=20)
 ):
     try:
-        # Genera embedding per la query utente
-        model = get_embedding_model()
-        query_embedding = model.encode(query).tolist()
-        
-        # Costruisci i filtri per Qdrant se specificati dall'utente
-        conditions = []
+        # Perform MongoDB Atlas Semantic Search
+        mongo_coll = get_mongo_collection()
+        pipeline = []
+        # Build $search stage with text operator
+        search_stage = {
+            "$search": {
+                "index": MONGO_SEARCH_INDEX,
+                "compound": {
+                    "must": [
+                        {
+                            "text": {
+                                "query": query,
+                                "path": {"wildcard": "*"}
+                            }
+                        }
+                    ]
+                }
+            }
+        }
+        # Add filter clauses if provided
+        filter_clauses = []
         if diet:
-            conditions.append(qmodels.FieldCondition(key="diet", match=qmodels.MatchValue(value=diet)))
+            filter_clauses.append({"equals": {"path": "diet", "value": diet}})
         if max_preparation_time is not None:
-            conditions.append(qmodels.FieldCondition(key="preparation_time", range=qmodels.Range(lte=max_preparation_time)))
+            filter_clauses.append({"range": {"path": "preparation_time", "lte": max_preparation_time}})
         if difficulty:
-            conditions.append(qmodels.FieldCondition(key="difficulty", match=qmodels.MatchValue(value=difficulty)))
-        
-        query_filter = qmodels.Filter(must=conditions) if conditions else None
-        
-        # Interroga Qdrant per ottenere i punti (ricette) più simili
-        client = get_qdrant_client()
-        results = client.search(
-            collection_name=QDRANT_COLLECTION,
-            query_vector=query_embedding,
-            limit=limit,
-            query_filter=query_filter,
-            with_payload=True
-        )
-        
-        # Recupera gli ID delle ricette dai risultati e consulta il database
-        recipe_ids = [int(point.id) for point in results]
-        
-        if not recipe_ids:
-            return []
-            
-        recipes = db.query(Recipe).filter(Recipe.id.in_(recipe_ids)).all()
-        
-        # Ordina le ricette in base all'ordine dei risultati di Qdrant
-        id_to_recipe = {recipe.id: recipe for recipe in recipes}
-        ordered_recipes = [id_to_recipe.get(recipe_id) for recipe_id in recipe_ids if recipe_id in id_to_recipe]
-        
-        return ordered_recipes
-    
+            filter_clauses.append({"equals": {"path": "difficulty", "value": difficulty}})
+        if filter_clauses:
+            search_stage["$search"]["compound"]["filter"] = filter_clauses
+        pipeline.append(search_stage)
+
+        pipeline.append({"$addFields": {"score": {"$meta": "searchScore"}}})
+        pipeline.append({"$limit": limit})
+        # Convert aggregation cursor to list for JSON serialization
+        results_cursor = mongo_coll.aggregate(pipeline)
+        results = list(results_cursor)
+        logger.info(f"MongoDB semantic search results {results}")
+        # Convert ObjectId to string for JSON serialization
+        for doc in results:
+            if "_id" in doc:
+                doc["_id"] = str(doc["_id"])
+        return results
+
     except Exception as e:
         error_context = get_error_context()
-        logger.error(f"Errore durante la ricerca: {str(e)} - {error_context}")
+        logger.error(f"{str(e)} - {error_context}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-            detail=f"Errore durante la ricerca: {str(e)} - {error_context}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f" {str(e)} - {error_context}"
         )
 
 # -------------------------------
@@ -360,7 +317,6 @@ def health_check():
     return {"status": "ok"}
 
 # -------------------------------
-# Avvio dell'applicazione
-# -------------------------------
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -3,8 +3,20 @@ import os
 import datetime
 import logging
 import random
+import traceback
+import asyncio
+from functools import wraps
 
-BASE_FOLDER = os.path.join(os.getcwd(), "static/ricette")
+# Configurazione del logging
+logging.basicConfig(
+  level=logging.INFO,
+  format='%(asctime)s - %(levelname)s - %(pathname)s:%(lineno)d:%(funcName)s - %(message)s',
+  filename='backend.log'
+)
+
+logger = logging.getLogger(__name__)
+
+BASE_FOLDER = os.path.join(os.getcwd(), "static/mediaRicette")
 
 # Sanificazione iniziale del testo
 def sanitize_text(text):
@@ -38,13 +50,22 @@ def create_date_folder() -> str:
     return date_folder
 
 def rename_files(video_folder,file_name:str):
-     # Rinominare tutti i file nella cartella video_folder_new mantenendo l'estensione originale
-    for filename in os.listdir(video_folder):
-        old_file_path = os.path.join(video_folder, filename)
-        name, ext = os.path.splitext(filename)  # Separare nome ed estensione
-        new_file_path = os.path.join(video_folder, f"{file_name}{ext}")
-        os.rename(old_file_path, new_file_path)
-    return ""
+    # Check if the folder exists
+    if not os.path.exists(video_folder):
+        logging.error(f"Cannot rename files: folder {video_folder} does not exist")
+        return ""
+        
+    # Rinominare tutti i file nella cartella video_folder_new mantenendo l'estensione originale
+    try:
+        for filename in os.listdir(video_folder):
+            old_file_path = os.path.join(video_folder, filename)
+            name, ext = os.path.splitext(filename)  # Separare nome ed estensione
+            new_file_path = os.path.join(video_folder, f"{file_name}{ext}")
+            os.rename(old_file_path, new_file_path)
+        return ""
+    except Exception as e:
+        logging.error(f"Error renaming files in {video_folder}: {str(e)}")
+        return ""
 
 def rename_folder(percorso_vecchio: str, nuovo_nome: str) -> bool:
     """
@@ -75,3 +96,24 @@ def rename_folder(percorso_vecchio: str, nuovo_nome: str) -> bool:
     except OSError as e:
         logging.error(f"Errore durante il rinominamento della cartella: {str(e)}")
         return percorso_vecchio
+
+def get_error_context():
+    """Get the current file, line number and function name where the error occurred"""
+    stack = traceback.extract_stack()
+    if len(stack) > 1:
+        frame = stack[-2]
+        return f"File: {frame.filename}, Line: {frame.lineno}, Function: {frame.name}"
+    return ""
+
+def timeout(seconds):
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            try:
+                return await asyncio.wait_for(func(*args, **kwargs), timeout=seconds)
+            except asyncio.TimeoutError:
+                message = f"Timeout dopo {seconds} secondi nella funzione {func.__name__}"
+                logger.error(message)
+                raise message
+        return wrapper
+    return decorator
