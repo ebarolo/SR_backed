@@ -1,4 +1,4 @@
-fastapi
+fastapi[standard]
 uvicorn[standard]
 pydantic
 sqlalchemy
@@ -7,6 +7,7 @@ torch
 pymongo
 certifi
 openai
+python-dotenv
 tenacity
 yt-dlp
 instaloader 

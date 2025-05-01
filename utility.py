@@ -7,13 +7,7 @@ import traceback
 import asyncio
 from functools import wraps
 
-# Configurazione del logging
-logging.basicConfig(
-  level=logging.INFO,
-  format='%(asctime)s - %(levelname)s - %(pathname)s:%(lineno)d:%(funcName)s - %(message)s',
-  filename='backend.log'
-)
-
+# Initialize module logger using global config
 logger = logging.getLogger(__name__)
 
 BASE_FOLDER = os.path.join(os.getcwd(), "static/mediaRicette")
@@ -52,7 +46,8 @@ def create_date_folder() -> str:
 def rename_files(video_folder,file_name:str):
     # Check if the folder exists
     if not os.path.exists(video_folder):
-        logging.error(f"Cannot rename files: folder {video_folder} does not exist")
+        error_context = get_error_context()
+        logger.error(f"Cannot rename files: folder {video_folder} does not exist - {error_context}")
         return ""
         
     # Rinominare tutti i file nella cartella video_folder_new mantenendo l'estensione originale
@@ -64,7 +59,8 @@ def rename_files(video_folder,file_name:str):
             os.rename(old_file_path, new_file_path)
         return ""
     except Exception as e:
-        logging.error(f"Error renaming files in {video_folder}: {str(e)}")
+        error_context = get_error_context()
+        logger.error(f"Error renaming files in {video_folder}: {e} - {error_context}")
         return ""
 
 def rename_folder(percorso_vecchio: str, nuovo_nome: str) -> bool:
@@ -80,21 +76,24 @@ def rename_folder(percorso_vecchio: str, nuovo_nome: str) -> bool:
     """
     try:
         if not os.path.exists(percorso_vecchio):
-            logging.error(f"La cartella {percorso_vecchio} non esiste")
+            error_context = get_error_context()
+            logger.error(f"La cartella {percorso_vecchio} non esiste - {error_context}")
             return percorso_vecchio
             
         cartella_base = os.path.dirname(percorso_vecchio)
         percorso_nuovo = os.path.join(cartella_base, nuovo_nome)
         
         if os.path.exists(percorso_nuovo):
-         logging.error(f"Esiste già una cartella chiamata {nuovo_nome}")
-         percorso_nuovo = percorso_nuovo+"_"+str(random.randint(0,100)) 
+            error_context = get_error_context()
+            logger.error(f"Esiste già una cartella chiamata {nuovo_nome} - {error_context}")
+            percorso_nuovo = percorso_nuovo+"_"+str(random.randint(0,100)) 
         os.rename(percorso_vecchio, percorso_nuovo)
-        logging.info(f"Cartella rinominata da {percorso_vecchio} a {percorso_nuovo}")
+        logger.info(f"Cartella rinominata da {percorso_vecchio} a {percorso_nuovo}")
         return percorso_nuovo
         
     except OSError as e:
-        logging.error(f"Errore durante il rinominamento della cartella: {str(e)}")
+        error_context = get_error_context()
+        logger.error(f"Errore durante il rinominamento della cartella: {e} - {error_context}")
         return percorso_vecchio
 
 def get_error_context():

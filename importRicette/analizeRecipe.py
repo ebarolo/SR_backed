@@ -6,23 +6,12 @@ import asyncio
 import re
 import json
 
-from functools import wraps
 from tenacity import retry, stop_after_attempt, wait_exponential
-from openai import OpenAI
+from config import OpenAIclient
 
-from models import RecipeAIResponse
+from models import RecipeAIResponse, recipe_schema
 
 from utility import get_error_context, timeout
-
-OPENAI_API_KEY = "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"
-OpenAIclient = OpenAI(api_key=OPENAI_API_KEY)
-
-# Configurazione del logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(pathname)s:%(lineno)d:%(funcName)s - %(message)s",
-    filename="backend.log",
-)
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +37,7 @@ def testo_a_dizionario(testo):
         risultato[chiave_corrente] = "\n".join(valore_corrente).strip()
     return risultato
 
-def read_prompt_files(
+def create_prompt(
     recipe_audio_text="",
     recipe_capiton_text="",
     ingredients=None,
@@ -64,7 +53,7 @@ def read_prompt_files(
         actions (list): Lista delle azioni
 
     Returns:
-        tuple: (user_prompt, system_prompt) contenenti i testi processati
+        tuple: (user_prompt, system_prompt) contenenti i prompt processati
     """
     # Inizializza liste vuote se non fornite
     if ingredients is None:
@@ -106,10 +95,12 @@ def read_prompt_files(
         return user_prompt, system_prompt
 
     except FileNotFoundError as e:
-        print(f"Errore: File non trovato - {str(e)}")
+        error_context = get_error_context()
+        logger.error(f"Errore: File non trovato - {e} - {error_context}")
         return None, None
     except Exception as e:
-        print(f"Errore durante la lettura dei file: {str(e)}")
+        error_context = get_error_context()
+        logger.error(f"Errore durante la lettura dei file: {e} - {error_context}")
         return None, None
 
 def encode_image(image_path):
@@ -117,11 +108,11 @@ def encode_image(image_path):
     Codifica l'immagine in base64.
     """
     try:
-
         with open(image_path, "rb") as image_file:
             return base64.b64encode(image_file.read()).decode("utf-8")
     except Exception as e:
-        logger.error(f"Errore durante la codifica dell'immagine {image_path}: {str(e)}")
+        error_context = get_error_context()
+        logger.error(f"Errore durante la codifica dell'immagine {image_path}: {e} - {error_context}")
         raise
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
@@ -153,31 +144,33 @@ async def analyze_recipe_frames(base64Frames):
         logger.info(result.choices[0])
         return result.choices[0].message.content
     except Exception as e:
-        logger.error(f"Errore durante l'analisi dei fotogrammi: {str(e)}")
+        error_context = get_error_context()
+        logger.error(f"Errore durante l'analisi dei fotogrammi: {e} - {error_context}")
         raise
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
-@timeout(180)  # 3 minuti
+@timeout(60)  # 3 minuti
 async def extract_recipe_info(
     recipe_audio_text: str, recipe_caption_text: str, ingredients: any, actions: any
 ) -> RecipeAIResponse:
 
-    user_prompt, system_prompt = read_prompt_files(
+    user_prompt, system_prompt = create_prompt(
         recipe_audio_text,
         recipe_caption_text,
         ingredients,
         actions,
         "prompt_user_TXT.txt",
     )
-    logger.info(f"readed prompts")
+    logger.info(f"created prompts")
     
     try:
-        logger.info(f"try OpenAIclient")
-        OpenAIresponse = OpenAIclient.responses.create(
+        logger.info(f"try call OpenAI")
+        OpenAIresponse = await asyncio.to_thread(
+            OpenAIclient.responses.create,
             model="o4-mini",
             input=[
                 {
-                    "role": "developer",
+                    "role": "system",
                     "content": [{"type": "input_text", "text": system_prompt}],
                 },
                 {
@@ -185,125 +178,20 @@ async def extract_recipe_info(
                     "content": [{"type": "input_text", "text": user_prompt}],
                 },
             ],
-            text={
-                "format": {
-                    "type": "json_schema",
-                    "name": "recipe_schema",
-                    "strict": True,
-                    "schema": {
-                        "type": "object",
-                        "properties": {
-                            "title": {
-                                "type": "string",
-                                "description": "The title of the recipe.",
-                            },
-                            "category": {
-                                "type": "array",
-                                "description": "The categories the recipe belongs to.",
-                                "items": {"type": "string"},
-                            },
-                            "preparation_time": {
-                                "type": "number",
-                                "description": "The preparation time in minutes.",
-                            },
-                            "cooking_time": {
-                                "type": "number",
-                                "description": "The cooking time in minutes.",
-                            },
-                            "ingredients": {
-                                "type": "array",
-                                "description": "The list of ingredients required for the recipe.",
-                                "items": {"$ref": "#/$defs/ingredient"},
-                            },
-                            "recipe_step": {
-                                "type": "array",
-                                "description": "Step-by-step instructions for preparing the recipe.",
-                                "items": {"type": "string"},
-                            },
-                            "description": {
-                                "type": "string",
-                                "description": "A short description of the recipe.",
-                            },
-                            "diet": {
-                                "type": "string",
-                                "description": "Diet type associated with the recipe.",
-                            },
-                            "technique": {
-                                "type": "string",
-                                "description": "Cooking technique used in the recipe.",
-                            },
-                            "language": {
-                                "type": "string",
-                                "description": "The language of the recipe.",
-                            },
-                            "chef_advise": {
-                                "type": "string",
-                                "description": "Advice or tips from the chef.",
-                            },
-                            "tags": {
-                                "type": "array",
-                                "description": "Tags related to the recipe.",
-                                "items": {"type": "string"},
-                            },
-                            "nutritional_info": {
-                                "type": "array",
-                                "description": "Nutritional information pertaining to the recipe.",
-                                "items": {"type": "string"},
-                            },
-                            "cuisine_type": {
-                                "type": "string",
-                                "description": "Type of cuisine the recipe represents.",
-                            },
-                        },
-                        "required": [
-                            "title",
-                            "category",
-                            "preparation_time",
-                            "cooking_time",
-                            "ingredients",
-                            "recipe_step",
-                            "description",
-                            "diet",
-                            "technique",
-                            "language",
-                            "chef_advise",
-                            "tags",
-                            "nutritional_info",
-                            "cuisine_type",
-                        ],
-                        "additionalProperties": False,
-                        "$defs": {
-                            "ingredient": {
-                                "type": "object",
-                                "properties": {
-                                    "name": {
-                                        "type": "string",
-                                        "description": "The name of the ingredient.",
-                                    },
-                                    "qt": {
-                                        "type": "number",
-                                        "description": "The quantity of the ingredient.",
-                                    },
-                                    "um": {
-                                        "type": "string",
-                                        "description": "The unit of measurement for the ingredient.",
-                                    },
-                                },
-                                "required": ["name", "qt", "um"],
-                                "additionalProperties": False,
-                            }
-                        },
-                    },
-                }
-            },
-            store=False,
+            text=recipe_schema,
+            reasoning={"effort": "low"},
+            tools=[],
+            store=True,
+            timeout=60
         )
         logger.info(f" OpenAIresponse: {OpenAIresponse}")
+        
         if OpenAIresponse.error is None:
          # Parse the response into a RecipeSchema object
           message_items = [item for item in OpenAIresponse.output if hasattr(item, "content")]
           if not message_items:
-            raise ValueError("No valid output message in OpenAIresponse")
+            logger.error(f"No valid output message in OpenAIresponse {OpenAIresponse}")
+            raise ValueError(f"No valid output message in OpenAIresponse {OpenAIresponse}")
           response_content = message_items[0].content[0]
           if isinstance(response_content, str):
             recipe_data = json.loads(response_content)
@@ -311,13 +199,15 @@ async def extract_recipe_info(
             recipe_data = json.loads(response_content.text)
           else:
             recipe_data = response_content
-
+          
+          logger.info(f"RecipeAIResponse: {recipe_data}")
           return RecipeAIResponse(**recipe_data)
         else:
             raise ValueError("OpenAIresponse error: " + OpenAIresponse.error)
 
     except Exception as e:
-        logger.error(f"OpenAIresponse error: {str(e)}")
+        error_context = get_error_context()
+        logger.error(f"OpenAIresponse error: {e} - {error_context}")
         raise e
 
 
@@ -333,15 +223,11 @@ async def whisper_speech_recognition(audio_file_path: str, language: str) -> str
                 file=audio_file,
             )
         return transcription.text
-    except FileNotFoundError:
+    except FileNotFoundError as e:
         error_context = get_error_context()
-        logger.error(
-            f"Errore: Il file audio '{audio_file_path}' non è stato trovato. - {error_context}"
-        )
+        logger.error(f"Errore: Il file audio '{audio_file_path}' non è stato trovato. - {e} - {error_context}")
         raise e
     except Exception as e:
         error_context = get_error_context()
-        logger.error(
-            f"Errore durante il riconoscimento vocale: {str(e)} - {error_context}"
-        )
+        logger.error(f"Errore durante il riconoscimento vocale: {e} - {error_context}")
         raise e
