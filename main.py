@@ -1,10 +1,5 @@
-import logging
-import json
-import uvicorn
-
-from fastapi import FastAPI, HTTPException, Depends, Query, status, Request
+from fastapi import FastAPI, HTTPException, Depends, Query, status
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import JSONResponse
 
 from pydantic import BaseModel, HttpUrl, validator
 from typing import List, Optional, Dict, Any
@@ -12,17 +7,20 @@ from sqlalchemy import Column, Integer, String, Text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Session
 from functools import lru_cache
-from config import OpenAIclient, MONGODB_URL, MONGODB_DB, MONGODB_COLLECTION, MONGO_SEARCH_INDEX, EMBEDDING_MODEL, logger
 
+import json
+import uvicorn
 # Import per integrazione con MongoDB e NLP
+from sentence_transformers import SentenceTransformer
 from models import RecipeDBSchema, Ingredient
 from pymongo import MongoClient
 from pymongo.server_api import ServerApi
 
 from importRicette.saveRecipe import process_video
-from utility import get_error_context, timeout
+from utility import get_error_context, timeout, logger
+from config import openAIclient, MONGODB_URL, MONGODB_DB, MONGODB_COLLECTION, MONGO_SEARCH_INDEX, EMBEDDING_MODEL
 
-# SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+#SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 # Modello SQLAlchemy per la ricetta
@@ -35,9 +33,9 @@ class Recipe(Base):
     ingredients = Column(Text)  # memorizzati come stringa in formato JSON
     preparation_time = Column(Integer)  # tempo in minuti
     cooking_time = Column(Integer)
-    diet = Column(String)  # ad es. "vegano", "vegetariano", ecc.
-    category = Column(String)  # ad es. "primo", "secondo", "dolce"
-    technique = Column(String)  # ad es. "cottura al forno", "frittura"
+    diet = Column(String)               # ad es. "vegano", "vegetariano", ecc.
+    category = Column(String)           # ad es. "primo", "secondo", "dolce"
+    technique = Column(String)          # ad es. "cottura al forno", "frittura"
     language = Column(String, default="it")
     chef_advise = Column(Text, nullable=True)
     tags = Column(String, nullable=True)
@@ -48,28 +46,22 @@ class Recipe(Base):
     ingredients_text = Column(String, nullable=True)
     shortcode = Column(String, nullable=True)
 
+# Creazione delle tabelle nel database
+#Base.metadata.create_all(bind=engine)
 
 # -------------------------------
 # Schemi Pydantic
 # -------------------------------
+
 class VideoURL(BaseModel):
     url: HttpUrl
-
-    @validator("url")
+    
+    @validator('url')
     def validate_url(cls, v):
-        allowed_domains = [
-            "youtube.com",
-            "youtu.be",
-            "instagram.com",
-            "facebook.com",
-            "tiktok.com",
-        ]
+        allowed_domains = ['youtube.com', 'youtu.be', 'instagram.com', 'facebook.com', 'tiktok.com']
         if not any(domain in str(v) for domain in allowed_domains):
-            raise ValueError(
-                f"URL non supportato. Dominio deve essere tra: {', '.join(allowed_domains)}"
-            )
+            raise ValueError(f"URL non supportato. Dominio deve essere tra: {', '.join(allowed_domains)}")
         return v
-
 
 class SearchQuery(BaseModel):
     query: str
@@ -77,54 +69,46 @@ class SearchQuery(BaseModel):
     max_preparation_time: Optional[int] = None
     difficulty: Optional[str] = None
 
-
 # -------------------------------
 # Inizializzazione FastAPI e Dependency per il DB
 # -------------------------------
-app = FastAPI(title="Backend Smart Recipe", version="0.2")
+app = FastAPI(title="Backend Smart Recipe", version="0.5")
+
 # Mount mediaRicette directory explicitly to ensure all dynamic subfolders are accessible
-app.mount(
-    "/mediaRicette", StaticFiles(directory="static/mediaRicette"), name="mediaRicette"
-)
+app.mount("/mediaRicette", StaticFiles(directory="static/mediaRicette"), name="mediaRicette")
+
+@app.get("/")
+async def root():
+    # In un template reale useresti Jinja2 o un'altra template-engine
+    return {
+        "message": "Vai su /static/index.html per provare i file statici"
+}
 
 # -------------------------------
-# Inizializzazione del modello NLP
+# Inizializzazione del modello NLP SentenceTransformer
 # -------------------------------
 @lru_cache(maxsize=1)
-def get_embedding_model(text: str):
+def get_embedding(text_for_embedding):
+    #model= SentenceTransformer("all-MiniLM-L6-v2")
+    #return model.encode(text_for_embedding).tolist()
     """Generate an embedding for the given text using OpenAI's API."""
     # Check for valid input
-    if not text or not isinstance(text, str):
+    if not text_for_embedding or not isinstance(text_for_embedding, str):
+        logger.error(f"Error in get_embedding: {text_for_embedding} is not a valid string")
         return None
     try:
         # Call OpenAI API to get the embedding
-        embedding = (
-            OpenAIclient.embeddings.create(input=text, model=EMBEDDING_MODEL)
-            .data[0]
-            .embedding
-        )
+        embedding = openAIclient.embeddings.create(input=text_for_embedding, model=EMBEDDING_MODEL).data[0].embedding
         return embedding
     except Exception as e:
-        error_context = get_error_context()
-        logger.error(f"Error in get_embedding_model: {e} - {error_context}")
+        logger.error(f"Error in get_embedding: {e}")
         return None
 
-
 # -------------------------------
-# Inizializzazione MongoDB client
+# Inizializzazione MongoDB per semantic search
 # -------------------------------
 @lru_cache(maxsize=1)
 def get_mongo_client():
-    """Establish connection to the MongoDB."""
-    try:
-        client = MongoClient(MONGODB_URL)
-        logger.info(f"Connection to MongoDB successful")
-        return client
-    except MongoClient.errors.ConnectionFailure as e:
-        logger.info(f"Connection to MongoDB failed: {e}")
-        return None
-
-"""
     return MongoClient(
         MONGODB_URL,
         server_api=ServerApi('1'),
@@ -133,7 +117,6 @@ def get_mongo_client():
         socketTimeoutMS=300000,
         tlsAllowInvalidCertificates=True  # Fix for SSL certificate verification issue
     )
-"""
 
 @lru_cache(maxsize=1)
 def get_mongo_collection():
@@ -141,26 +124,22 @@ def get_mongo_collection():
     db = client[MONGODB_DB]
     return db[MONGODB_COLLECTION]
 
-
 def get_db():
     """Alias for get_mongo_collection to satisfy dependency injection"""
     return get_mongo_collection()
 
+# -------------------------------
+# Helpers
+# -------------------------------
 def parse_ingredients(ingredients_str: str) -> List[str]:
     """Converte la stringa di ingredienti in lista"""
     if not ingredients_str:
         return []
     return [ing.strip() for ing in ingredients_str.split(",")]
 
-# -------------------------------
+ #-------------------------------
 # Endpoints API
 # -------------------------------
-@app.get("/")
-async def root():
-    # In un template reale useresti Jinja2 o un'altra template-engine
-    return {"message": "Vai su /static/index.html per provare i file statici"}
-
-
 @app.post("/recipes/", response_model=RecipeDBSchema, status_code=status.HTTP_201_CREATED)
 async def insert_recipe(video: VideoURL):
     try:
@@ -168,15 +147,16 @@ async def insert_recipe(video: VideoURL):
         recipe_data = await process_video(url)
         logger.info(f"recipe_data: {recipe_data}")
         if not recipe_data:
-            logger.error(f"Impossibile elaborare il video. Nessun dato ricevuto.")
+            error_context = get_error_context()
+            logger.error(f"Impossibile elaborare il video. Nessun dato ricevuto. - {error_context}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Impossibile elaborare il video. Nessun dato ricevuto.",
+                detail=f"Impossibile elaborare il video. Nessun dato ricevuto. - {error_context}"
             )
         # Generate embedding
+        #model = get_embedding_model()
         text_for_embedding = f"{recipe_data.title} {' '.join(recipe_data.recipe_step)} {json.dumps([ing.model_dump() for ing in recipe_data.ingredients])}"
-        embedding = get_embedding_model(text_for_embedding)
-        logger.info(f"embedding: {embedding}")
+        embedding = get_embedding(text_for_embedding)
         # Prepare document for MongoDB
         doc = {
             "title": recipe_data.title,
@@ -196,10 +176,14 @@ async def insert_recipe(video: VideoURL):
             "ricetta_audio": recipe_data.ricetta_audio,
             "ricetta_caption": recipe_data.ricetta_caption,
             "shortcode": recipe_data.shortcode,
-            "embedding": embedding,
+            "embedding": embedding
         }
         mongo_coll = get_mongo_collection()
-        mongo_coll.replace_one({"shortcode": recipe_data.shortcode}, doc, upsert=True)
+        mongo_coll.replace_one(
+            {"shortcode": recipe_data.shortcode},
+            doc,
+            upsert=True
+        )
         # Return response
         return RecipeDBSchema(
             title=doc["title"],
@@ -218,16 +202,16 @@ async def insert_recipe(video: VideoURL):
             cuisine_type=doc["cuisine_type"],
             ricetta_audio=doc["ricetta_audio"],
             ricetta_caption=doc["ricetta_caption"],
-            shortcode=doc["shortcode"],
+            shortcode=doc["shortcode"]
         )
     except HTTPException as e:
         raise e
     except Exception as e:
         logger.error(f" {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"{str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"{str(e)}"
         )
-
 
 @app.get("/recipes/{recipe_id}", response_model=RecipeDBSchema)
 def get_recipe(recipe_id: int, db: Session = Depends(get_db)):
@@ -237,21 +221,18 @@ def get_recipe(recipe_id: int, db: Session = Depends(get_db)):
             error_context = get_error_context()
             logger.error(f"Ricetta non trovata con ID {recipe_id} - {error_context}")
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Ricetta non trovata - {error_context}",
+                status_code=status.HTTP_404_NOT_FOUND, 
+                detail=f"Ricetta non trovata - {error_context}"
             )
-
+        
         return recipe
     except Exception as e:
         error_context = get_error_context()
-        logger.error(
-            f"Errore durante il recupero della ricetta: {str(e)} - {error_context}"
-        )
+        logger.error(f"Errore durante il recupero della ricetta: {str(e)} - {error_context}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Errore durante il recupero della ricetta: {str(e)} - {error_context}",
+            detail=f"Errore durante il recupero della ricetta: {str(e)} - {error_context}"
         )
-
 
 @app.get("/search/")
 def search_recipes(
@@ -259,7 +240,7 @@ def search_recipes(
     diet: Optional[str] = None,
     max_preparation_time: Optional[int] = None,
     difficulty: Optional[str] = None,
-    limit: int = Query(5, ge=1, le=20),
+    limit: int = Query(5, ge=1, le=20)
 ):
     try:
         # Perform MongoDB Atlas Semantic Search
@@ -270,8 +251,15 @@ def search_recipes(
             "$search": {
                 "index": MONGO_SEARCH_INDEX,
                 "compound": {
-                    "must": [{"text": {"query": query, "path": {"wildcard": "*"}}}]
-                },
+                    "must": [
+                        {
+                            "text": {
+                                "query": query,
+                                "path": {"wildcard": "*"}
+                            }
+                        }
+                    ]
+                }
             }
         }
         # Add filter clauses if provided
@@ -279,13 +267,9 @@ def search_recipes(
         if diet:
             filter_clauses.append({"equals": {"path": "diet", "value": diet}})
         if max_preparation_time is not None:
-            filter_clauses.append(
-                {"range": {"path": "preparation_time", "lte": max_preparation_time}}
-            )
+            filter_clauses.append({"range": {"path": "preparation_time", "lte": max_preparation_time}})
         if difficulty:
-            filter_clauses.append(
-                {"equals": {"path": "difficulty", "value": difficulty}}
-            )
+            filter_clauses.append({"equals": {"path": "difficulty", "value": difficulty}})
         if filter_clauses:
             search_stage["$search"]["compound"]["filter"] = filter_clauses
         pipeline.append(search_stage)
@@ -307,9 +291,8 @@ def search_recipes(
         logger.error(f"{str(e)} - {error_context}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f" {str(e)} - {error_context}",
+            detail=f" {str(e)} - {error_context}"
         )
-
 
 # -------------------------------
 # Endpoints per la validazione di stato e prova
@@ -317,20 +300,6 @@ def search_recipes(
 @app.get("/health", status_code=status.HTTP_200_OK)
 def health_check():
     return {"status": "ok"}
-
-
-# Add global exception handlers for consistent error responses
-@app.exception_handler(HTTPException)
-async def http_exception_handler(request: Request, exc: HTTPException):
-    error_context = get_error_context()
-    logger.error(f"HTTPException occurred: {exc.detail} - {error_context}")
-    return JSONResponse(status_code=exc.status_code, content={"error": exc.detail, "context": error_context})
-
-@app.exception_handler(Exception)
-async def general_exception_handler(request: Request, exc: Exception):
-    error_context = get_error_context()
-    logger.error(f"Unhandled exception: {exc} - {error_context}")
-    return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content={"error": str(exc), "context": error_context})
 
 # -------------------------------
 

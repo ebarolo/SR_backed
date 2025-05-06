@@ -1,17 +1,13 @@
 import os
 import instaloader
-import logging
 from typing import Dict, Any
 
-from utility import get_error_context, sanitize_folder_name
+from utility import sanitize_folder_name, logger
+from config import ISTA_USERNAME, ISTA_PASSWORD
 
 BASE_FOLDER = os.path.join(os.getcwd(), "static/preprocess_video")
 
 # Uncomment these lines and set environment variables for authentication
-ISTA_USERNAME = os.getenv("ISTA_USERNAME")
-ISTA_PASSWORD = os.getenv("ISTA_PASSWORD")
-
-logger = logging.getLogger(__name__)
 
 def get_instaloader():
     L = instaloader.Instaloader(
@@ -131,9 +127,8 @@ async def scarica_contenuto_reel(url: str) -> Dict[str, Any]:
             return result
 
     except instaloader.exceptions.InstaloaderException as e:
-        error_context = get_error_context()
-        logger.error(f"Errore di scarica_contenuto_reel: {e} - {error_context}")
-        raise ValueError(f"Errore di scarica_contenuto_reel: {e}")
+        logger.error(f"Errore di scarica_contenuto_reel: {str(e)}")
+        raise ValueError(f"Errore di scarica_contenuto_reel: {str(e)}")
 
 async def scarica_contenuti_account(username: str):
     result = []
@@ -171,8 +166,7 @@ async def scarica_contenuti_account(username: str):
         logger.info(f"Completed fetching {post_count} posts for profile: {username}")
         return result
     except instaloader.exceptions.InstaloaderException as e:
-        error_context = get_error_context()
-        logger.error(f"Errore specifico di scarica_contenuti_account: {e} - {error_context}")
+        logger.error(f"Errore specifico di scarica_contenuti_account: {str(e)}")
         result.append(
             {"error": str(e), "titolo": "", "percorso_video": "", "caption": ""}
         )

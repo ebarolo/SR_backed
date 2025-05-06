@@ -1,5 +1,4 @@
 import os
-import logging
 import re
 import subprocess
 import asyncio
@@ -9,16 +8,13 @@ import yt_dlp
 from typing import Dict, Any
 from functools import wraps
 from tenacity import retry, stop_after_attempt, wait_exponential
-from config import OpenAIclient
 
 from models import RecipeDBSchema
 
-from utility import sanitize_text, sanitize_filename, get_error_context
+from utility import sanitize_text, sanitize_filename, get_error_context, timeout
 from importRicette.analizeRecipe import extract_recipe_info, whisper_speech_recognition
 from importRicette.instaloader import scarica_contenuto_reel, scarica_contenuti_account
-
-# Initialize module logger using global config
-logger = logging.getLogger(__name__)
+from utility import logger
 
 BASE_FOLDER = os.path.join(os.getcwd(), "static/mediaRicette")
 
@@ -103,11 +99,10 @@ async def process_video(recipe: str):
                 )
                 logger.info(f"Audio extraction successful: {audio_path}")
             except subprocess.CalledProcessError as e:
-                error_context = get_error_context()
-                logger.error(f"ffmpeg command failed with exit code {e.returncode} - {error_context}")
-                logger.error(f"ffmpeg stdout: {e.stdout} - {error_context}")
-                logger.error(f"ffmpeg stderr: {e.stderr} - {error_context}")
-                logger.error(f"ffmpeg command: {e.cmd} - {error_context}")
+                logger.error(f"ffmpeg command failed with exit code {e.returncode}")
+                logger.error(f"ffmpeg stdout: {e.stdout}")
+                logger.error(f"ffmpeg stderr: {e.stderr}")
+                logger.error(f"Command was: {e.cmd}")
                 raise Exception(f"Errore durante l'estrazione dell'audio: {e}")
 
             logger.info(f"start speech_to_text: {audio_path}")
@@ -139,6 +134,5 @@ async def process_video(recipe: str):
             logger.info(f"process_video completato per: {ricetta}")
             return RecipeDBSchema(**ricetta_dict)
         except Exception as e:
-            error_context = get_error_context()
-            logger.error(f"Errore durante process_video: {e} - {error_context}")
-            raise e
+            logger.error(f"Errore durante process_video : {e}")
+        raise e

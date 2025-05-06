@@ -5,7 +5,6 @@ sqlalchemy
 sentence-transformers
 torch
 pymongo
-certifi
 openai
 python-dotenv
 tenacity
