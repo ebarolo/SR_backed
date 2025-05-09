@@ -1,24 +1,20 @@
-from fastapi import FastAPI, HTTPException, Depends, Query, status
+from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.staticfiles import StaticFiles
 
 from pydantic import BaseModel, HttpUrl, validator
-from typing import List, Optional, Dict, Any
+from typing import Optional
 from sqlalchemy import Column, Integer, String, Text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Session
-from functools import lru_cache
 
 import json
 import uvicorn
 # Import per integrazione con MongoDB e NLP
 from sentence_transformers import SentenceTransformer
 from models import RecipeDBSchema, Ingredient
-from pymongo import MongoClient
-from pymongo.server_api import ServerApi
 
 from importRicette.saveRecipe import process_video
-from utility import get_error_context, timeout, logger
-from config import openAIclient, MONGODB_URL, MONGODB_DB, MONGODB_COLLECTION, MONGO_SEARCH_INDEX, EMBEDDING_MODEL
+from utility import get_error_context, logger,get_embedding,get_mongo_collection,get_db
 
 #SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
@@ -77,6 +73,11 @@ app = FastAPI(title="Backend Smart Recipe", version="0.5")
 # Mount mediaRicette directory explicitly to ensure all dynamic subfolders are accessible
 app.mount("/mediaRicette", StaticFiles(directory="static/mediaRicette"), name="mediaRicette")
 
+
+#-------------------------------
+# Endpoints API
+# -------------------------------
+# -------------------------------
 @app.get("/")
 async def root():
     # In un template reale useresti Jinja2 o un'altra template-engine
@@ -84,62 +85,6 @@ async def root():
         "message": "Vai su /static/index.html per provare i file statici"
 }
 
-# -------------------------------
-# Inizializzazione del modello NLP SentenceTransformer
-# -------------------------------
-@lru_cache(maxsize=1)
-def get_embedding(text_for_embedding):
-    #model= SentenceTransformer("all-MiniLM-L6-v2")
-    #return model.encode(text_for_embedding).tolist()
-    """Generate an embedding for the given text using OpenAI's API."""
-    # Check for valid input
-    if not text_for_embedding or not isinstance(text_for_embedding, str):
-        logger.error(f"Error in get_embedding: {text_for_embedding} is not a valid string")
-        return None
-    try:
-        # Call OpenAI API to get the embedding
-        embedding = openAIclient.embeddings.create(input=text_for_embedding, model=EMBEDDING_MODEL).data[0].embedding
-        return embedding
-    except Exception as e:
-        logger.error(f"Error in get_embedding: {e}")
-        return None
-
-# -------------------------------
-# Inizializzazione MongoDB per semantic search
-# -------------------------------
-@lru_cache(maxsize=1)
-def get_mongo_client():
-    return MongoClient(
-        MONGODB_URL,
-        server_api=ServerApi('1'),
-        retryWrites=True,
-        connectTimeoutMS=300000,
-        socketTimeoutMS=300000,
-        tlsAllowInvalidCertificates=True  # Fix for SSL certificate verification issue
-    )
-
-@lru_cache(maxsize=1)
-def get_mongo_collection():
-    client = get_mongo_client()
-    db = client[MONGODB_DB]
-    return db[MONGODB_COLLECTION]
-
-def get_db():
-    """Alias for get_mongo_collection to satisfy dependency injection"""
-    return get_mongo_collection()
-
-# -------------------------------
-# Helpers
-# -------------------------------
-def parse_ingredients(ingredients_str: str) -> List[str]:
-    """Converte la stringa di ingredienti in lista"""
-    if not ingredients_str:
-        return []
-    return [ing.strip() for ing in ingredients_str.split(",")]
-
- #-------------------------------
-# Endpoints API
-# -------------------------------
 @app.post("/recipes/", response_model=RecipeDBSchema, status_code=status.HTTP_201_CREATED)
 async def insert_recipe(video: VideoURL):
     try:
@@ -235,65 +180,8 @@ def get_recipe(recipe_id: int, db: Session = Depends(get_db)):
         )
 
 @app.get("/search/")
-def search_recipes(
-    query: str,
-    diet: Optional[str] = None,
-    max_preparation_time: Optional[int] = None,
-    difficulty: Optional[str] = None,
-    limit: int = Query(5, ge=1, le=20)
-):
-    try:
-        # Perform MongoDB Atlas Semantic Search
-        mongo_coll = get_mongo_collection()
-        pipeline = []
-        # Build $search stage with text operator
-        search_stage = {
-            "$search": {
-                "index": MONGO_SEARCH_INDEX,
-                "compound": {
-                    "must": [
-                        {
-                            "text": {
-                                "query": query,
-                                "path": {"wildcard": "*"}
-                            }
-                        }
-                    ]
-                }
-            }
-        }
-        # Add filter clauses if provided
-        filter_clauses = []
-        if diet:
-            filter_clauses.append({"equals": {"path": "diet", "value": diet}})
-        if max_preparation_time is not None:
-            filter_clauses.append({"range": {"path": "preparation_time", "lte": max_preparation_time}})
-        if difficulty:
-            filter_clauses.append({"equals": {"path": "difficulty", "value": difficulty}})
-        if filter_clauses:
-            search_stage["$search"]["compound"]["filter"] = filter_clauses
-        pipeline.append(search_stage)
-
-        pipeline.append({"$addFields": {"score": {"$meta": "searchScore"}}})
-        pipeline.append({"$limit": limit})
-        # Convert aggregation cursor to list for JSON serialization
-        results_cursor = mongo_coll.aggregate(pipeline)
-        results = list(results_cursor)
-        logger.info(f"MongoDB semantic search results {results}")
-        # Convert ObjectId to string for JSON serialization
-        for doc in results:
-            if "_id" in doc:
-                doc["_id"] = str(doc["_id"])
-        return results
-
-    except Exception as e:
-        error_context = get_error_context()
-        logger.error(f"{str(e)} - {error_context}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f" {str(e)} - {error_context}"
-        )
-
+def search_recipes( query: str  ):
+    return "ciao"
 # -------------------------------
 # Endpoints per la validazione di stato e prova
 # -------------------------------

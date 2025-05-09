@@ -5,10 +5,6 @@ from typing import Dict, Any
 from utility import sanitize_folder_name, logger
 from config import ISTA_USERNAME, ISTA_PASSWORD
 
-BASE_FOLDER = os.path.join(os.getcwd(), "static/preprocess_video")
-
-# Uncomment these lines and set environment variables for authentication
-
 def get_instaloader():
     L = instaloader.Instaloader(
         download_videos=True,

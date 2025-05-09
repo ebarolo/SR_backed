@@ -15,8 +15,7 @@ from utility import sanitize_text, sanitize_filename, get_error_context, timeout
 from importRicette.analizeRecipe import extract_recipe_info, whisper_speech_recognition
 from importRicette.instaloader import scarica_contenuto_reel, scarica_contenuti_account
 from utility import logger
-
-BASE_FOLDER = os.path.join(os.getcwd(), "static/mediaRicette")
+from config import BASE_FOLDER_RICETTE
 
 mp.set_start_method("spawn", force=True)
 
@@ -24,7 +23,7 @@ mp.set_start_method("spawn", force=True)
 async def yt_dlp_video(url: str) -> Dict[str, Any]:
     opzioni = {
         "format": "bestvideo+bestaudio/best",
-        "outtmpl": os.path.join(BASE_FOLDER, "%(title)s.%(ext)s"),
+        "outtmpl": os.path.join(BASE_FOLDER_RICETTE, "%(title)s.%(ext)s"),
     }
 
     try:
@@ -69,7 +68,7 @@ async def process_video(recipe: str):
             captionSanit = sanitize_text(dw["caption"])
             shortcode = dw["shortcode"]
 
-            video_folder_post = os.path.join(BASE_FOLDER, shortcode)
+            video_folder_post = os.path.join(BASE_FOLDER_RICETTE, shortcode)
             logger.info(f"video_folder_post: {video_folder_post}")
 
             # Cerca il file video nella cartella
