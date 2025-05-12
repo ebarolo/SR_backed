@@ -15,7 +15,7 @@ from models import RecipeDBSchema, Ingredient
 
 from importRicette.saveRecipe import process_video
 from utility import get_error_context, logger,get_embedding,get_mongo_collection,get_db
-
+from chatbot.agent import get_recipes
 #SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -180,8 +180,17 @@ def get_recipe(recipe_id: int, db: Session = Depends(get_db)):
         )
 
 @app.get("/search/")
-def search_recipes( query: str  ):
-    return "ciao"
+def search_recipes( query: str ):
+    try:
+        logger.info(f"search query: {query}")
+        recipes = get_recipes(query, k=3)
+        return recipes
+    except Exception as e:
+        logger.error(f"Errore durante la ricerca delle ricette: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Errore durante la ricerca delle ricette: {str(e)}"
+        )
 # -------------------------------
 # Endpoints per la validazione di stato e prova
 # -------------------------------

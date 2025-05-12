@@ -18,6 +18,7 @@ MONGODB_DB = os.getenv("MONGODB_DB", "smart-recipe")
 MONGODB_COLLECTION = os.getenv("MONGODB_COLLECTION", "recipe")
 MONGODB_VECTOR_SEARCH_INDEX_NAME = os.getenv("MONGO_SEARCH_INDEX", "openAIVector")
 EMBEDDING_FIELD_NAME = "embedding"
+
 ISTA_USERNAME = os.getenv("ISTA_USERNAME")
 ISTA_PASSWORD = os.getenv("ISTA_PASSWORD")
 
