@@ -10,7 +10,7 @@ from pymongo import MongoClient
 from pymongo.server_api import ServerApi
 from typing import List
 from config import BASE_FOLDER_RICETTE
-from config import openAIclient, MONGODB_URL, MONGODB_DB, MONGODB_COLLECTION, MONGO_SEARCH_INDEX, EMBEDDING_MODEL
+from config import openAIclient, MONGODB_URL, MONGODB_DB, MONGODB_COLLECTION, EMBEDDING_MODEL, MONGODB_VECTOR_SEARCH_INDEX_NAME
 
 # Initialize module logger using global config
 logger = logging.getLogger(__name__)

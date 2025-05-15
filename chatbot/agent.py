@@ -18,20 +18,22 @@ def get_recipes(query: str, k: int = 5) -> list[dict]:
     collection = db[MONGODB_COLLECTION]
 
     query_vector = get_embedding(query)
-    
+    logger.info(f"query_vector: {query_vector}")
+
     # 2. Aggregazione con $vectorSearch
     pipeline = [
         {
             "$vectorSearch": {
                 "path": EMBEDDING_FIELD_NAME,
                 "queryVector": query_vector,
-                "k": k,
+                "limit": k,
                 "index": MONGODB_VECTOR_SEARCH_INDEX_NAME,
-                "exact": False  # False = ANN, True = ENN
+                "numCandidates": k * 10
             }
         },
         {
             "$project": {
+                "_id": 0,
                 "title": 1,
                 "ingredients": 1,
                 "steps": 1,
@@ -44,17 +46,3 @@ def get_recipes(query: str, k: int = 5) -> list[dict]:
     response = collection.aggregate(pipeline)
     logger.info(f"get_recipes response: {response}")
     return list(response)
-
-'''
-root_agent = Agent(
-    name="weather_time_agent",
-    model="gemini-2.0-flash",
-    description=(
-        "Agent suggest recipes based on the user query."
-    ),
-    instruction=(
-        "You are a helpful agent who can answer user questions about recipes."
-    ),
-    tools=[get_recipes],
-)
-'''
