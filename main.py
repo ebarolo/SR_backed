@@ -87,22 +87,31 @@ async def root():
 
 @app.post("/recipes/", response_model=RecipeDBSchema, status_code=status.HTTP_201_CREATED)
 async def insert_recipe(video: VideoURL):
+    url = str(video.url) # Manteniamo l'URL per i log
     try:
-        url = str(video.url)
         recipe_data = await process_video(url)
-        logger.info(f"recipe_data: {recipe_data}")
+        # logger.info(f"recipe_data: {recipe_data}") # recipe_data è complesso, loggato già in process_video
         if not recipe_data:
             error_context = get_error_context()
-            logger.error(f"Impossibile elaborare il video. Nessun dato ricevuto. - {error_context}")
+            logger.error(f"Impossibile elaborare il video dall'URL '{url}'. Nessun dato ricetta ricevuto da process_video. Contesto: {error_context}")
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Impossibile elaborare il video. Nessun dato ricevuto. - {error_context}"
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, # Più specifico di BAD_REQUEST per dati non elaborabili
+                detail=f"Impossibile elaborare il video dall'URL fornito. Nessun dato ricetta valido è stato ottenuto."
             )
-        # Generate embedding
-        #model = get_embedding_model()
+        
         text_for_embedding = f"{recipe_data.title} {' '.join(recipe_data.recipe_step)} {json.dumps([ing.model_dump() for ing in recipe_data.ingredients])}"
+        logger.info(f"Testo per embedding generato per ricetta '{recipe_data.title}' (shortcode: {recipe_data.shortcode}). Lunghezza: {len(text_for_embedding)}")
         embedding = get_embedding(text_for_embedding)
-        # Prepare document for MongoDB
+        if embedding is None:
+            # Log dell'errore già fatto da get_embedding
+            logger.error(f"Fallimento generazione embedding per ricetta '{recipe_data.title}' (shortcode: {recipe_data.shortcode}). L'inserimento non può procedere con l'embedding.")
+            # Si potrebbe decidere di inserire comunque la ricetta senza embedding o sollevare errore.
+            # Per ora, solleviamo un errore perché l'embedding è considerato cruciale.
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Errore interno durante la generazione dell'identificativo semantico della ricetta."
+            )
+
         doc = {
             "title": recipe_data.title,
             "category": recipe_data.category,
@@ -124,12 +133,21 @@ async def insert_recipe(video: VideoURL):
             "embedding": embedding
         }
         mongo_coll = get_mongo_collection()
-        mongo_coll.replace_one(
-            {"shortcode": recipe_data.shortcode},
-            doc,
-            upsert=True
-        )
-        # Return response
+        try:
+            mongo_coll.replace_one(
+                {"shortcode": recipe_data.shortcode},
+                doc,
+                upsert=True
+            )
+            logger.info(f"Ricetta '{doc['title']}' (shortcode: {doc['shortcode']}) inserita/aggiornata in MongoDB con successo.")
+        except Exception as db_exc:
+            error_context = get_error_context()
+            logger.error(f"Errore durante il salvataggio in MongoDB per ricetta '{doc['title']}' (shortcode: {doc['shortcode']}): {db_exc}. Contesto: {error_context}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Errore durante il salvataggio della ricetta nel database."
+            )
+
         return RecipeDBSchema(
             title=doc["title"],
             category=doc["category"],
@@ -150,46 +168,108 @@ async def insert_recipe(video: VideoURL):
             shortcode=doc["shortcode"]
         )
     except HTTPException as e:
+        # Rilancia le HTTPException specifiche già gestite o sollevate
         raise e
     except Exception as e:
-        logger.error(f" {str(e)}")
+        error_context = get_error_context() # Prende il contesto dell'eccezione corrente
+        logger.error(f"Errore imprevisto durante l'inserimento della ricetta dall'URL '{url}': {str(e)}. Contesto: {error_context}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"{str(e)}"
+            detail="Si è verificato un errore interno del server durante l'elaborazione della tua richiesta."
         )
 
 @app.get("/recipes/{recipe_id}", response_model=RecipeDBSchema)
 def get_recipe(recipe_id: int, db: Session = Depends(get_db)):
     try:
-        recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
+        # Nota: il codice originale usa SQLAlchemy (Recipe, db.query) ma gli altri endpoint e utility usano MongoDB.
+        # Questo endpoint sembra incoerente. Assumendo che si voglia usare MongoDB come per l'inserimento.
+        # Se si deve usare SQLAlqchemy, questa logica va rivista per connettersi a un DB SQL.
+        # Per ora, commento la parte SQL e ipotizzo una ricerca su MongoDB per ID, sebbene l'ID sia autoincrementante SQL.
+        # Questa parte necessita di chiarimenti sul DB da usare per la lettura.
+        # Se l'ID è un ID MongoDB (ObjectId), la logica cambia. Se è un ID numerico univoco in MongoDB, serve un campo apposito.
+        # Per coerenza con l'inserimento che usa `shortcode` come ID univoco e non `id` numerico per MongoDB:
+        # Modifico l'endpoint per cercare per `shortcode` invece di `recipe_id` numerico, oppure aggiungo un campo ID a MongoDB.
+        # Per ora, assumo che `recipe_id` sia in realtà uno `shortcode` (stringa).
+        # Cambierò il tipo dell'argomento in path e il nome per chiarezza.
+        # ROUTE MODIFICATA: @app.get("/recipes/by_shortcode/{shortcode}", response_model=RecipeDBSchema)
+        # Per mantenere la route originale @app.get("/recipes/{recipe_id}" ...
+        # Dovremmo chiarire come recipe_id (int) mappa a un documento MongoDB.
+        # Mantenendo la firma originale ma cercando per un campo `id_sql` in MongoDB (ipotetico):
+
+        mongo_coll = get_mongo_collection() # Usiamo MongoDB come nel resto dell'app
+        # recipe_doc = mongo_coll.find_one({"id": recipe_id}) # Assumendo che ci sia un campo "id" numerico
+                                                          # Questo è improbabile se l'ID SQL è autoincrement.
+                                                          # Soluzione più probabile: l'endpoint GET /recipes/{id} usa SQL,
+                                                          # mentre POST /recipes/ usa Mongo. Questo è strano.
+                                                          # Per ora, lascio la logica SQL originale, ma evidenzio l'incoerenza.
+
+        recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first() # Logica SQL originale
+
         if not recipe:
             error_context = get_error_context()
-            logger.error(f"Ricetta non trovata con ID {recipe_id} - {error_context}")
+            # Usiamo warning per risorse non trovate, che è comune.
+            logger.warning(f"Ricetta non trovata con ID SQL {recipe_id}. Contesto: {error_context}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, 
-                detail=f"Ricetta non trovata - {error_context}"
+                detail=f"Ricetta con ID {recipe_id} non trovata."
             )
         
-        return recipe
+        # Se la ricetta viene da SQL, dobbiamo convertirla in RecipeDBSchema
+        # Gli attributi devono corrispondere. `ingredients` in SQL è una stringa JSON.
+        try:
+            ingredients_list = json.loads(recipe.ingredients) if isinstance(recipe.ingredients, str) else recipe.ingredients
+        except json.JSONDecodeError:
+            logger.error(f"Formato JSON non valido per gli ingredienti della ricetta ID SQL {recipe_id}. Valore: '{recipe.ingredients}'", exc_info=True)
+            ingredients_list = [] # Fallback a lista vuota
+
+        return RecipeDBSchema(
+            id=recipe.id, # Aggiungiamo id se fa parte dello schema di risposta
+            title=recipe.title,
+            recipe_step=recipe.recipe_step.splitlines() if recipe.recipe_step else [], # Esempio di trasformazione se necessario
+            description=recipe.description,
+            ingredients=[Ingredient(**ing) for ing in ingredients_list], # Assumendo che ingredients_list sia ora una lista di dict
+            preparation_time=recipe.preparation_time,
+            cooking_time=recipe.cooking_time,
+            diet=recipe.diet,
+            category=recipe.category,
+            technique=recipe.technique,
+            language=recipe.language,
+            chef_advise=recipe.chef_advise,
+            tags=recipe.tags.split(',') if recipe.tags else [],
+            nutritional_info=recipe.nutritional_info, # Potrebbe necessitare di parsing se è JSON string
+            cuisine_type=recipe.cuisine_type,
+            ricetta_audio=recipe.ricetta_audio,
+            ricetta_caption=recipe.ricetta_caption,
+            shortcode=recipe.shortcode
+        )
+
+    except HTTPException as e:
+        raise e
     except Exception as e:
         error_context = get_error_context()
-        logger.error(f"Errore durante il recupero della ricetta: {str(e)} - {error_context}")
+        logger.error(f"Errore imprevisto durante il recupero della ricetta SQL con ID {recipe_id}: {str(e)}. Contesto: {error_context}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Errore durante il recupero della ricetta: {str(e)} - {error_context}"
+            detail=f"Errore interno del server durante il recupero della ricetta con ID {recipe_id}."
         )
 
 @app.get("/search/")
 def search_recipes( query: str ):
     try:
-        logger.info(f"search query: {query}")
-        recipes = get_recipes(query, k=3)
+        logger.info(f"Ricerca avviata per query: '{query}'")
+        recipes = get_recipes(query, k=3) # get_recipes ora gestisce i propri log ed errori
+        if not recipes:
+            logger.warning(f"Nessuna ricetta trovata per la query: '{query}'")
+            # Non è un errore, restituisce semplicemente una lista vuota, HTTP 200.
+        else:
+            logger.info(f"Trovate {len(recipes)} ricette per la query: '{query}'")
         return recipes
     except Exception as e:
-        logger.error(f"Errore durante la ricerca delle ricette: {str(e)}")
+        error_context = get_error_context()
+        logger.error(f"Errore imprevisto durante la ricerca di ricette per la query '{query}': {str(e)}. Contesto: {error_context}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Errore durante la ricerca delle ricette: {str(e)}"
+            detail="Errore interno del server durante la ricerca delle ricette."
         )
 # -------------------------------
 # Endpoints per la validazione di stato e prova

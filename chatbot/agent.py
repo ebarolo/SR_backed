@@ -18,7 +18,11 @@ def get_recipes(query: str, k: int = 5) -> list[dict]:
     collection = db[MONGODB_COLLECTION]
 
     query_vector = get_embedding(query)
-    logger.info(f"query_vector: {query_vector}")
+    if query_vector is None:
+        logger.error(f"Impossibile generare l'embedding per la query: '{query}'. La ricerca non può procedere.")
+        return [] # Restituisce una lista vuota in caso di fallimento dell'embedding
+    
+    logger.info(f"Vettore query generato con successo per la query: '{query}', dimensione: {len(query_vector)}")
 
     # 2. Aggregazione con $vectorSearch
     pipeline = [
@@ -43,6 +47,11 @@ def get_recipes(query: str, k: int = 5) -> list[dict]:
         }
     ]
 
-    response = collection.aggregate(pipeline)
-    logger.info(f"get_recipes response: {response}")
-    return list(response)
+    try:
+        response_cursor = collection.aggregate(pipeline)
+        results = list(response_cursor)
+        logger.info(f"Ricerca completata. Trovate {len(results)} ricette per la query: '{query}'.")
+        return results
+    except Exception as e:
+        logger.error(f"Errore durante l'aggregazione $vectorSearch per la query '{query}': {e}", exc_info=True)
+        return [] # Restituisce una lista vuota in caso di errore nella ricerca

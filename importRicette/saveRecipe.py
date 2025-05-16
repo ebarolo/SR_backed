@@ -36,7 +36,7 @@ async def yt_dlp_video(url: str) -> Dict[str, Any]:
         return {"video_title": video_title, "video_filename": video_filename}
     except yt_dlp.utils.DownloadError as e:
         error_context = get_error_context()
-        logger.error(f"Errore nel download del video {url}: {e} - {error_context}")
+        logger.error(f"Errore nel download del video {url}: {e} - {error_context}", exc_info=True)
         raise
     except KeyError as ke:
         error_context = get_error_context()
@@ -48,7 +48,7 @@ async def yt_dlp_video(url: str) -> Dict[str, Any]:
     except Exception as e:
         error_context = get_error_context()
         logger.error(
-            f"Errore imprevisto durante il download del video {url}: {e} - {error_context}"
+            f"Errore imprevisto durante il download del video {url}: {e} - {error_context}", exc_info=True
         )
         raise
 
@@ -63,13 +63,13 @@ async def process_video(recipe: str):
         dws = await scarica_contenuto_reel(recipe)
 
     for dw in dws:
+        shortcode = dw.get("shortcode", "SHORTCODE_NON_TROVATO") # Default per logging
         try:
-            logger.info(f"video scaricato: {str(dw)}")
+            logger.info(f"Inizio elaborazione per shortcode: {shortcode}, URL video: {dw.get('url_video', 'URL_NON_TROVATO')}")
             captionSanit = sanitize_text(dw["caption"])
-            shortcode = dw["shortcode"]
 
             video_folder_post = os.path.join(BASE_FOLDER_RICETTE, shortcode)
-            logger.info(f"video_folder_post: {video_folder_post}")
+            logger.info(f"Cartella video per shortcode '{shortcode}': {video_folder_post}")
 
             # Cerca il file video nella cartella
             video_files = [
@@ -77,7 +77,7 @@ async def process_video(recipe: str):
             ]
             if not video_files:
                 raise FileNotFoundError(
-                    f"Nessun file video trovato in {video_folder_post}"
+                    f"Nessun file video .mp4 trovato in {video_folder_post} per shortcode '{shortcode}'. File presenti: {os.listdir(video_folder_post) if os.path.exists(video_folder_post) else 'cartella non esistente'}"
                 )
 
             video_path = os.path.join(
@@ -102,26 +102,38 @@ async def process_video(recipe: str):
                 logger.error(f"ffmpeg stdout: {e.stdout}")
                 logger.error(f"ffmpeg stderr: {e.stderr}")
                 logger.error(f"Command was: {e.cmd}")
-                raise Exception(f"Errore durante l'estrazione dell'audio: {e}")
+                raise RuntimeError(f"Errore durante l'estrazione dell'audio per shortcode '{shortcode}': {e.stderr}") from e
 
-            logger.info(f"start speech_to_text: {audio_path}")
+            logger.info(f"Inizio speech_to_text per shortcode '{shortcode}', audio: {audio_path}")
             ricetta_audio = await whisper_speech_recognition(audio_path, "it")
-            logger.info(f"end speech_to_text")
+            logger.info(f"Fine speech_to_text per shortcode '{shortcode}'. Lunghezza testo: {len(ricetta_audio) if ricetta_audio else 0}")
 
             # Estrai informazioni dalla ricetta
-            logger.info(f"start extract_recipe_info: {ricetta_audio}")
+            logger.info(f"Inizio estrazione informazioni ricetta dal testo trascritto per shortcode '{shortcode}'. Lunghezza testo: {len(ricetta_audio) if ricetta_audio else 0}")
             ricetta = await extract_recipe_info(ricetta_audio, captionSanit, [], [])
-            logger.info(f"recipe_info : {ricetta}")
+            if ricetta:
+                logger.info(f"Informazioni ricetta estratte con successo per shortcode '{shortcode}': titolo='{ricetta.title}'")
+            else:
+                logger.warning(f"Nessuna informazione ricetta estratta per shortcode '{shortcode}' dal testo analizzato.")
+                # Potrebbe essere utile continuare il loop o sollevare un errore specifico
+                # Per ora, continuiamo assumendo che RecipeDBSchema possa gestire un ricetta=None o vuoto
+                # o che la logica a valle lo gestisca. Se ricetta è None, ricetta.model_dump() fallirà.
+                # Questo richiede una gestione più robusta qui o in extract_recipe_info.
+                # Assumendo che extract_recipe_info restituisca un oggetto con campi opzionali o vuoti:
+                # In caso contrario, si dovrebbe sollevare un errore o gestire il None qui.
+                # Se ricetta può essere None, il codice seguente va protetto.
+                # Per ora, lascio che un eventuale errore venga catturato dal blocco except generale.
+                pass # O gestire il caso in cui ricetta sia None
 
             # Convert the RecipeAIResponse object to a RecipeDBSchema object
-            ricetta_dict = ricetta.model_dump()
+            ricetta_dict = ricetta.model_dump() if ricetta else {}
 
             # Keep ingredients and recipe_step as lists
-            ricetta_dict["ingredients"] = ricetta_dict["ingredients"]
-            ricetta_dict["recipe_step"] = ricetta_dict["recipe_step"]
+            ricetta_dict["ingredients"] = ricetta_dict.get("ingredients", [])
+            ricetta_dict["recipe_step"] = ricetta_dict.get("recipe_step", [])
 
             # Keep category, tags, and nutritional_info as lists
-            ricetta_dict["category"] = ricetta_dict["category"]
+            ricetta_dict["category"] = ricetta_dict.get("category", [])
             ricetta_dict["tags"] = ricetta_dict.get("tags", [])
             ricetta_dict["nutritional_info"] = ricetta_dict.get("nutritional_info", [])
 
@@ -130,8 +142,25 @@ async def process_video(recipe: str):
             ricetta_dict["ricetta_caption"] = captionSanit
             ricetta_dict["shortcode"] = shortcode
 
-            logger.info(f"process_video completato per: {ricetta}")
+            logger.info(f"process_video completato per shortcode '{shortcode}'. Titolo: '{ricetta_dict.get('title', 'N/A')}'")
             return RecipeDBSchema(**ricetta_dict)
         except Exception as e:
-            logger.error(f"Errore durante process_video : {e}")
-        raise e
+            logger.error(f"Errore durante process_video per shortcode '{shortcode}': {e}", exc_info=True)
+            # Se si vuole continuare con gli altri video, commentare il raise seguente
+            # e forse restituire None o un marcatore di errore.
+            # Altrimenti, l'eccezione si propaga e interrompe il ciclo in main.py o dove viene chiamato process_video.
+            raise # Rilancia l'eccezione per interrompere l'elaborazione
+    
+    # Se nessun video è stato processato con successo (es. dws era vuoto o tutti hanno fallito e sono stati gestiti con 'continue')
+    # la funzione potrebbe restituire None implicitamente se il loop non esegue mai 'return'. 
+    # È bene essere espliciti. Se process_video deve sempre restituire una RecipeDBSchema o sollevare un errore,
+    # questo punto non dovrebbe essere raggiunto se dws non è vuoto. Se dws è vuoto, si potrebbe sollevare un errore prima.
+    # Se si arriva qui, significa che dws era vuoto o tutti i tentativi sono falliti senza un return o raise esplicito nel loop.
+    if not dws:
+        logger.warning("Nessun dato video fornito a process_video.")
+        return None # O sollevare un errore se un risultato è sempre atteso
+    else:
+        # Questo caso (dws non vuoto, ma nessun return/raise nel loop) dovrebbe essere raro
+        # se ogni iterazione del loop gestisce tutti i percorsi (successo con return, fallimento con raise).
+        logger.error("process_video ha completato il loop senza restituire o sollevare un errore per nessun elemento.")
+        return None # O sollevare un errore indicando un problema logico

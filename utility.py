@@ -13,6 +13,15 @@ from config import BASE_FOLDER_RICETTE
 from config import openAIclient, MONGODB_URL, MONGODB_DB, MONGODB_COLLECTION, EMBEDDING_MODEL, MONGODB_VECTOR_SEARCH_INDEX_NAME
 
 # Initialize module logger using global config
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('app.log', encoding='utf-8', mode='a'),
+        logging.StreamHandler()
+    ]
+)
+
 logger = logging.getLogger(__name__)
 
 # Sanificazione iniziale del testo
@@ -138,14 +147,14 @@ def get_embedding(text_for_embedding):
     """Generate an embedding for the given text using OpenAI's API."""
     # Check for valid input
     if not text_for_embedding or not isinstance(text_for_embedding, str):
-        logger.error(f"Error in get_embedding: {text_for_embedding} is not a valid string")
+        logger.error(f"Error in get_embedding: input is not a valid string (type: {type(text_for_embedding).__name__}, value: '{text_for_embedding}')")
         return None
     try:
         # Call OpenAI API to get the embedding
         embedding = openAIclient.embeddings.create(input=text_for_embedding, model=EMBEDDING_MODEL).data[0].embedding
         return embedding
     except Exception as e:
-        logger.error(f"Error in get_embedding: {e}")
+        logger.error(f"Error in get_embedding during OpenAI API call for text: '{text_for_embedding[:100]}...': {e}", exc_info=True)
         return None
 
 # -------------------------------

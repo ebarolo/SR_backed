@@ -33,7 +33,7 @@ def get_instaloader():
                 "Proceeding without authentication - some operations may be rate limited"
             )
     else:
-        logger.warning(
+        logger.info(
             "No Instagram credentials available, proceeding without authentication"
         )
 
