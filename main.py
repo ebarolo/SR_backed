@@ -99,8 +99,34 @@ async def insert_recipe(video: VideoURL):
                 detail=f"Impossibile elaborare il video dall'URL fornito. Nessun dato ricetta valido è stato ottenuto."
             )
         
-        text_for_embedding = f"{recipe_data.title} {' '.join(recipe_data.recipe_step)} {json.dumps([ing.model_dump() for ing in recipe_data.ingredients])}"
-        logger.info(f"Testo per embedding generato per ricetta '{recipe_data.title}' (shortcode: {recipe_data.shortcode}). Lunghezza: {len(text_for_embedding)}")
+        # Rimuoviamo le stop words e miglioriamo la struttura del testo per l'embedding
+        from nltk.corpus import stopwords
+        from nltk.tokenize import word_tokenize
+        import re
+
+        # Funzione per pulire il testo
+        def clean_text(text):
+            # Converti in minuscolo e rimuovi caratteri speciali
+            text = re.sub(r'[^\w\s]', ' ', text.lower())
+            # Tokenizza
+            tokens = word_tokenize(text)
+            # Rimuovi stop words
+            stop_words = set(stopwords.words('italian'))
+            filtered_tokens = [word for word in tokens if word not in stop_words]
+            return ' '.join(filtered_tokens)
+
+        # Prepara i dati per l'embedding
+        title_clean = clean_text(recipe_data.title)
+        logger.info(f"Title clean: {title_clean}")
+        steps_clean = ' '.join([clean_text(step) for step in recipe_data.recipe_step])
+        logger.info(f"Steps clean: {steps_clean}")
+        ingredients_clean = ' '.join([clean_text(ing.name) for ing in recipe_data.ingredients])
+        logger.info(f"Ingredients clean: {ingredients_clean}")
+        
+        # Costruisci il testo per l'embedding con una struttura più semantica
+        text_for_embedding = f"ricetta {title_clean} preparazione {steps_clean} ingredienti {ingredients_clean}"
+        logger.info(f"Testo per embedding generato per ricetta (shortcode: {recipe_data.shortcode}). Lunghezza: {len(text_for_embedding)}")
+        logger.info(f"{text_for_embedding}")
         embedding = get_embedding(text_for_embedding)
         if embedding is None:
             # Log dell'errore già fatto da get_embedding

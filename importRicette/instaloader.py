@@ -89,7 +89,26 @@ async def scarica_contenuto_reel(url: str) -> Dict[str, Any]:
             L.dirname_pattern = shortcode_folder
 
             logger.info(f"Created folder for download: {shortcode_folder}")
-            post = instaloader.Post.from_shortcode(L.context, shortcode)
+            try:
+                post = instaloader.Post.from_shortcode(L.context, shortcode)
+            except instaloader.exceptions.InstaloaderException as e:
+                logger.error(f"Error fetching post with shortcode {shortcode}: {str(e)}")
+                # Restituisci un dizionario di errore o solleva un'eccezione personalizzata
+                # a seconda di come vuoi gestire l'errore a livello superiore.
+                # Qui, restituisco un dizionario simile a quello di successo ma con un errore.
+                return [{ # Manteniamo la struttura a lista come nel caso di successo
+                    "error": f"Errore durante il recupero del post con shortcode {shortcode}: {str(e)}",
+                    "shortcode": shortcode,
+                    "caption": "" 
+                }]
+            except Exception as e: # Cattura generica per altri possibili errori non di Instaloader
+                logger.error(f"Unexpected error fetching post with shortcode {shortcode}: {str(e)}")
+                return [{
+                    "error": f"Errore inaspettato durante il recupero del post con shortcode {shortcode}: {str(e)}",
+                    "shortcode": shortcode,
+                    "caption": ""
+                }]
+
             # Log post attributes for debugging
             logger.info(f"Post title: {post.title}")
 
