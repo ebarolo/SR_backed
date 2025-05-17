@@ -2,7 +2,7 @@ from functools import lru_cache
 from pymongo import MongoClient
 from pymongo.server_api import ServerApi
 
-from config import MONGODB_URL, MONGODB_DB, MONGODB_COLLECTION, EMBEDDING_MODEL, MONGODB_VECTOR_SEARCH_INDEX_NAME
+from config import MONGODB_URI, MONGODB_DB, MONGODB_COLLECTION, EMBEDDING_MODEL, MONGODB_VECTOR_SEARCH_INDEX_NAME
 
 #-------------------------------    
 # Inizializzazione MongoDB per semantic search
@@ -10,7 +10,7 @@ from config import MONGODB_URL, MONGODB_DB, MONGODB_COLLECTION, EMBEDDING_MODEL,
 @lru_cache(maxsize=1)
 def get_mongo_client():
     return MongoClient(
-        MONGODB_URL,
+        MONGODB_URI,
         server_api=ServerApi('1'),
         retryWrites=True,
         connectTimeoutMS=300000,

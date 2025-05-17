@@ -21,29 +21,6 @@ from chatbot.agent import get_recipes
 #SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# Modello SQLAlchemy per la ricetta
-class Recipe(Base):
-    __tablename__ = "recipes"
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    title = Column(String, index=True)
-    recipe_step = Column(Text)
-    description = Column(Text)
-    ingredients = Column(Text)  # memorizzati come stringa in formato JSON
-    preparation_time = Column(Integer)  # tempo in minuti
-    cooking_time = Column(Integer)
-    diet = Column(String)               # ad es. "vegano", "vegetariano", ecc.
-    category = Column(String)           # ad es. "primo", "secondo", "dolce"
-    technique = Column(String)          # ad es. "cottura al forno", "frittura"
-    language = Column(String, default="it")
-    chef_advise = Column(Text, nullable=True)
-    tags = Column(String, nullable=True)
-    nutritional_info = Column(String, nullable=True)
-    cuisine_type = Column(String, nullable=True)
-    ricetta_audio = Column(String, nullable=True)
-    ricetta_caption = Column(String, nullable=True)
-    ingredients_text = Column(String, nullable=True)
-    shortcode = Column(String, nullable=True)
-
 # Creazione delle tabelle nel database
 #Base.metadata.create_all(bind=engine)
 
@@ -61,12 +38,6 @@ class VideoURL(BaseModel):
             raise ValueError(f"URL non supportato. Dominio deve essere tra: {', '.join(allowed_domains)}")
         return v
 
-class SearchQuery(BaseModel):
-    query: str
-    diet: Optional[str] = None
-    max_preparation_time: Optional[int] = None
-    difficulty: Optional[str] = None
-
 # -------------------------------
 # Inizializzazione FastAPI e Dependency per il DB
 # -------------------------------
@@ -74,7 +45,6 @@ app = FastAPI(title="Backend Smart Recipe", version="0.5")
 
 # Mount mediaRicette directory explicitly to ensure all dynamic subfolders are accessible
 app.mount("/mediaRicette", StaticFiles(directory="static/mediaRicette"), name="mediaRicette")
-
 
 #-------------------------------
 # Endpoints API
@@ -144,7 +114,7 @@ async def insert_recipe(video: VideoURL):
             "ricetta_audio": recipe_data.ricetta_audio,
             "ricetta_caption": recipe_data.ricetta_caption,
             "shortcode": recipe_data.shortcode,
-            "embedding": embedding.tolist() if embedding is not None else None
+            "embedding": embedding if embedding is not None else None
         }
         mongo_coll = get_mongo_collection()
         try:
@@ -194,78 +164,7 @@ async def insert_recipe(video: VideoURL):
 
 @app.get("/recipes/{recipe_id}", response_model=RecipeDBSchema)
 def get_recipe(recipe_id: int, db: Session = Depends(get_db)):
-    try:
-        # Nota: il codice originale usa SQLAlchemy (Recipe, db.query) ma gli altri endpoint e utility usano MongoDB.
-        # Questo endpoint sembra incoerente. Assumendo che si voglia usare MongoDB come per l'inserimento.
-        # Se si deve usare SQLAlqchemy, questa logica va rivista per connettersi a un DB SQL.
-        # Per ora, commento la parte SQL e ipotizzo una ricerca su MongoDB per ID, sebbene l'ID sia autoincrementante SQL.
-        # Questa parte necessita di chiarimenti sul DB da usare per la lettura.
-        # Se l'ID è un ID MongoDB (ObjectId), la logica cambia. Se è un ID numerico univoco in MongoDB, serve un campo apposito.
-        # Per coerenza con l'inserimento che usa `shortcode` come ID univoco e non `id` numerico per MongoDB:
-        # Modifico l'endpoint per cercare per `shortcode` invece di `recipe_id` numerico, oppure aggiungo un campo ID a MongoDB.
-        # Per ora, assumo che `recipe_id` sia in realtà uno `shortcode` (stringa).
-        # Cambierò il tipo dell'argomento in path e il nome per chiarezza.
-        # ROUTE MODIFICATA: @app.get("/recipes/by_shortcode/{shortcode}", response_model=RecipeDBSchema)
-        # Per mantenere la route originale @app.get("/recipes/{recipe_id}" ...
-        # Dovremmo chiarire come recipe_id (int) mappa a un documento MongoDB.
-        # Mantenendo la firma originale ma cercando per un campo `id_sql` in MongoDB (ipotetico):
-
-        mongo_coll = get_mongo_collection() # Usiamo MongoDB come nel resto dell'app
-        # recipe_doc = mongo_coll.find_one({"id": recipe_id}) # Assumendo che ci sia un campo "id" numerico
-                                                          # Questo è improbabile se l'ID SQL è autoincrement.
-                                                          # Soluzione più probabile: l'endpoint GET /recipes/{id} usa SQL,
-                                                          # mentre POST /recipes/ usa Mongo. Questo è strano.
-                                                          # Per ora, lascio la logica SQL originale, ma evidenzio l'incoerenza.
-
-        recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first() # Logica SQL originale
-
-        if not recipe:
-            error_context = get_error_context()
-            # Usiamo warning per risorse non trovate, che è comune.
-            logger.warning(f"Ricetta non trovata con ID SQL {recipe_id}. Contesto: {error_context}")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, 
-                detail=f"Ricetta con ID {recipe_id} non trovata."
-            )
-        
-        # Se la ricetta viene da SQL, dobbiamo convertirla in RecipeDBSchema
-        # Gli attributi devono corrispondere. `ingredients` in SQL è una stringa JSON.
-        try:
-            ingredients_list = json.loads(recipe.ingredients) if isinstance(recipe.ingredients, str) else recipe.ingredients
-        except json.JSONDecodeError:
-            logger.error(f"Formato JSON non valido per gli ingredienti della ricetta ID SQL {recipe_id}. Valore: '{recipe.ingredients}'", exc_info=True)
-            ingredients_list = [] # Fallback a lista vuota
-
-        return RecipeDBSchema(
-            id=recipe.id, # Aggiungiamo id se fa parte dello schema di risposta
-            title=recipe.title,
-            recipe_step=recipe.recipe_step.splitlines() if recipe.recipe_step else [], # Esempio di trasformazione se necessario
-            description=recipe.description,
-            ingredients=[Ingredient(**ing) for ing in ingredients_list], # Assumendo che ingredients_list sia ora una lista di dict
-            preparation_time=recipe.preparation_time,
-            cooking_time=recipe.cooking_time,
-            diet=recipe.diet,
-            category=recipe.category,
-            technique=recipe.technique,
-            language=recipe.language,
-            chef_advise=recipe.chef_advise,
-            tags=recipe.tags.split(',') if recipe.tags else [],
-            nutritional_info=recipe.nutritional_info, # Potrebbe necessitare di parsing se è JSON string
-            cuisine_type=recipe.cuisine_type,
-            ricetta_audio=recipe.ricetta_audio,
-            ricetta_caption=recipe.ricetta_caption,
-            shortcode=recipe.shortcode
-        )
-
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        error_context = get_error_context()
-        logger.error(f"Errore imprevisto durante il recupero della ricetta SQL con ID {recipe_id}: {str(e)}. Contesto: {error_context}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Errore interno del server durante il recupero della ricetta con ID {recipe_id}."
-        )
+    return ""
 
 @app.get("/search/")
 def search_recipes( query: str ):
