@@ -40,8 +40,8 @@ def get_recipes(user_query: str, k: int = 3) -> PydanticList[Dict[str, Any]]:
                     "index": MONGODB_VECTOR_SEARCH_INDEX_NAME, # Il nome del tuo indice di ricerca vettoriale
                     "path": "embedding",               # Il campo nel documento che contiene i vettori
                     "queryVector": query_embedding,    # Il vettore della query generato
-                    "numCandidates": 250,              # Numero di candidati iniziali da considerare (aumenta per filtri $match stringenti)
-                    "limit": 10                        # Numero massimo di risultati da restituire da questa fase
+                    "numCandidates": 200,              # Numero di candidati iniziali da considerare (aumenta per filtri $match stringenti)
+                    "limit": 5                       # Numero massimo di risultati da restituire da questa fase
                 }
             },
             {

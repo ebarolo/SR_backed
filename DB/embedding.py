@@ -42,7 +42,9 @@ def get_embedding(text_for_embedding):
         case "text-embedding-3-small":
             return OpenAIEmbedding(text_for_embedding)
         case model if "sentence-transformers" in model:
-            return SentenceTransformerEmbedding(text_for_embedding)
+                return SentenceTransformerEmbedding(text_for_embedding)
+        case model if "efederici" in model:
+                return SentenceTransformerEmbedding(text_for_embedding)
         case _:
             logger.error(f"Unsupported embedding model: {EMBEDDING_MODEL}")
             return None
