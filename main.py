@@ -10,11 +10,13 @@ from sqlalchemy.orm import Session
 import json
 import uvicorn
 # Import per integrazione con MongoDB e NLP
-from sentence_transformers import SentenceTransformer
 from models import RecipeDBSchema, Ingredient
 
 from importRicette.saveRecipe import process_video
-from utility import get_error_context, logger,get_embedding,get_mongo_collection,get_db
+from utility import get_error_context, logger, clean_text
+from DB.mongoDB import get_mongo_collection, get_db
+from DB.embedding import get_embedding
+
 from chatbot.agent import get_recipes
 #SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
@@ -99,32 +101,18 @@ async def insert_recipe(video: VideoURL):
                 detail=f"Impossibile elaborare il video dall'URL fornito. Nessun dato ricetta valido è stato ottenuto."
             )
         
-        # Rimuoviamo le stop words e miglioriamo la struttura del testo per l'embedding
-        from nltk.corpus import stopwords
-        from nltk.tokenize import word_tokenize
-        import re
-
-        # Funzione per pulire il testo
-        def clean_text(text):
-            # Converti in minuscolo e rimuovi caratteri speciali
-            text = re.sub(r'[^\w\s]', ' ', text.lower())
-            # Tokenizza
-            tokens = word_tokenize(text)
-            # Rimuovi stop words
-            stop_words = set(stopwords.words('italian'))
-            filtered_tokens = [word for word in tokens if word not in stop_words]
-            return ' '.join(filtered_tokens)
-
         # Prepara i dati per l'embedding
         title_clean = clean_text(recipe_data.title)
         logger.info(f"Title clean: {title_clean}")
+        category_clean = ' '.join([clean_text(cat) for cat in recipe_data.category])
+        logger.info(f"Category clean: {category_clean}")
         steps_clean = ' '.join([clean_text(step) for step in recipe_data.recipe_step])
         logger.info(f"Steps clean: {steps_clean}")
         ingredients_clean = ' '.join([clean_text(ing.name) for ing in recipe_data.ingredients])
         logger.info(f"Ingredients clean: {ingredients_clean}")
         
         # Costruisci il testo per l'embedding con una struttura più semantica
-        text_for_embedding = f"ricetta {title_clean} preparazione {steps_clean} ingredienti {ingredients_clean}"
+        text_for_embedding = f"{title_clean}. Categoria: {category_clean}. Ingredienti: {ingredients_clean}"
         logger.info(f"Testo per embedding generato per ricetta (shortcode: {recipe_data.shortcode}). Lunghezza: {len(text_for_embedding)}")
         logger.info(f"{text_for_embedding}")
         embedding = get_embedding(text_for_embedding)
@@ -156,7 +144,7 @@ async def insert_recipe(video: VideoURL):
             "ricetta_audio": recipe_data.ricetta_audio,
             "ricetta_caption": recipe_data.ricetta_caption,
             "shortcode": recipe_data.shortcode,
-            "embedding": embedding
+            "embedding": embedding.tolist() if embedding is not None else None
         }
         mongo_coll = get_mongo_collection()
         try:
@@ -304,7 +292,5 @@ def search_recipes( query: str ):
 def health_check():
     return {"status": "ok"}
 
-# -------------------------------
-
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=80)

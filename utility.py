@@ -5,12 +5,14 @@ import logging
 import random
 import traceback
 import asyncio
-from functools import wraps,lru_cache
-from pymongo import MongoClient
-from pymongo.server_api import ServerApi
+from functools import wraps
+
 from typing import List
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+import re
+
 from config import BASE_FOLDER_RICETTE
-from config import openAIclient, MONGODB_URL, MONGODB_DB, MONGODB_COLLECTION, EMBEDDING_MODEL, MONGODB_VECTOR_SEARCH_INDEX_NAME
 
 # Initialize module logger using global config
 logging.basicConfig(
@@ -128,55 +130,20 @@ def timeout(seconds):
                 raise message
         return wrapper
     return decorator
-# -------------------------------
-# Helpers
-# -------------------------------
+ 
 def parse_ingredients(ingredients_str: str) -> List[str]:
     """Converte la stringa di ingredienti in lista"""
     if not ingredients_str:
         return []
     return [ing.strip() for ing in ingredients_str.split(",")]
 
-
-# Inizializzazione del modello NLP SentenceTransformer
-# -------------------------------
-@lru_cache(maxsize=1)
-def get_embedding(text_for_embedding):
-    #model= SentenceTransformer("all-MiniLM-L6-v2")
-    #return model.encode(text_for_embedding).tolist()
-    """Generate an embedding for the given text using OpenAI's API."""
-    # Check for valid input
-    if not text_for_embedding or not isinstance(text_for_embedding, str):
-        logger.error(f"Error in get_embedding: input is not a valid string (type: {type(text_for_embedding).__name__}, value: '{text_for_embedding}')")
-        return None
-    try:
-        # Call OpenAI API to get the embedding
-        embedding = openAIclient.embeddings.create(input=text_for_embedding, model=EMBEDDING_MODEL).data[0].embedding
-        return embedding
-    except Exception as e:
-        logger.error(f"Error in get_embedding during OpenAI API call for text: '{text_for_embedding[:100]}...': {e}", exc_info=True)
-        return None
-
-# -------------------------------
-# Inizializzazione MongoDB per semantic search
-# -------------------------------
-@lru_cache(maxsize=1)
-def get_mongo_client():
-    return MongoClient(
-        MONGODB_URL,
-        server_api=ServerApi('1'),
-        retryWrites=True,
-        connectTimeoutMS=300000,
-        socketTimeoutMS=300000,
-        tlsAllowInvalidCertificates=True  # Fix for SSL certificate verification issue
-    )
-
-@lru_cache(maxsize=1)
-def get_mongo_collection():
-    client = get_mongo_client()
-    db = client[MONGODB_DB]
-    return db[MONGODB_COLLECTION]
-
-def get_db():
-    """Alias for get_mongo_collection to satisfy dependency injection"""
-    return get_mongo_collection()
+# Funzione per pulire il testo
+def clean_text(text):
+    # Converti in minuscolo e rimuovi caratteri speciali
+    text = re.sub(r'[^\w\s]', ' ', text.lower())
+    # Tokenizza
+    tokens = word_tokenize(text)
+    # Rimuovi stop words
+    stop_words = set(stopwords.words('italian'))
+    filtered_tokens = [word for word in tokens if word not in stop_words]
+    return ' '.join(filtered_tokens)

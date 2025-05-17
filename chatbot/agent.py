@@ -5,10 +5,10 @@
 #from google.adk.sessions import InMemorySessionService
 #from google.genai import types
 
-from utility import get_embedding
-from utility import get_mongo_client
+from DB.mongoDB import get_mongo_client
+from DB.embedding import get_embedding
 from utility import logger
-from config import MONGODB_DB, MONGODB_COLLECTION, MONGODB_VECTOR_SEARCH_INDEX_NAME, EMBEDDING_FIELD_NAME
+from config import MONGODB_DB, MONGODB_COLLECTION, MONGODB_VECTOR_SEARCH_INDEX_NAME, EMBEDDING_PATH
 
 def get_recipes(query: str, k: int = 5) -> list[dict]:
     # 1. Embedding della query
@@ -22,14 +22,15 @@ def get_recipes(query: str, k: int = 5) -> list[dict]:
         logger.error(f"Impossibile generare l'embedding per la query: '{query}'. La ricerca non può procedere.")
         return [] # Restituisce una lista vuota in caso di fallimento dell'embedding
     
-    logger.info(f"Vettore query generato con successo per la query: '{query}', dimensione: {len(query_vector)}")
+    # Convert numpy array to list for MongoDB compatibility
+    query_vector_list = query_vector.tolist()
 
     # 2. Aggregazione con $vectorSearch
     pipeline = [
         {
             "$vectorSearch": {
-                "path": EMBEDDING_FIELD_NAME,
-                "queryVector": query_vector,
+                "path": EMBEDDING_PATH,
+                "queryVector": query_vector_list,
                 "limit": k,
                 "index": MONGODB_VECTOR_SEARCH_INDEX_NAME,
                 "numCandidates": k * 10

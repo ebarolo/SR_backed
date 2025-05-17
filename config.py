@@ -17,11 +17,12 @@ MONGODB_URL = os.getenv("MONGODB_URL", "mongodb+srv://ebarolo:cAMV8Yfe9PnKLQ7z@s
 MONGODB_DB = os.getenv("MONGODB_DB", "smart-recipe")
 MONGODB_COLLECTION = os.getenv("MONGODB_COLLECTION", "recipe")
 MONGODB_VECTOR_SEARCH_INDEX_NAME = os.getenv("MONGO_SEARCH_INDEX", "openAIVector")
-EMBEDDING_FIELD_NAME = "embedding"
+EMBEDDING_PATH = "embedding"
 
 ISTA_USERNAME = os.getenv("ISTA_USERNAME")
 ISTA_PASSWORD = os.getenv("ISTA_PASSWORD")
 
-EMBEDDING_MODEL = "text-embedding-3-small"
+EMBEDDING_MODEL = "sentence-bert-base-italian"
 OPENAI_API_KEY = "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"
+
 openAIclient = OpenAI(api_key=OPENAI_API_KEY)
