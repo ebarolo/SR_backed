@@ -23,6 +23,7 @@ ISTA_USERNAME = os.getenv("ISTA_USERNAME")
 ISTA_PASSWORD = os.getenv("ISTA_PASSWORD")
 
 EMBEDDING_MODEL = "efederici/sentence-bert-base"
+SPACY_MODEL_NAME = "it_core_news_lg"
 OPENAI_API_KEY = "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"
 
 openAIclient = OpenAI(api_key=OPENAI_API_KEY)

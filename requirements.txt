@@ -9,4 +9,5 @@ openai
 python-dotenv
 tenacity
 yt-dlp
-instaloader 
+instaloader
+spacy
