@@ -6,7 +6,6 @@ import random
 import traceback
 import asyncio
 from functools import wraps
-
 from typing import List
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
@@ -19,7 +18,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('app.log', encoding='utf-8', mode='a'),
+        logging.FileHandler('backend.log', encoding='utf-8', mode='a'),
         logging.StreamHandler()
     ]
 )

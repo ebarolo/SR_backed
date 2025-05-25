@@ -1,7 +1,5 @@
-import os
-import logging
+
 from typing import List, Dict, Any, Optional
-from datetime import datetime
 import json
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure, OperationFailure
@@ -93,18 +91,17 @@ class LLMNaturalLanguageProcessor:
                     {"role": "user", "content": user_prompt}
                 ],
                 max_output_tokens=500,
-                temperature=0.1,
                 store=False)
 
             # Estrai e parsa la risposta JSON
             if OpenAIresponse.error is None:
                 # Parse the response into a RecipeSchema object
+                logger.info(f"OpenAIresponse: {OpenAIresponse}")
                 message_items = [item for item in OpenAIresponse.output if hasattr(item, "content")]
-                logger.info(f"message_items: {message_items}")
                 if not message_items:
                     raise ValueError("No valid output message in OpenAIresponse")
                 response_content = message_items[0].content[0]
-                
+
                 # Log the raw response content for debugging
                 logger.debug(f"Raw response_content type: {type(response_content)}")
                 logger.debug(f"Raw response_content: {response_content}")
@@ -408,135 +405,3 @@ class RecipeFinder:
 
         # Normalizza lo score
         return (score / max_score * 100) if max_score > 0 else 0.0
-
-'''
-@app.on_event("startup")
-async def startup_event():
-    """Inizializza la connessione al database all'avvio"""
-    global recipe_finder
-
-    # Verifica che OpenAI API key sia configurata
-    if not os.getenv('OPENAI_API_KEY'):
-        logger.error("OPENAI_API_KEY non configurata!")
-        raise ValueError("OPENAI_API_KEY deve essere configurata nel file .env")
-
-    # Ottieni connection string da variabili d'ambiente
-    connection_string = os.getenv('MONGODB_URI', 'mongodb+srv://username:password@cluster.mongodb.net/')
-
-    # Verifica che non sia il valore di default
-    if connection_string == 'mongodb+srv://username:password@cluster.mongodb.net/':
-        logger.error("MONGODB_URI usa il valore di default! Configura la tua connection string nel file .env")
-        raise ValueError("MONGODB_URI deve essere configurata con una connection string valida")
-
-    try:
-        recipe_finder = RecipeFinder(connection_string)
-        logger.info("API avviata con successo")
-    except Exception as e:
-        logger.error(f"Errore durante l'avvio: {e}")
-        raise
-
-@app.get("/")
-async def root():
-    """Endpoint root"""
-    return {
-        "message": "Smart Recipe Natural Language API con AI",
-        "version": "2.0.0",
-        "model": os.getenv('OPENAI_MODEL', 'gpt-3.5-turbo'),
-        "endpoints": {
-            "/search": "POST - Cerca ricette usando linguaggio naturale",
-            "/health": "GET - Controlla lo stato dell'API",
-            "/docs": "GET - Documentazione Swagger UI"
-        }
-    }
-
-@app.get("/health")
-async def health_check():
-    """Controlla lo stato dell'API e del database"""
-    try:
-        # Controlla connessione database
-        recipe_finder.client.admin.command('ping')
-
-        # Controlla OpenAI
-        openai_status = "configured" if os.getenv('OPENAI_API_KEY') else "not configured"
-
-        return {
-            "status": "healthy",
-            "database": "connected",
-            "openai": openai_status,
-            "timestamp": datetime.utcnow().isoformat()
-        }
-    except Exception as e:
-        logger.error(f"Health check fallito: {e}")
-        raise HTTPException(status_code=503, detail="Servizio non disponibile")
-
-@app.post("/search", response_model=List[RecipeResponse])
-async def search_recipes(request: QueryRequest):
-    """Cerca ricette usando una query in linguaggio naturale"""
-    try:
-        logger.info(f"Ricevuta query: {request.query}")
-
-        # Estrai entità dalla query usando LLM
-        entities = nlp_processor.extract_entities(request.query)
-
-        # Cerca ricette
-        recipes = recipe_finder.search_recipes(entities, request.limit)
-
-        # Converti ObjectId in string e prepara la risposta
-        response_recipes = []
-        for recipe in recipes:
-            recipe['_id'] = str(recipe['_id'])
-            # Gestisci campi mancanti con valori di default
-            recipe_data = {
-                '_id': recipe['_id'],
-                'title': recipe.get('title', 'Senza titolo'),
-                'description': recipe.get('description', ''),
-                'category': recipe.get('category', []),
-                'cuisine_type': recipe.get('cuisine_type', ''),
-                'ingredients': recipe.get('ingredients', []),
-                'preparation_time': recipe.get('preparation_time', 0),
-                'cooking_time': recipe.get('cooking_time', 0),
-                'tags': recipe.get('tags', []),
-                'chef_advise': recipe.get('chef_advise'),
-                'match_score': recipe.get('match_score', 0.0)
-            }
-            response_recipes.append(RecipeResponse(**recipe_data))
-
-        return response_recipes
-
-    except Exception as e:
-        logger.error(f"Errore durante la ricerca: {e}")
-        raise HTTPException(status_code=500, detail=f"Errore interno: {str(e)}")
-
-@app.get("/search/simple")
-async def simple_search(
-    q: str = Query(..., description="Query di ricerca in linguaggio naturale"),
-    limit: int = Query(10, description="Numero massimo di risultati")
-):
-    """Endpoint GET semplificato per ricerca ricette"""
-    request = QueryRequest(query=q, limit=limit)
-    return await search_recipes(request)
-
-@app.post("/analyze")
-async def analyze_query(request: QueryRequest):
-    """Analizza una query e mostra le entità estratte (utile per debug)"""
-    try:
-        entities = nlp_processor.extract_entities(request.query)
-        return {
-            "query": request.query,
-            "entities": entities,
-            "model": os.getenv('OPENAI_MODEL', 'gpt-3.5-turbo')
-        }
-    except Exception as e:
-        logger.error(f"Errore nell'analisi: {e}")
-        raise HTTPException(status_code=500, detail=f"Errore nell'analisi: {str(e)}")
-
-if __name__ == "__main__":
-    # Avvia il server
-    uvicorn.run(
-        "natural_language_recipe_finder_llm:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,
-        log_level="info"
-    )
-'''

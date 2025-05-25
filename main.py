@@ -174,6 +174,7 @@ def get_recipe(recipe_id: int, db: Session = Depends(get_db)):
 
 @app.get("/search/")
 def search_recipes( query: str, limit: int = 10 ):
+    '''
     # Inizializza componenti
     nlp_processor = LLMNaturalLanguageProcessor()
     recipe_finder = None
@@ -186,7 +187,7 @@ def search_recipes( query: str, limit: int = 10 ):
         # Cerca ricette
         recipe_finder = RecipeFinder(MONGODB_URI)
         recipes = recipe_finder.search_recipes(entities, limit)
-
+        
         # Converti ObjectId in string e prepara la risposta
         response_recipes = []
         for recipe in recipes:
@@ -214,7 +215,7 @@ def search_recipes( query: str, limit: int = 10 ):
     except Exception as e:
         logger.error(f"Errore durante la ricerca: {e}")
         raise HTTPException(status_code=500, detail=f"Errore interno: {str(e)}")
-
+    '''
     '''
     try:
         logger.info(f"Ricerca avviata per query: '{query}'")
