@@ -1,28 +1,26 @@
 from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+import uvicorn
 
 from pydantic import BaseModel, HttpUrl, validator
-from typing import Optional
-from sqlalchemy import Column, Integer, String, Text
+
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Session
 
-import json
-import uvicorn
-# Import per integrazione con MongoDB e NLP
-from models import RecipeDBSchema, Ingredient
+from models import RecipeDBSchema, Ingredient, RecipeResponse
 
 from importRicette.saveRecipe import process_video
 from utility import get_error_context, logger, clean_text
 from DB.mongoDB import get_mongo_collection, get_db
 from DB.embedding import get_embedding
 
-from chatbot.agent import get_recipes
+from chatbot.natural_language_recipe_finder_llm import LLMNaturalLanguageProcessor, RecipeFinder
+#from chatbot.agent import get_recipes
+from config import MONGODB_URI
 #SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
 
-# Creazione delle tabelle nel database
-#Base.metadata.create_all(bind=engine)
+Base = declarative_base()
 
 # -------------------------------
 # Schemi Pydantic
@@ -42,6 +40,14 @@ class VideoURL(BaseModel):
 # Inizializzazione FastAPI e Dependency per il DB
 # -------------------------------
 app = FastAPI(title="Backend Smart Recipe", version="0.5")
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Mount mediaRicette directory explicitly to ensure all dynamic subfolders are accessible
 app.mount("/mediaRicette", StaticFiles(directory="static/mediaRicette"), name="mediaRicette")
@@ -167,7 +173,49 @@ def get_recipe(recipe_id: int, db: Session = Depends(get_db)):
     return ""
 
 @app.get("/search/")
-def search_recipes( query: str ):
+def search_recipes( query: str, limit: int = 10 ):
+    # Inizializza componenti
+    nlp_processor = LLMNaturalLanguageProcessor()
+    recipe_finder = None
+    try:
+        logger.info(f"Ricevuta query: {query}")
+
+        # Estrai entità dalla query usando LLM
+        entities = nlp_processor.extract_entities(query)
+
+        # Cerca ricette
+        recipe_finder = RecipeFinder(MONGODB_URI)
+        recipes = recipe_finder.search_recipes(entities, limit)
+
+        # Converti ObjectId in string e prepara la risposta
+        response_recipes = []
+        for recipe in recipes:
+            recipe['_id'] = str(recipe['_id'])
+            # Gestisci campi mancanti con valori di default
+            recipe_data = {
+                '_id': recipe['_id'],
+                'title': recipe.get('title', 'Senza titolo'),
+                'description': recipe.get('description', ''),
+                'category': recipe.get('category', []),
+                'cuisine_type': recipe.get('cuisine_type', ''),
+                'ingredients': recipe.get('ingredients', []),
+                'preparation_time': recipe.get('preparation_time', 0),
+                'cooking_time': recipe.get('cooking_time', 0),
+                'tags': recipe.get('tags', []),
+                'chef_advise': recipe.get('chef_advise'),
+                'match_score': recipe.get('match_score', 0.0),
+                'shortcode': recipe.get('shortcode', ''),
+                'recipe_step': recipe.get('recipe_step', [])
+            }
+            response_recipes.append(RecipeResponse(**recipe_data))
+
+        return response_recipes
+
+    except Exception as e:
+        logger.error(f"Errore durante la ricerca: {e}")
+        raise HTTPException(status_code=500, detail=f"Errore interno: {str(e)}")
+
+    '''
     try:
         logger.info(f"Ricerca avviata per query: '{query}'")
         recipes = get_recipes(query, k=3) # get_recipes ora gestisce i propri log ed errori
@@ -184,6 +232,7 @@ def search_recipes( query: str ):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Errore interno del server durante la ricerca delle ricette."
         )
+    '''
 # -------------------------------
 # Endpoints per la validazione di stato e prova
 # -------------------------------

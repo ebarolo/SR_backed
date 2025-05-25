@@ -1,6 +1,6 @@
 import os
 from openai import OpenAI
-
+from dotenv import load_dotenv
 # -------------------------------
 # Configurazione tramite variabili d'ambiente
 # -------------------------------
@@ -9,6 +9,7 @@ from openai import OpenAI
 #QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
 #QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "smart-recipe")
 #QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.TI1jEYFRxKghin8baG_wtBiK-imMFOf98rOEejelcUI")  
+load_dotenv()
 
 BASE_FOLDER_RICETTE = os.path.join(os.getcwd(), "static/mediaRicette")
 BASE_FOLDER_PREPROCESS_VIDEO = os.path.join(os.getcwd(), "static/preprocess_video")
@@ -25,5 +26,5 @@ ISTA_PASSWORD = os.getenv("ISTA_PASSWORD")
 EMBEDDING_MODEL = "efederici/sentence-bert-base"
 SPACY_MODEL_NAME = "it_core_news_lg"
 OPENAI_API_KEY = "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"
-
+OPENAI_MODEL = "o4-mini"
 openAIclient = OpenAI(api_key=OPENAI_API_KEY)

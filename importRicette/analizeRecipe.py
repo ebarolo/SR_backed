@@ -7,7 +7,7 @@ import json
 
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from models import RecipeAIResponse
+from models import RecipeDBSchema, Ingredient, RecipeResponse
 
 from utility import get_error_context, timeout, logger
 from config import openAIclient
@@ -146,7 +146,7 @@ async def analyze_recipe_frames(base64Frames):
 @timeout(180)  # 3 minuti
 async def extract_recipe_info(
     recipe_audio_text: str, recipe_caption_text: str, ingredients: any, actions: any
-) -> RecipeAIResponse:
+):
 
     user_prompt, system_prompt = read_prompt_files(
         recipe_audio_text,
@@ -283,6 +283,7 @@ async def extract_recipe_info(
                 }
             },
             store=False,
+            temperature=0.5
         )
         logger.info(f" OpenAIresponse: {OpenAIresponse}")
         if OpenAIresponse.error is None:
@@ -298,7 +299,7 @@ async def extract_recipe_info(
           else:
             recipe_data = response_content
 
-          return RecipeAIResponse(**recipe_data)
+          return recipe_data
         else:
             raise ValueError("OpenAIresponse error: " + OpenAIresponse.error)
 

@@ -5,7 +5,6 @@ from typing import List as PydanticList, Optional, Dict, Any # Rinominato List p
 
 from utility import logger
 
-
 def OpenAIEmbedding(text_for_embedding):
     #model= SentenceTransformer("all-MiniLM-L6-v2")
     #return model.encode(text_for_embedding).tolist()

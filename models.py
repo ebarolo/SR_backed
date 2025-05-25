@@ -1,5 +1,6 @@
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
+from pydantic import BaseModel, Field
 
 class Ingredient(BaseModel):
     name: str
@@ -25,22 +26,21 @@ class RecipeDBSchema(BaseModel):
     ricetta_caption: Optional[str] 
     shortcode: str
  
-class RecipeAIResponse(BaseModel):
+class RecipeResponse(BaseModel):
+    _id: str
     title: str
+    description: str
     category: List[str]
-    preparation_time: Optional[int]
-    cooking_time: Optional[int]
+    cuisine_type: str
     ingredients: List[Ingredient]
     recipe_step: List[str]
-    description: str
-    diet: Optional[str]
-    technique: Optional[str] 
-    language: str
+    preparation_time: int
+    cooking_time: int
+    tags: List[str]
     chef_advise: Optional[str]
-    tags: Optional[List[str]]
-    nutritional_info: Optional[List[str]] 
-    cuisine_type: Optional[str]
-    
+    shortcode: str
+    match_score: float = Field(..., description="Score di rilevanza della ricetta")
+  
 recipe_schema = {
   "name": "recipe_schema",
   "schema": {
