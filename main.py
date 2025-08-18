@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
+import json
 
 from pydantic import BaseModel, HttpUrl, validator
 
@@ -12,7 +13,7 @@ from models import RecipeDBSchema, Ingredient, RecipeResponse
 
 from importRicette.saveRecipe import process_video
 from utility import get_error_context, logger, clean_text
-from DB.rag_system import index_database
+from DB.rag_system import index_database, search, visualize_space_query, load_embedding_matrix
 
 #from DB.mongoDB import get_mongo_collection, get_db
 #from DB.embedding import get_embedding
@@ -104,6 +105,9 @@ async def insert_recipe(video: VideoURL):
                 detail="Errore interno durante la generazione dell'identificativo semantico della ricetta."
             )
         else:
+         with open(f'static/mediaRicette/ricette.json', 'w', encoding='utf-8') as f:
+          json.dump(recipe_data.title, f, ensure_ascii=False, indent=4)
+ 
          doc = {
             "title": recipe_data.title,
             "category": recipe_data.category,
@@ -178,66 +182,11 @@ def get_recipe(recipe_id: int):
 
 @app.get("/search/")
 def search_recipes( query: str, limit: int = 10 ):
-    '''
-    # Inizializza componenti
-    nlp_processor = LLMNaturalLanguageProcessor()
-    recipe_finder = None
-    try:
-        logger.info(f"Ricevuta query: {query}")
-
-        # Estrai entità dalla query usando LLM
-        entities = nlp_processor.extract_entities(query)
-
-        # Cerca ricette
-        recipe_finder = RecipeFinder(MONGODB_URI)
-        recipes = recipe_finder.search_recipes(entities, limit)
-        
-        # Converti ObjectId in string e prepara la risposta
-        response_recipes = []
-        for recipe in recipes:
-            recipe['_id'] = str(recipe['_id'])
-            # Gestisci campi mancanti con valori di default
-            recipe_data = {
-                '_id': recipe['_id'],
-                'title': recipe.get('title', 'Senza titolo'),
-                'description': recipe.get('description', ''),
-                'category': recipe.get('category', []),
-                'cuisine_type': recipe.get('cuisine_type', ''),
-                'ingredients': recipe.get('ingredients', []),
-                'preparation_time': recipe.get('preparation_time', 0),
-                'cooking_time': recipe.get('cooking_time', 0),
-                'tags': recipe.get('tags', []),
-                'chef_advise': recipe.get('chef_advise'),
-                'match_score': recipe.get('match_score', 0.0),
-                'shortcode': recipe.get('shortcode', ''),
-                'recipe_step': recipe.get('recipe_step', [])
-            }
-            response_recipes.append(RecipeResponse(**recipe_data))
-
-        return response_recipes
-
-    except Exception as e:
-        logger.error(f"Errore durante la ricerca: {e}")
-        raise HTTPException(status_code=500, detail=f"Errore interno: {str(e)}")
-    '''
-    '''
-    try:
-        logger.info(f"Ricerca avviata per query: '{query}'")
-        recipes = get_recipes(query, k=3) # get_recipes ora gestisce i propri log ed errori
-        if not recipes:
-            logger.warning(f"Nessuna ricetta trovata per la query: '{query}'")
-            # Non è un errore, restituisce semplicemente una lista vuota, HTTP 200.
-        else:
-            logger.info(f"Trovate {len(recipes)} ricette per la query: '{query}'")
-        return recipes
-    except Exception as e:
-        error_context = get_error_context()
-        logger.error(f"Errore imprevisto durante la ricerca di ricette per la query '{query}': {str(e)}. Contesto: {error_context}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Errore interno del server durante la ricerca delle ricette."
-        )
-    '''
+    matrix = load_embedding_matrix("embeddings.npy")
+    out = search(query=query, embedding_matrix = matrix)
+    print(out)
+    #visualize_space_query(frasi, query, matrix)
+    
 # -------------------------------
 # Endpoints per la validazione di stato e prova
 # -------------------------------

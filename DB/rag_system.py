@@ -12,47 +12,69 @@ model = pipeline(
     )
 
 def index_database(data):
-    # Calcolo degli embeddings
-    #embeddings = model.encode(data)['dense_vecs']
-    embeddings = model(data, return_tensors='pt')[0].numpy().mean(axis=0)
+    # Calcolo degli embeddings: una riga per documento (N, D)
+    vectors = []
+    for text in data:
+        vec = model(text, return_tensors='pt')[0].numpy().mean(axis=0)
+        vectors.append(vec)
+    embeddings = np.vstack(vectors) if len(vectors) > 0 else np.empty((0, 0))
 
     # Salvataggio degli embeddings come file .npy
-    np.save('embeddings.npy', embeddings)
+    np.save('static/recipeEmbeddings.npy', embeddings)
     return embeddings
 
-def load_embedding_matrix(dembeddings_path):
-    # Caricamento degli embeddings per verifica
-    loaded_embeddings = np.load(dembeddings_path)
+def load_embedding_matrix(embeddings_path):
+    # Caricamento degli embeddings per verifica e normalizzazione forma 2D
+    loaded_embeddings = np.load(embeddings_path)
+    #loaded_embeddings = np.atleast_2d(loaded_embeddings)
     return loaded_embeddings
 
 def search(query, embedding_matrix):
     query_embedding = model(query, return_tensors='pt')[0].numpy().mean(axis=0)
-    similarities = cosine_similarity([query_embedding], embedding_matrix)[0]
+    # Assicura che le forme siano 2D
+    embedding_matrix = np.atleast_2d(embedding_matrix)
+    query_embedding = query_embedding.reshape(1, -1)
+
+    similarities = cosine_similarity(query_embedding, embedding_matrix)[0]
     similarity_results = sorted(enumerate(similarities), key=lambda x: x[1], reverse=True)
     return similarity_results
 
 
 def visualize_space_query(data, query, embedding_matrix):
-    query_embedding = model.encode([query])['dense_vecs'][0]
+    #query_embedding = model.encode([query])['dense_vecs'][0]
+    query_embedding = model(query, return_tensors='pt')[0].numpy().mean(axis=0)
+
+    # Normalizza forme per l'aggregazione
+    embedding_matrix = np.atleast_2d(embedding_matrix)
+    query_embedding = query_embedding.reshape(1, -1)
 
     jointed_matrix = np.vstack([embedding_matrix, query_embedding])
 
+    # Gestione dataset piccoli per TSNE: serve perplexity < n_samples
+    n_samples = jointed_matrix.shape[0]
+    if n_samples < 2:
+        print("TSNE: numero di campioni insufficiente per la visualizzazione.")
+        return
+    perplexity = min(30, max(1, n_samples - 1))
+    if perplexity >= n_samples:
+        perplexity = n_samples - 1
+
     # Riduzione dimensionale con TSNE
-    tsne = TSNE(n_components=2, perplexity=2, random_state=42)
+    tsne = TSNE(n_components=2, perplexity=perplexity, random_state=42)
     embeddings_2d = tsne.fit_transform(jointed_matrix)
 
     # Plotting dei risultati
     plt.figure(figsize=(8, 6))
 
     # Plot delle frasi
-    plt.scatter(embeddings_2d[:-1, 0], embeddings_2d[:-1, 1], c='blue', edgecolor='k', label='Frasi')
+    plt.scatter(embeddings_2d[:-1, 0], embeddings_2d[:-1, 1], c='blue', edgecolor='k', label='Ricette')
 
     # Plot della query
     plt.scatter(embeddings_2d[-1, 0], embeddings_2d[-1, 1], c='red', edgecolor='k', label='Query')
 
     # Annotazioni con le frasi originali
-    for i, frase in enumerate(data):
-        plt.text(embeddings_2d[i, 0] + 0.1, embeddings_2d[i, 1] + 0.1, frase, fontsize=9)
+    # for i, frase in enumerate(data):
+    #    plt.text(embeddings_2d[i, 0] + 0.1, embeddings_2d[i, 1] + 0.1, frase, fontsize=9)
 
     # Annotazione per la query
     plt.text(embeddings_2d[-1, 0] + 0.1, embeddings_2d[-1, 1] + 0.1, query, fontsize=9, color='red')
@@ -65,22 +87,10 @@ def visualize_space_query(data, query, embedding_matrix):
     plt.show()
 
 
-"""# Frasi da elaborare
-frasi = [
-    "iscriviti al canale di simone rizzo su youtube.",
-    "video su yotube", 
-    "creazione di contenuti sui social", 
-    "ultimo modello open-source di Meta si chiama LLama 8.5",
-    "nuovo modello di machine learning", 
-    "il meccanico mi ha appena riparato l'automobile",
-    "La ferrari california: Il V8 da 3.855 cm3 sviluppa 560 CV (145 CV/l, top di categoria) e una coppia massima che, in settima marcia, è di 755 Nm."
-]
-
 # Aggiunta della query
-query = "voglio riparare la mia auto"
-
+query = "risotto ai gamberi"
 # index_database(frasi) # cread il database vettoriale
 matrix = load_embedding_matrix("embeddings.npy")
 out = search(query=query, embedding_matrix = matrix)
 print(out)
-visualize_space_query(frasi, query, matrix)"""
+visualize_space_query(frasi, query, matrix)

@@ -6,7 +6,7 @@ from typing import Dict, List
 from dotenv import load_dotenv
 import os
 
-from email_utils import cerca_mail
+from email_utils import cerca_recipes
 
 load_dotenv()
 openai_api_key = os.environ['OpenAI_API_Key']
@@ -22,14 +22,14 @@ if 'thread_id' not in st.session_state:
     st.session_state.thread_id = None
 
 # Funzione per cercare le email (implementazione di esempio)
-def search_emails(query: str) -> List[Dict]:
+def search_recipes(query: str) -> List[Dict]:
     """
     Funzione di esempio per la ricerca delle email.
     Nella realtà, questa funzione dovrebbe interfacciarsi con il tuo sistema email.
     """
     print(f"Cerca la mail con la query:{query}")
     # Questo è solo un esempio - sostituisci con la tua logica di ricerca email
-    return cerca_mail(query)
+    return cerca_recipes(query)
 
 # Configurazione delle chiavi API
 OPENAI_API_KEY = openai_api_key  # Configura questo in Streamlit Secrets
