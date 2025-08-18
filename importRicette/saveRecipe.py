@@ -112,7 +112,8 @@ async def process_video(recipe: str):
             logger.info(f"Inizio estrazione informazioni ricetta dal testo trascritto per shortcode '{shortcode}'. Lunghezza testo: {len(ricetta_audio) if ricetta_audio else 0}")
             ricetta = await extract_recipe_info(ricetta_audio, captionSanit, [], [])
             if ricetta:
-                logger.info(f"Informazioni ricetta estratte con successo per shortcode '{shortcode}': titolo='{ricetta.title}'")
+                titolo_estratto = ricetta.get('title', 'N/A') if isinstance(ricetta, dict) else getattr(ricetta, 'title', 'N/A')
+                logger.info(f"Informazioni ricetta estratte con successo per shortcode '{shortcode}': titolo='{titolo_estratto}'")
             else:
                 logger.warning(f"Nessuna informazione ricetta estratta per shortcode '{shortcode}' dal testo analizzato.")
                 # Potrebbe essere utile continuare il loop o sollevare un errore specifico
@@ -126,7 +127,7 @@ async def process_video(recipe: str):
                 pass # O gestire il caso in cui ricetta sia None
 
             # Convert the RecipeAIResponse object to a RecipeDBSchema object
-            ricetta_dict = ricetta.model_dump() if ricetta else {}
+            ricetta_dict = ricetta if isinstance(ricetta, dict) else (ricetta.model_dump() if ricetta else {})
 
             # Keep ingredients and recipe_step as lists
             ricetta_dict["ingredients"] = ricetta_dict.get("ingredients", [])

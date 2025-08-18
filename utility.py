@@ -1,6 +1,6 @@
 import re
 import os
-import datetime
+from datetime import datetime
 import logging
 import random
 import traceback
@@ -126,7 +126,7 @@ def timeout(seconds):
             except asyncio.TimeoutError:
                 message = f"Timeout dopo {seconds} secondi nella funzione {func.__name__}"
                 logger.error(message)
-                raise message
+                raise TimeoutError(message)
         return wrapper
     return decorator
  

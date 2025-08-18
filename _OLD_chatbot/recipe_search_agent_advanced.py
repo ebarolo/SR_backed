@@ -5,7 +5,7 @@ from typing import List, Dict, Any, Optional
 import json
 import numpy as np
 from dotenv import load_dotenv
-from config import OPENAI_MODEL, EMBEDDING_PATH, EMBEDDING_MODEL, MONGODB_VECTOR_SEARCH_INDEX_NAME
+from config import logger, OPENAI_MODEL, EMBEDDING_PATH, EMBEDDING_MODEL, MONGODB_VECTOR_SEARCH_INDEX_NAME
 
 # Carica variabili d'ambiente
 load_dotenv()
@@ -191,7 +191,7 @@ def search_recipes(
                 max_total_time
             ]
         }
-    
+    logger.info(f"Query: {query}")
     # Esegui la query
     results = list(collection.find(query).limit(10))
     
@@ -251,7 +251,6 @@ def semantic_search_recipes(query: str, limit: int = 5) -> List[Dict[str, Any]]:
         formatted_results = []
         for result in results:
             formatted_results.append({
-                "_id": str(result["_id"]),
                 "title": result.get("title", ""),
                 "description": result.get("description", ""),
                 "category": result.get("category", []),

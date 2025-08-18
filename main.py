@@ -12,10 +12,12 @@ from models import RecipeDBSchema, Ingredient, RecipeResponse
 
 from importRicette.saveRecipe import process_video
 from utility import get_error_context, logger, clean_text
-from DB.mongoDB import get_mongo_collection, get_db
-from DB.embedding import get_embedding
+from DB.rag_system import index_database
 
-from chatbot.natural_language_recipe_finder_llm import LLMNaturalLanguageProcessor, RecipeFinder
+#from DB.mongoDB import get_mongo_collection, get_db
+#from DB.embedding import get_embedding
+
+#from chatbot.natural_language_recipe_finder_llm import LLMNaturalLanguageProcessor, RecipeFinder
 #from chatbot.agent import get_recipes
 from config import MONGODB_URI
 #SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -91,7 +93,7 @@ async def insert_recipe(video: VideoURL):
         text_for_embedding = f"{title_clean}. Categoria: {category_clean}. Ingredienti: {ingredients_clean}"
         logger.info(f"Testo per embedding generato per ricetta (shortcode: {recipe_data.shortcode}). Lunghezza: {len(text_for_embedding)}")
         logger.info(f"{text_for_embedding}")
-        embedding = get_embedding(text_for_embedding)
+        embedding = index_database(text_for_embedding)
         if embedding is None:
             # Log dell'errore già fatto da get_embedding
             logger.error(f"Fallimento generazione embedding per ricetta '{recipe_data.title}' (shortcode: {recipe_data.shortcode}). L'inserimento non può procedere con l'embedding.")
@@ -101,8 +103,8 @@ async def insert_recipe(video: VideoURL):
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Errore interno durante la generazione dell'identificativo semantico della ricetta."
             )
-
-        doc = {
+        else:
+         doc = {
             "title": recipe_data.title,
             "category": recipe_data.category,
             "preparation_time": recipe_data.preparation_time,
@@ -121,7 +123,9 @@ async def insert_recipe(video: VideoURL):
             "ricetta_caption": recipe_data.ricetta_caption,
             "shortcode": recipe_data.shortcode,
             "embedding": embedding if embedding is not None else None
-        }
+         }
+         
+        '''
         mongo_coll = get_mongo_collection()
         try:
             mongo_coll.replace_one(
@@ -137,7 +141,7 @@ async def insert_recipe(video: VideoURL):
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Errore durante il salvataggio della ricetta nel database."
             )
-
+        '''
         return RecipeDBSchema(
             title=doc["title"],
             category=doc["category"],
@@ -156,7 +160,7 @@ async def insert_recipe(video: VideoURL):
             ricetta_audio=doc["ricetta_audio"],
             ricetta_caption=doc["ricetta_caption"],
             shortcode=doc["shortcode"]
-        )
+         )
     except HTTPException as e:
         # Rilancia le HTTPException specifiche già gestite o sollevate
         raise e
@@ -169,7 +173,7 @@ async def insert_recipe(video: VideoURL):
         )
 
 @app.get("/recipes/{recipe_id}", response_model=RecipeDBSchema)
-def get_recipe(recipe_id: int, db: Session = Depends(get_db)):
+def get_recipe(recipe_id: int):
     return ""
 
 @app.get("/search/")
@@ -242,4 +246,4 @@ def health_check():
     return {"status": "ok"}
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=80)
+    uvicorn.run(app, host="0.0.0.0", port=8000)

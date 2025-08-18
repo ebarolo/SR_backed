@@ -134,7 +134,8 @@ async def analyze_recipe_frames(base64Frames):
             "max_tokens": 700,
         }
 
-        result = await asyncio.to_thread(openAIclient.chat.completions.create(params))
+        # Esegui la chiamata bloccante nel thread pool passando i kwargs correttamente
+        result = await asyncio.to_thread(openAIclient.chat.completions.create, **params)
 
         logger.info(result.choices[0])
         return result.choices[0].message.content
@@ -159,149 +160,204 @@ async def extract_recipe_info(
     
     try:
         logger.info(f"try OpenAIclient")
-        OpenAIresponse = openAIclient.responses.create(
-            model="o4-mini",
+        
+        OpenAIresponse = await asyncio.to_thread(
+            openAIclient.responses.create,
+            model="gpt-5",
             input=[
-                {
-                    "role": "developer",
-                    "content": [{"type": "input_text", "text": system_prompt}],
-                },
-                {
-                    "role": "user",
-                    "content": [{"type": "input_text", "text": user_prompt}],
-                },
+             {
+                "role": "developer",
+                "content": [
+                    {
+                    "type": "input_text",
+                    "text": system_prompt
+                    }
+                ]
+             },
+             {
+                "role": "user",
+                "content": [
+                    {
+                    "type": "input_text",
+                    "text": user_prompt
+                    }
+                ]
+             }
             ],
             text={
                 "format": {
-                    "type": "json_schema",
-                    "name": "recipe_schema",
-                    "strict": True,
-                    "schema": {
+                "type": "json_schema",
+                "name": "recipe_schema",
+                "strict": True,
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                    "title": {
+                        "type": "string",
+                        "description": "The title of the recipe."
+                    },
+                    "category": {
+                        "type": "array",
+                        "description": "The categories the recipe belongs to.",
+                        "items": {
+                        "type": "string"
+                        }
+                    },
+                    "preparation_time": {
+                        "type": "number",
+                        "description": "The preparation time in minutes."
+                    },
+                    "cooking_time": {
+                        "type": "number",
+                        "description": "The cooking time in minutes."
+                    },
+                    "ingredients": {
+                        "type": "array",
+                        "description": "The list of ingredients required for the recipe.",
+                        "items": {
+                        "$ref": "#/$defs/ingredient"
+                        }
+                    },
+                    "recipe_step": {
+                        "type": "array",
+                        "description": "Step-by-step instructions for preparing the recipe.",
+                        "items": {
+                        "type": "string"
+                        }
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "A short description of the recipe."
+                    },
+                    "diet": {
+                        "type": "string",
+                        "description": "Diet type associated with the recipe."
+                    },
+                    "technique": {
+                        "type": "string",
+                        "description": "Cooking technique used in the recipe."
+                    },
+                    "language": {
+                        "type": "string",
+                        "description": "The language of the recipe."
+                    },
+                    "chef_advise": {
+                        "type": "string",
+                        "description": "Advice or tips from the chef."
+                    },
+                    "tags": {
+                        "type": "array",
+                        "description": "Tags related to the recipe.",
+                        "items": {
+                        "type": "string"
+                        }
+                    },
+                    "nutritional_info": {
+                        "type": "array",
+                        "description": "Nutritional information pertaining to the recipe.",
+                        "items": {
+                        "type": "string"
+                        }
+                    },
+                    "cuisine_type": {
+                        "type": "string",
+                        "description": "Type of cuisine the recipe represents."
+                    }
+                    },
+                    "required": [
+                    "title",
+                    "category",
+                    "preparation_time",
+                    "cooking_time",
+                    "ingredients",
+                    "recipe_step",
+                    "description",
+                    "diet",
+                    "technique",
+                    "language",
+                    "chef_advise",
+                    "tags",
+                    "nutritional_info",
+                    "cuisine_type"
+                    ],
+                    "additionalProperties": False,
+                    "$defs": {
+                    "ingredient": {
                         "type": "object",
                         "properties": {
-                            "title": {
-                                "type": "string",
-                                "description": "The title of the recipe.",
-                            },
-                            "category": {
-                                "type": "array",
-                                "description": "The categories the recipe belongs to.",
-                                "items": {"type": "string"},
-                            },
-                            "preparation_time": {
-                                "type": "number",
-                                "description": "The preparation time in minutes.",
-                            },
-                            "cooking_time": {
-                                "type": "number",
-                                "description": "The cooking time in minutes.",
-                            },
-                            "ingredients": {
-                                "type": "array",
-                                "description": "The list of ingredients required for the recipe.",
-                                "items": {"$ref": "#/$defs/ingredient"},
-                            },
-                            "recipe_step": {
-                                "type": "array",
-                                "description": "Step-by-step instructions for preparing the recipe.",
-                                "items": {"type": "string"},
-                            },
-                            "description": {
-                                "type": "string",
-                                "description": "A short description of the recipe.",
-                            },
-                            "diet": {
-                                "type": "string",
-                                "description": "Diet type associated with the recipe.",
-                            },
-                            "technique": {
-                                "type": "string",
-                                "description": "Cooking technique used in the recipe.",
-                            },
-                            "language": {
-                                "type": "string",
-                                "description": "The language of the recipe.",
-                            },
-                            "chef_advise": {
-                                "type": "string",
-                                "description": "Advice or tips from the chef.",
-                            },
-                            "tags": {
-                                "type": "array",
-                                "description": "Tags related to the recipe.",
-                                "items": {"type": "string"},
-                            },
-                            "nutritional_info": {
-                                "type": "array",
-                                "description": "Nutritional information pertaining to the recipe.",
-                                "items": {"type": "string"},
-                            },
-                            "cuisine_type": {
-                                "type": "string",
-                                "description": "Type of cuisine the recipe represents.",
-                            },
+                        "name": {
+                            "type": "string",
+                            "description": "The name of the ingredient."
+                        },
+                        "qt": {
+                            "type": "number",
+                            "description": "The quantity of the ingredient."
+                        },
+                        "um": {
+                            "type": "string",
+                            "description": "The unit of measurement for the ingredient."
+                        }
                         },
                         "required": [
-                            "title",
-                            "category",
-                            "preparation_time",
-                            "cooking_time",
-                            "ingredients",
-                            "recipe_step",
-                            "description",
-                            "diet",
-                            "technique",
-                            "language",
-                            "chef_advise",
-                            "tags",
-                            "nutritional_info",
-                            "cuisine_type",
+                        "name",
+                        "qt",
+                        "um"
                         ],
-                        "additionalProperties": False,
-                        "$defs": {
-                            "ingredient": {
-                                "type": "object",
-                                "properties": {
-                                    "name": {
-                                        "type": "string",
-                                        "description": "The name of the ingredient.",
-                                    },
-                                    "qt": {
-                                        "type": "number",
-                                        "description": "The quantity of the ingredient.",
-                                    },
-                                    "um": {
-                                        "type": "string",
-                                        "description": "The unit of measurement for the ingredient.",
-                                    },
-                                },
-                                "required": ["name", "qt", "um"],
-                                "additionalProperties": False,
-                            }
-                        },
-                    },
+                        "additionalProperties": False
+                    }
+                    }
                 }
+                },
+                "verbosity": "medium"
             },
-            store=False,
-            temperature=0.5
+            reasoning={
+                "effort": "low",
+                "summary": "auto"
+            },
+            tools=[],
+            store=True
         )
+        
         logger.info(f" OpenAIresponse: {OpenAIresponse}")
         if OpenAIresponse.error is None:
-         # Parse the response into a RecipeSchema object
-          message_items = [item for item in OpenAIresponse.output if hasattr(item, "content")]
-          if not message_items:
-            raise ValueError("No valid output message in OpenAIresponse")
-          response_content = message_items[0].content[0]
-          if isinstance(response_content, str):
-            recipe_data = json.loads(response_content)
-          elif hasattr(response_content, "text"):
-            recipe_data = json.loads(response_content.text)
-          else:
-            recipe_data = response_content
+            # 1) Prova proprietà comoda se presente
+            output_text = getattr(OpenAIresponse, "output_text", None)
+            if output_text:
+                try:
+                    return json.loads(output_text)
+                except Exception:
+                    pass
 
-          return recipe_data
+            # 2) Estrai il primo messaggio con content non vuoto e prendi il testo
+            output_items = getattr(OpenAIresponse, "output", []) or []
+            # Preferisci i messaggi veri e propri
+            message_items = [
+                item for item in output_items
+                if getattr(item, "type", "") == "message" and getattr(item, "content", None)
+            ]
+            # Se non trovi "message", ripiega su qualsiasi item con content non vuoto (ma evita quelli None)
+            if not message_items:
+                message_items = [
+                    item for item in output_items
+                    if getattr(item, "content", None)
+                ]
+            if not message_items:
+                raise ValueError("Nessun contenuto valido presente in OpenAIresponse.output")
+
+            # Scorri le parti di contenuto e trova del testo JSON
+            for part in getattr(message_items[0], "content", []) or []:
+                try:
+                    if isinstance(part, str):
+                        return json.loads(part)
+                    text_value = getattr(part, "text", None)
+                    if text_value:
+                        return json.loads(text_value)
+                except Exception:
+                    continue
+
+            raise ValueError("Impossibile estrarre JSON dal contenuto della risposta OpenAI")
         else:
-            raise ValueError("OpenAIresponse error: " + OpenAIresponse.error)
+            raise ValueError("OpenAIresponse error: " + str(OpenAIresponse.error))
 
     except Exception as e:
         logger.error(f"OpenAIresponse error: {str(e)}")
@@ -327,7 +383,7 @@ async def whisper_speech_recognition(audio_file_path: str, language: str) -> str
             )
             logger.info(f"transcription: {transcription}")
         return transcription.text
-    except FileNotFoundError:
+    except FileNotFoundError as e:
         error_context = get_error_context()
         logger.error(
             f"Errore: Il file audio '{audio_file_path}' non è stato trovato. - {error_context}"
