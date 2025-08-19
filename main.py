@@ -1,11 +1,12 @@
 from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 import uvicorn
 import json
 
 from pydantic import BaseModel, HttpUrl, validator
-from typing import List
+from typing import List, Optional
 
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Session
@@ -14,14 +15,24 @@ from models import RecipeDBSchema, Ingredient, RecipeResponse
 
 from importRicette.saveRecipe import process_video
 from utility import get_error_context, logger, clean_text
-from DB.rag_system import index_database, search, visualize_space_query, load_embedding_matrix
+from DB.rag_system import (
+    index_database,
+    search,
+    visualize_space_query,
+    load_embedding_matrix,
+    load_embeddings_with_metadata,
+    set_rag_model,
+    get_current_rag_model_name,
+    recalculate_embeddings_from_npz,
+    load_npz_info,
+)
 
 #from DB.mongoDB import get_mongo_collection, get_db
 #from DB.embedding import get_embedding
 
 #from chatbot.natural_language_recipe_finder_llm import LLMNaturalLanguageProcessor, RecipeFinder
 #from chatbot.agent import get_recipes
-from config import MONGODB_URI
+from config import MONGODB_URI, EMBEDDINGS_NPZ_PATH
 #SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
@@ -56,17 +67,16 @@ app.add_middleware(
 
 # Mount mediaRicette directory explicitly to ensure all dynamic subfolders are accessible
 app.mount("/mediaRicette", StaticFiles(directory="static/mediaRicette"), name="mediaRicette")
+# Mount static directory to serve HTML, CSS, JS and other assets
+app.mount("/static", StaticFiles(directory="static", html=True), name="static")
 
 #-------------------------------
 # Endpoints API
 # -------------------------------
 # -------------------------------
-@app.get("/")
+@app.get("/", include_in_schema=False)
 async def root():
-    # In un template reale useresti Jinja2 o un'altra template-engine
-    return {
-        "message": "Vai su /static/index.html per provare i file statici"
-}
+    return FileResponse("static/index.html")
 
 @app.post("/recipes/", response_model=List[RecipeDBSchema], status_code=status.HTTP_201_CREATED)
 async def insert_recipe(videos: VideoURLs):
@@ -74,7 +84,7 @@ async def insert_recipe(videos: VideoURLs):
     docs = []
     texts_for_embedding: List[str] = []
     metadatas: List[RecipeDBSchema] = []
-
+    urlNoteElaborated = []
     for url in urls:
         try:
             recipe_data = await process_video(url)
@@ -93,7 +103,7 @@ async def insert_recipe(videos: VideoURLs):
             ingredients_clean = ' '.join([clean_text(ing.name) for ing in recipe_data.ingredients])
             logger.info(f"Ingredients clean: {ingredients_clean}")
 
-            text_for_embedding = f"{title_clean}. Categoria: {category_clean}. Ingredienti: {ingredients_clean}"
+            text_for_embedding = f"{title_clean}. {category_clean}. {ingredients_clean}. {steps_clean}"
             logger.info(f"Testo per embedding generato per ricetta (shortcode: {recipe_data.shortcode}). Lunghezza: {len(text_for_embedding)}")
             texts_for_embedding.append(text_for_embedding)
             metadatas.append(recipe_data)
@@ -121,6 +131,7 @@ async def insert_recipe(videos: VideoURLs):
         except Exception as e:
             error_context = get_error_context()
             logger.error(f"Errore imprevisto durante l'elaborazione dell'URL '{url}': {str(e)}. Contesto: {error_context}", exc_info=True)
+            urlNoteElaborated.append(url)
             continue
 
     if not docs:
@@ -173,11 +184,68 @@ def get_recipe(recipe_id: int):
     return ""
 
 @app.get("/search/")
-def search_recipes( query: str, limit: int = 10 ):
-    matrix = load_embedding_matrix("embeddings.npy")
-    out = search(query=query, embedding_matrix = matrix)
-    print(out)
+def search_recipes(query: str, limit: int = 3):
+    try:
+        embeddings, metadata, _ = load_embeddings_with_metadata(EMBEDDINGS_NPZ_PATH)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Errore nel caricamento degli embeddings: {str(e)}")
+
+    if embeddings is None or embeddings.size == 0:
+        return []
+
+    similarity_results = search(query=query, embedding_matrix=embeddings)
+
+    top_k = max(1, min(limit or 3, 3))
+    top_results = similarity_results[:top_k]
+
+    response = []
+    for idx, score in top_results:
+        meta = {}
+        if metadata is not None and 0 <= idx < len(metadata):
+            try:
+                meta = dict(metadata[idx])
+            except Exception:
+                meta = {}
+        meta.update({"score": float(score)})
+        response.append(meta)
+
+    return response
     #visualize_space_query(frasi, query, matrix)
+
+# -------------------------------
+# Endpoints amministrativi: gestione modello e ricalcolo embeddings
+# -------------------------------
+
+class SetModelBody(BaseModel):
+    model_name: str
+
+@app.get("/embeddings/info")
+def embeddings_info():
+    return load_npz_info(EMBEDDINGS_NPZ_PATH)
+
+@app.post("/embeddings/model")
+def change_embedding_model(body: SetModelBody):
+    new_name = set_rag_model(body.model_name)
+    return {"status": "ok", "model": new_name}
+
+class RecalcBody(BaseModel):
+    model_name: Optional[str] = None
+    out_path: Optional[str] = None
+
+@app.post("/embeddings/recalculate")
+def recalc_embeddings(body: RecalcBody):
+    E, meta, info = recalculate_embeddings_from_npz(
+        npz_path=EMBEDDINGS_NPZ_PATH,
+        model_name=body.model_name,
+        out_path=body.out_path or EMBEDDINGS_NPZ_PATH,
+    )
+    return {
+        "status": "ok",
+        "num_vectors": int(E.shape[0]),
+        "dim": int(E.shape[1] if E.size else 0),
+        "model": get_current_rag_model_name(),
+        "out_path": body.out_path or EMBEDDINGS_NPZ_PATH,
+    }
     
 # -------------------------------
 # Endpoints per la validazione di stato e prova

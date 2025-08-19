@@ -2,24 +2,40 @@ import numpy as np
 from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 from sklearn.metrics.pairwise import cosine_similarity
-#from FlagEmbedding import BGEM3FlagModel 
 from transformers import pipeline
 
 import json
 from datetime import datetime, date
 import os
+from typing import Optional, List, Tuple
 
-# Caricamento del modello
-#model = BGEM3FlagModel('BAAI/bge-m3', use_fp16=True)
-model = pipeline(
-        'feature-extraction', model='alexdseo/RecipeBERT', framework='pt'
-    )
+from config import RAG_EMBEDDING_MODEL, EMBEDDINGS_NPZ_PATH
+from utility import clean_text
 
-def index_database(data, metadata=None, out_path='static/recipeEmbeddings.npz'):
+# -------------------------------------
+# Gestione dinamica del modello HF usato per gli embeddings
+# -------------------------------------
+_current_rag_model_name: str = RAG_EMBEDDING_MODEL
+_feature_extractor = pipeline('feature-extraction', model=_current_rag_model_name, framework='pt')
+
+def get_current_rag_model_name() -> str:
+    return _current_rag_model_name
+
+def set_rag_model(model_name: str) -> str:
+    global _current_rag_model_name, _feature_extractor
+    if not model_name or not isinstance(model_name, str):
+        raise ValueError("model_name non valido")
+    _current_rag_model_name = model_name
+    _feature_extractor = pipeline('feature-extraction', model=model_name, framework='pt')
+    return _current_rag_model_name
+
+def index_database(data, metadata=None, out_path: Optional[str] = None):
+    if out_path is None:
+        out_path = EMBEDDINGS_NPZ_PATH
     texts = [data] if isinstance(data, str) else list(data)
     vectors = []
     for text in texts:
-        vec = model(text, return_tensors='pt')[0].numpy().mean(axis=0)
+        vec = _feature_extractor(text, return_tensors='pt')[0].numpy().mean(axis=0)
         vectors.append(vec)
     embeddings = np.vstack(vectors) if len(vectors) > 0 else np.empty((0, 0))
 
@@ -31,7 +47,9 @@ def index_database(data, metadata=None, out_path='static/recipeEmbeddings.npz'):
     )
     return embeddings
 
-def save_embeddings_with_metadata(embeddings, metadata=None, out_path='static/recipeEmbeddings.npz', info=None, compress=True):
+def save_embeddings_with_metadata(embeddings, metadata=None, out_path: Optional[str] = None, info=None, compress=True):
+    if out_path is None:
+        out_path = EMBEDDINGS_NPZ_PATH
     E = np.atleast_2d(embeddings)
     arrays = {'embeddings': E}
 
@@ -85,7 +103,7 @@ def save_embeddings_with_metadata(embeddings, metadata=None, out_path='static/re
 
     info = info or {}
     info.setdefault('schema_version', 1)
-    info.setdefault('model', 'alexdseo/RecipeBERT')
+    info.setdefault('model', get_current_rag_model_name())
     info.setdefault('created_at', datetime.utcnow().isoformat() + 'Z')
     info.setdefault('dim', int(E.shape[1] if E.size else 0))
     arrays['info_json'] = np.array([json.dumps(info, ensure_ascii=False, default=_json_default)], dtype=object)
@@ -114,16 +132,23 @@ def load_embedding_matrix(embeddings_path):
         E, _, _ = load_embeddings_with_metadata(embeddings_path)
         return E
     except Exception:
-        default_npz = 'static/recipeEmbeddings.npz'
+        default_npz = EMBEDDINGS_NPZ_PATH
         if os.path.exists(default_npz):
             return load_embeddings_with_metadata(default_npz)[0]
         return np.load(embeddings_path)
 
 def search(query, embedding_matrix):
-    query_embedding = model(query, return_tensors='pt')[0].numpy().mean(axis=0)
+    query_embedding = _feature_extractor(query, return_tensors='pt')[0].numpy().mean(axis=0)
     # Assicura che le forme siano 2D
     embedding_matrix = np.atleast_2d(embedding_matrix)
     query_embedding = query_embedding.reshape(1, -1)
+
+    # Validazione dimensioni
+    if embedding_matrix.size > 0 and query_embedding.shape[1] != embedding_matrix.shape[1]:
+        raise ValueError(
+            f"Dimensione vettoriale diversa tra query ({query_embedding.shape[1]}) e matrice ({embedding_matrix.shape[1]}). "
+            f"Ricalcola gli embeddings con il nuovo modello o seleziona un modello coerente."
+        )
 
     similarities = cosine_similarity(query_embedding, embedding_matrix)[0]
     similarity_results = sorted(enumerate(similarities), key=lambda x: x[1], reverse=True)
@@ -131,7 +156,7 @@ def search(query, embedding_matrix):
 
 def visualize_space_query(data, query, embedding_matrix):
     #query_embedding = model.encode([query])['dense_vecs'][0]
-    query_embedding = model(query, return_tensors='pt')[0].numpy().mean(axis=0)
+    query_embedding = _feature_extractor(query, return_tensors='pt')[0].numpy().mean(axis=0)
 
     # Normalizza forme per l'aggregazione
     embedding_matrix = np.atleast_2d(embedding_matrix)
@@ -163,7 +188,7 @@ def visualize_space_query(data, query, embedding_matrix):
 
     # Annotazioni con le frasi originali
     for i, data in enumerate(data):
-        plt.text(embeddings_2d[i, 0] + 0.1, embeddings_2d[i, 1] + 0.1, data, fontsize=9)
+        plt.text(embeddings_2d[i, 0] + 0.1, embeddings_2d[i, 1] + 0.1, data['title'], fontsize=9)
 
     # Annotazione per la query
     plt.text(embeddings_2d[-1, 0] + 0.1, embeddings_2d[-1, 1] + 0.1, query, fontsize=9, color='red')
@@ -175,12 +200,67 @@ def visualize_space_query(data, query, embedding_matrix):
     plt.legend()
     plt.show()
 
+
+# -------------------------------------
+# Utilità: ricostruzione testo da metadata e ricalcolo embeddings
+# -------------------------------------
+def _text_from_metadata(meta: dict) -> str:
+    try:
+        title = meta.get('title', '')
+        categories = meta.get('category', []) or []
+        if isinstance(categories, str):
+            categories = [categories]
+        ingredients = meta.get('ingredients', []) or []
+        if ingredients and isinstance(ingredients[0], dict):
+            ingredient_names = [ing.get('name', '') for ing in ingredients]
+        else:
+            ingredient_names = [str(x) for x in ingredients]
+        title_clean = clean_text(title)
+        category_clean = ' '.join([clean_text(cat) for cat in categories])
+        ingredients_clean = ' '.join([clean_text(n) for n in ingredient_names])
+        return f"{title_clean}. Categoria: {category_clean}. Ingredienti: {ingredients_clean}"
+    except Exception:
+        # Fallback minimale
+        return clean_text(str(meta))
+
+def recalculate_embeddings_from_npz(npz_path: Optional[str] = None, model_name: Optional[str] = None, out_path: Optional[str] = None) -> Tuple[np.ndarray, Optional[List[dict]], dict]:
+    """
+    Ricarica meta e info dal file .npz, rigenera gli embeddings con il modello indicato
+    e sovrascrive (o salva su nuovo percorso) il file .npz con i nuovi vettori.
+
+    Ritorna: (embeddings, metadata, info)
+    """
+    npz_path = npz_path or EMBEDDINGS_NPZ_PATH
+    out_path = out_path or npz_path
+
+    # Cambia modello se richiesto
+    if model_name:
+        set_rag_model(model_name)
+
+    E_old, meta, info = load_embeddings_with_metadata(npz_path)
+    if meta is None:
+        raise ValueError("Il file .npz non contiene 'meta_json'. Impossibile ricalcolare i testi per gli embeddings.")
+
+    texts = [_text_from_metadata(m) for m in meta]
+    new_embeddings = index_database(texts, metadata=meta, out_path=out_path)
+    return new_embeddings, meta, {
+        'model': get_current_rag_model_name(),
+        'source': 'recalculate_embeddings_from_npz'
+    }
+
+def load_npz_info(npz_path: Optional[str] = None) -> dict:
+    npz_path = npz_path or EMBEDDINGS_NPZ_PATH
+    _, _, info = load_embeddings_with_metadata(npz_path)
+    return {'path': npz_path, 'info': info, 'model_runtime': get_current_rag_model_name()}
+
+'''
 # Aggiunta della query
-#query = "risotto ai gamberi"
+query = "risotto ai gamberi"
 # index_database(frasi) # cread il database vettoriale
 #matrix = load_embedding_matrix("embeddings.npy")
-#embedding, meta, info = load_embeddings_with_metadata('static/recipeEmbeddings.npz')
+embedding, meta, info = load_embeddings_with_metadata('static/recipeEmbeddings.npz')
 
-#out = search(query=query, embedding_matrix = embedding)
-#print(out)
-#visualize_space_query(meta, query, embedding)
+out = search(query=query, embedding_matrix = embedding)[:3]
+print(out)
+visualize_space_query(meta, query, embedding)
+'''
