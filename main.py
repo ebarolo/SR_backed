@@ -5,6 +5,7 @@ import uvicorn
 import json
 
 from pydantic import BaseModel, HttpUrl, validator
+from typing import List
 
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Session
@@ -29,15 +30,16 @@ Base = declarative_base()
 # Schemi Pydantic
 # -------------------------------
 
-class VideoURL(BaseModel):
-    url: HttpUrl
-    
-    @validator('url')
-    def validate_url(cls, v):
+class VideoURLs(BaseModel):
+    urls: List[HttpUrl]
+
+    @validator('urls')
+    def validate_urls(cls, vs):
         allowed_domains = ['youtube.com', 'youtu.be', 'instagram.com', 'facebook.com', 'tiktok.com']
-        if not any(domain in str(v) for domain in allowed_domains):
-            raise ValueError(f"URL non supportato. Dominio deve essere tra: {', '.join(allowed_domains)}")
-        return v
+        for v in vs:
+            if not any(domain in str(v) for domain in allowed_domains):
+                raise ValueError(f"URL non supportato: {v}. Dominio deve essere tra: {', '.join(allowed_domains)}")
+        return vs
 
 # -------------------------------
 # Inizializzazione FastAPI e Dependency per il DB
@@ -66,90 +68,86 @@ async def root():
         "message": "Vai su /static/index.html per provare i file statici"
 }
 
-@app.post("/recipes/", response_model=RecipeDBSchema, status_code=status.HTTP_201_CREATED)
-async def insert_recipe(video: VideoURL):
-    url = str(video.url) # Manteniamo l'URL per i log
-    try:
-        recipe_data = await process_video(url)
-        # logger.info(f"recipe_data: {recipe_data}") # recipe_data è complesso, loggato già in process_video
-        if not recipe_data:
-            error_context = get_error_context()
-            logger.error(f"Impossibile elaborare il video dall'URL '{url}'. Nessun dato ricetta ricevuto da process_video. Contesto: {error_context}")
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, # Più specifico di BAD_REQUEST per dati non elaborabili
-                detail=f"Impossibile elaborare il video dall'URL fornito. Nessun dato ricetta valido è stato ottenuto."
-            )
-        
-        # Prepara i dati per l'embedding
-        title_clean = clean_text(recipe_data.title)
-        logger.info(f"Title clean: {title_clean}")
-        category_clean = ' '.join([clean_text(cat) for cat in recipe_data.category])
-        logger.info(f"Category clean: {category_clean}")
-        steps_clean = ' '.join([clean_text(step) for step in recipe_data.recipe_step])
-        logger.info(f"Steps clean: {steps_clean}")
-        ingredients_clean = ' '.join([clean_text(ing.name) for ing in recipe_data.ingredients])
-        logger.info(f"Ingredients clean: {ingredients_clean}")
-        
-        # Costruisci il testo per l'embedding con una struttura più semantica
-        text_for_embedding = f"{title_clean}. Categoria: {category_clean}. Ingredienti: {ingredients_clean}"
-        logger.info(f"Testo per embedding generato per ricetta (shortcode: {recipe_data.shortcode}). Lunghezza: {len(text_for_embedding)}")
-        logger.info(f"{text_for_embedding}")
-        #embedding = index_database(text_for_embedding)
-        metadata = [recipe_data]  # stessa lunghezza di embeddings
-        embedding = index_database([text_for_embedding], metadata=metadata)
-        
-        if embedding is None:
-            # Log dell'errore già fatto da get_embedding
-            logger.error(f"Fallimento generazione embedding per ricetta '{recipe_data.title}' (shortcode: {recipe_data.shortcode}). L'inserimento non può procedere con l'embedding.")
-            # Si potrebbe decidere di inserire comunque la ricetta senza embedding o sollevare errore.
-            # Per ora, solleviamo un errore perché l'embedding è considerato cruciale.
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Errore interno durante la generazione dell'identificativo semantico della ricetta."
-            )
-        else:
-         with open(f'static/mediaRicette/ricette.json', 'w', encoding='utf-8') as f:
-          json.dump(recipe_data.title, f, ensure_ascii=False, indent=4)
- 
-         doc = {
-            "title": recipe_data.title,
-            "category": recipe_data.category,
-            "preparation_time": recipe_data.preparation_time,
-            "cooking_time": recipe_data.cooking_time,
-            "ingredients": [ing.model_dump() for ing in recipe_data.ingredients],
-            "recipe_step": recipe_data.recipe_step,
-            "description": recipe_data.description,
-            "diet": recipe_data.diet,
-            "technique": recipe_data.technique,
-            "language": recipe_data.language,
-            "chef_advise": recipe_data.chef_advise,
-            "tags": recipe_data.tags,
-            "nutritional_info": recipe_data.nutritional_info,
-            "cuisine_type": recipe_data.cuisine_type,
-            "ricetta_audio": recipe_data.ricetta_audio,
-            "ricetta_caption": recipe_data.ricetta_caption,
-            "shortcode": recipe_data.shortcode,
-            "embedding": embedding if embedding is not None else None
-         }
-         
-        '''
-        mongo_coll = get_mongo_collection()
+@app.post("/recipes/", response_model=List[RecipeDBSchema], status_code=status.HTTP_201_CREATED)
+async def insert_recipe(videos: VideoURLs):
+    urls = [str(u) for u in videos.urls]
+    docs = []
+    texts_for_embedding: List[str] = []
+    metadatas: List[RecipeDBSchema] = []
+
+    for url in urls:
         try:
-            mongo_coll.replace_one(
-                {"shortcode": recipe_data.shortcode},
-                doc,
-                upsert=True
-            )
-            logger.info(f"Ricetta '{doc['title']}' (shortcode: {doc['shortcode']}) inserita/aggiornata in MongoDB con successo.")
-        except Exception as db_exc:
+            recipe_data = await process_video(url)
+            if not recipe_data:
+                error_context = get_error_context()
+                logger.error(f"Impossibile elaborare il video dall'URL '{url}'. Nessun dato ricetta ricevuto da process_video. Contesto: {error_context}")
+                continue
+
+            # Prepara i dati per l'embedding
+            title_clean = clean_text(recipe_data.title)
+            logger.info(f"Title clean: {title_clean}")
+            category_clean = ' '.join([clean_text(cat) for cat in recipe_data.category])
+            logger.info(f"Category clean: {category_clean}")
+            steps_clean = ' '.join([clean_text(step) for step in recipe_data.recipe_step])
+            logger.info(f"Steps clean: {steps_clean}")
+            ingredients_clean = ' '.join([clean_text(ing.name) for ing in recipe_data.ingredients])
+            logger.info(f"Ingredients clean: {ingredients_clean}")
+
+            text_for_embedding = f"{title_clean}. Categoria: {category_clean}. Ingredienti: {ingredients_clean}"
+            logger.info(f"Testo per embedding generato per ricetta (shortcode: {recipe_data.shortcode}). Lunghezza: {len(text_for_embedding)}")
+            texts_for_embedding.append(text_for_embedding)
+            metadatas.append(recipe_data)
+
+            doc = {
+                "title": recipe_data.title,
+                "category": recipe_data.category,
+                "preparation_time": recipe_data.preparation_time,
+                "cooking_time": recipe_data.cooking_time,
+                "ingredients": [ing.model_dump() for ing in recipe_data.ingredients],
+                "recipe_step": recipe_data.recipe_step,
+                "description": recipe_data.description,
+                "diet": recipe_data.diet,
+                "technique": recipe_data.technique,
+                "language": recipe_data.language,
+                "chef_advise": recipe_data.chef_advise,
+                "tags": recipe_data.tags,
+                "nutritional_info": recipe_data.nutritional_info,
+                "cuisine_type": recipe_data.cuisine_type,
+                "ricetta_audio": recipe_data.ricetta_audio,
+                "ricetta_caption": recipe_data.ricetta_caption,
+                "shortcode": recipe_data.shortcode
+            }
+            docs.append(doc)
+        except Exception as e:
             error_context = get_error_context()
-            logger.error(f"Errore durante il salvataggio in MongoDB per ricetta '{doc['title']}' (shortcode: {doc['shortcode']}): {db_exc}. Contesto: {error_context}", exc_info=True)
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Errore durante il salvataggio della ricetta nel database."
-            )
-        '''
-        return RecipeDBSchema(
+            logger.error(f"Errore imprevisto durante l'elaborazione dell'URL '{url}': {str(e)}. Contesto: {error_context}", exc_info=True)
+            continue
+
+    if not docs:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Nessun URL valido elaborato."
+        )
+
+    # Salvataggio embedding + metadati per batch
+    try:
+        _ = index_database(texts_for_embedding, metadata=metadatas)
+    except Exception as e:
+        logger.error(f"Errore durante la generazione/salvataggio degli embedding per il batch: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Errore interno durante la generazione dell'identificativo semantico."
+        )
+
+    # Salva (opzionale) elenco titoli
+    try:
+        with open('static/mediaRicette/ricette.json', 'w', encoding='utf-8') as f:
+            json.dump([d['title'] for d in docs], f, ensure_ascii=False, indent=4)
+    except Exception:
+        pass
+
+    return [
+        RecipeDBSchema(
             title=doc["title"],
             category=doc["category"],
             preparation_time=doc["preparation_time"],
@@ -167,17 +165,8 @@ async def insert_recipe(video: VideoURL):
             ricetta_audio=doc["ricetta_audio"],
             ricetta_caption=doc["ricetta_caption"],
             shortcode=doc["shortcode"]
-         )
-    except HTTPException as e:
-        # Rilancia le HTTPException specifiche già gestite o sollevate
-        raise e
-    except Exception as e:
-        error_context = get_error_context() # Prende il contesto dell'eccezione corrente
-        logger.error(f"Errore imprevisto durante l'inserimento della ricetta dall'URL '{url}': {str(e)}. Contesto: {error_context}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Si è verificato un errore interno del server durante l'elaborazione della tua richiesta."
-        )
+        ) for doc in docs
+    ]
 
 @app.get("/recipes/{recipe_id}", response_model=RecipeDBSchema)
 def get_recipe(recipe_id: int):
