@@ -6,7 +6,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from transformers import pipeline
 
 import json
-from datetime import datetime
+from datetime import datetime, date
 import os
 
 # Caricamento del modello
@@ -35,12 +35,52 @@ def save_embeddings_with_metadata(embeddings, metadata=None, out_path='static/re
     E = np.atleast_2d(embeddings)
     arrays = {'embeddings': E}
 
+    # Funzione di default per serializzazione JSON robusta
+    def _json_default(o):
+        # Pydantic v2
+        if hasattr(o, 'model_dump') and callable(getattr(o, 'model_dump')):
+            try:
+                return o.model_dump()
+            except Exception:
+                pass
+        # Pydantic v1
+        if hasattr(o, 'dict') and callable(getattr(o, 'dict')):
+            try:
+                return o.dict()
+            except Exception:
+                pass
+        # numpy scalari e array
+        try:
+            import numpy as _np
+            if isinstance(o, (_np.integer, _np.floating)):
+                return o.item()
+            if isinstance(o, _np.ndarray):
+                return o.tolist()
+        except Exception:
+            pass
+        # datetime/date
+        if isinstance(o, (datetime, date)):
+            return o.isoformat()
+        # set/tuple/bytes
+        if isinstance(o, (set, tuple)):
+            return list(o)
+        if isinstance(o, (bytes, bytearray)):
+            return o.decode('utf-8', errors='ignore')
+        # oggetti generici
+        if hasattr(o, '__dict__'):
+            try:
+                return vars(o)
+            except Exception:
+                pass
+        # fallback a stringa
+        return str(o)
+
     if metadata is not None:
         # metadata: lista di dict (uno per riga) o dict singolo
         if isinstance(metadata, dict):
             metadata = [metadata] * E.shape[0]
         if len(metadata) == E.shape[0]:
-            meta_arr = np.array([json.dumps(m, ensure_ascii=False) for m in metadata], dtype=object)
+            meta_arr = np.array([json.dumps(m, ensure_ascii=False, default=_json_default) for m in metadata], dtype=object)
             arrays['meta_json'] = meta_arr
 
     info = info or {}
@@ -48,7 +88,7 @@ def save_embeddings_with_metadata(embeddings, metadata=None, out_path='static/re
     info.setdefault('model', 'alexdseo/RecipeBERT')
     info.setdefault('created_at', datetime.utcnow().isoformat() + 'Z')
     info.setdefault('dim', int(E.shape[1] if E.size else 0))
-    arrays['info_json'] = np.array([json.dumps(info, ensure_ascii=False)], dtype=object)
+    arrays['info_json'] = np.array([json.dumps(info, ensure_ascii=False, default=_json_default)], dtype=object)
 
     if compress:
         np.savez_compressed(out_path, **arrays)
