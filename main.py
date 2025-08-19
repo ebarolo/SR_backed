@@ -94,7 +94,10 @@ async def insert_recipe(video: VideoURL):
         text_for_embedding = f"{title_clean}. Categoria: {category_clean}. Ingredienti: {ingredients_clean}"
         logger.info(f"Testo per embedding generato per ricetta (shortcode: {recipe_data.shortcode}). Lunghezza: {len(text_for_embedding)}")
         logger.info(f"{text_for_embedding}")
-        embedding = index_database(text_for_embedding)
+        #embedding = index_database(text_for_embedding)
+        metadata = [recipe_data]  # stessa lunghezza di embeddings
+        embedding = index_database([text_for_embedding], metadata=metadata)
+        
         if embedding is None:
             # Log dell'errore già fatto da get_embedding
             logger.error(f"Fallimento generazione embedding per ricetta '{recipe_data.title}' (shortcode: {recipe_data.shortcode}). L'inserimento non può procedere con l'embedding.")
