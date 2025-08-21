@@ -18,6 +18,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from models import RecipeDBSchema, JobStatus
 
 import logging
+from time import perf_counter
 from importRicette.saveRecipe import process_video
 from utility import get_error_context, clean_text, ensure_text_within_token_limit
 from logging_config import setup_logging
@@ -87,20 +88,45 @@ app.mount("/frontend", StaticFiles(directory=os.path.join(BASE_DIR, "frontend"),
 @app.middleware("http")
 async def add_request_id(request: Request, call_next):
     token = None
+    start = perf_counter()
+    rid = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+    client = getattr(request, "client", None)
+    client_ip = getattr(client, "host", None) if client else None
+    ua = request.headers.get("user-agent")
     try:
-        rid = request.headers.get("X-Request-ID") or str(uuid.uuid4())
         token = request_id_var.set(rid)
         response = await call_next(request)
+        duration_ms = int((perf_counter() - start) * 1000)
         response.headers["X-Request-ID"] = rid
-        logger.info(
+        level = logging.ERROR if response.status_code >= 500 else (logging.WARNING if response.status_code >= 400 else logging.INFO)
+        logger.log(
+            level,
             "HTTP",
             extra={
                 "path": request.url.path,
                 "method": request.method,
+                "query": request.url.query,
                 "status": response.status_code,
+                "duration_ms": duration_ms,
+                "client_ip": client_ip,
+                "user_agent": ua,
             },
         )
         return response
+    except Exception as e:
+        duration_ms = int((perf_counter() - start) * 1000)
+        logger.exception(
+            "Unhandled exception",
+            extra={
+                "path": request.url.path,
+                "method": request.method,
+                "query": request.url.query,
+                "duration_ms": duration_ms,
+                "client_ip": client_ip,
+                "user_agent": ua,
+            },
+        )
+        raise
     finally:
         if token is not None:
             request_id_var.reset(token)
@@ -121,15 +147,87 @@ async def on_startup():
 
 def _ingest_urls_job(job_id: str, urls: List[str]):
     import asyncio as _asyncio
+    total = len(urls)
+    # Stato iniziale running e progress structure
+    job_entry = app.state.jobs.get(job_id) or {}
+    job_entry["status"] = "running"
+    progress = job_entry.setdefault(
+        "progress",
+        {
+            "total": total,
+            "success": 0,
+            "failed": 0,
+            "percentage": 0.0,
+            "stage": "running",
+            "urls": [
+                {
+                    "index": i + 1,
+                    "url": u,
+                    "status": "queued",
+                    "stage": "queued",
+                    "local_percent": 0.0,
+                }
+                for i, u in enumerate(urls)
+            ],
+        },
+    )
+    progress["stage"] = "running"
+    app.state.jobs[job_id] = job_entry
+
+    def _recalc_job_percentage() -> float:
+        try:
+            url_entries = progress.get("urls") or []
+            if total <= 0:
+                return 0.0
+            local_sum = sum(float(u.get("local_percent", 0.0)) for u in url_entries)
+            # 0..90% per fase URL
+            return round(min(90.0, (local_sum / (100.0 * max(1, total))) * 90.0), 2)
+        except Exception:
+            return float(progress.get("percentage", 0.0) or 0.0)
+
     async def _runner():
         from importRicette.saveRecipe import process_video
         texts_for_embedding = []
         metadatas = []
-        for url in urls:
+        success = 0
+        failed = 0
+
+        for i, url in enumerate(urls, start=1):
+            idx0 = i - 1
+            # Marca l'URL come in esecuzione
             try:
-                recipe_data = await process_video(url)
+                progress["urls"][idx0].update({"status": "running", "stage": "download"})
+            except Exception:
+                pass
+
+            def _cb(event: dict):
+                try:
+                    stage = event.get("stage")
+                    lp = float(event.get("local_percent", 0.0))
+                    if 0 <= idx0 < len(progress.get("urls", [])):
+                        url_entry = progress["urls"][idx0]
+                        if url_entry.get("status") not in ("success", "failed"):
+                            url_entry["status"] = "running"
+                        if stage:
+                            url_entry["stage"] = stage
+                        url_entry["local_percent"] = lp
+                        if stage == "error" and "message" in event:
+                            url_entry["error"] = str(event.get("message"))
+                            url_entry["status"] = "failed"
+                        progress["percentage"] = _recalc_job_percentage()
+                except Exception:
+                    pass
+
+            try:
+                recipe_data = await process_video(url, progress_cb=_cb)
                 if not recipe_data:
+                    failed += 1
+                    if 0 <= idx0 < len(progress.get("urls", [])):
+                        progress["urls"][idx0].update({"status": "failed", "stage": "error"})
+                    progress["failed"] = failed
+                    progress["percentage"] = _recalc_job_percentage()
                     continue
+
                 from utility import clean_text, ensure_text_within_token_limit
                 title_clean = clean_text(recipe_data.title)
                 category_clean = ' '.join([clean_text(cat) for cat in recipe_data.category])
@@ -139,20 +237,62 @@ def _ingest_urls_job(job_id: str, urls: List[str]):
                 text_for_embedding = ensure_text_within_token_limit(text_for_embedding)
                 texts_for_embedding.append(text_for_embedding)
                 metadatas.append(recipe_data)
-            except Exception as e:
+
+                success += 1
+                if 0 <= idx0 < len(progress.get("urls", [])):
+                    progress["urls"][idx0].update({"status": "success", "stage": "done", "local_percent": 100.0})
+                progress["success"] = success
+                progress["percentage"] = _recalc_job_percentage()
+            except Exception:
+                failed += 1
+                if 0 <= idx0 < len(progress.get("urls", [])):
+                    ue = progress["urls"][idx0]
+                    if ue.get("stage") != "error":
+                        ue["stage"] = "error"
+                    ue["status"] = "failed"
+                progress["failed"] = failed
+                progress["percentage"] = _recalc_job_percentage()
                 continue
+
         if texts_for_embedding:
+            # Fase di indicizzazione
+            progress["stage"] = "indexing"
+            progress["percentage"] = max(float(progress.get("percentage") or 0.0), 95.0)
             index_database(texts_for_embedding, metadata=metadatas, append=True)
-        return {"indexed": len(texts_for_embedding)}
+
+        # Completa job
+        job_entry["result"] = {
+            "indexed": len(texts_for_embedding),
+            "total_urls": total,
+            "success": success,
+            "failed": failed,
+        }
+        if len(texts_for_embedding) > 0:
+            job_entry["status"] = "completed"
+        else:
+            job_entry["status"] = "failed"
+            job_entry["detail"] = job_entry.get("detail") or "Nessuna ricetta indicizzata"
+        progress["stage"] = "done"
+        progress["percentage"] = 100.0
+        app.state.jobs[job_id] = job_entry
+
+        return job_entry["result"]
 
     loop = _asyncio.new_event_loop()
     try:
         _asyncio.set_event_loop(loop)
         job_token = job_id_var.set(job_id)
-        result = loop.run_until_complete(_runner())
-        app.state.jobs[job_id] = {"status": "completed", "result": result}
+        _ = loop.run_until_complete(_runner())
     except Exception as e:
-        app.state.jobs[job_id] = {"status": "failed", "detail": str(e)}
+        # Errore globale del job
+        je = app.state.jobs.get(job_id, {})
+        je["status"] = "failed"
+        je["detail"] = str(e)
+        prog = je.get("progress") or {}
+        prog["stage"] = "done"
+        prog["percentage"] = float(prog.get("percentage") or 0.0)
+        je["progress"] = prog
+        app.state.jobs[job_id] = je
     finally:
         try:
             job_id_var.reset(job_token)
@@ -232,23 +372,51 @@ async def insert_recipe(videos: VideoURLs):
 @app.post("/ingest/", response_model=JobStatus, status_code=status.HTTP_202_ACCEPTED)
 async def enqueue_ingest(videos: VideoURLs, background_tasks: BackgroundTasks):
     job_id = str(uuid.uuid4())
-    app.state.jobs[job_id] = {"status": "queued"}
-    background_tasks.add_task(_ingest_urls_job, job_id, [str(u) for u in videos.urls])
-    return JobStatus(job_id=job_id, status="queued")
+    url_list = [str(u) for u in videos.urls]
+    total = len(url_list)
+    urls_progress = [
+        {"index": i + 1, "url": u, "status": "queued", "stage": "queued", "local_percent": 0.0}
+        for i, u in enumerate(url_list)
+    ]
+    app.state.jobs[job_id] = {
+        "status": "queued",
+        "progress": {
+            "total": total,
+            "success": 0,
+            "failed": 0,
+            "percentage": 0.0,
+            "stage": "queued",
+            "urls": urls_progress,
+        },
+    }
+    background_tasks.add_task(_ingest_urls_job, job_id, url_list)
+    return JobStatus(job_id=job_id, status="queued", progress_percent=0.0, progress=app.state.jobs[job_id]["progress"])
 
 @app.get("/ingest/{job_id}", response_model=JobStatus)
 def job_status(job_id: str):
     job = app.state.jobs.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job non trovato")
-    return JobStatus(job_id=job_id, status=job.get("status"), detail=job.get("detail"), result=job.get("result"))
+    progress = job.get("progress") or {}
+    return JobStatus(job_id=job_id, status=job.get("status"), detail=job.get("detail"), result=job.get("result"), progress_percent=progress.get("percentage"), progress=progress)
 
 @app.get("/ingest/status")
 def jobs_status():
-    jobs = app.state.jobs.values()
-    if not jobs:
+    jobs_dict = app.state.jobs
+    if not jobs_dict:
         raise HTTPException(status_code=404, detail="nessun jobs non trovato")
-    return jobs
+    out = []
+    for jid, job in jobs_dict.items():
+        progress = job.get("progress") or {}
+        out.append({
+            "job_id": jid,
+            "status": job.get("status"),
+            "progress_percent": float(progress.get("percentage") or 0.0),
+            "progress": progress,
+            "result": job.get("result"),
+            "detail": job.get("detail"),
+        })
+    return out
 
 @app.get("/recipe/{shortcode}")
 def get_recipe_by_shortcode(shortcode: str):
@@ -286,14 +454,21 @@ def search_recipes(query: str, limit: int = 12):
     try:
         embeddings, metadata, _ = load_embeddings_with_metadata_cached(EMBEDDINGS_NPZ_PATH)
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Errore nel caricamento degli embeddings: {str(e)}")
+        logger.error("Embeddings load failed", extra={"error": str(e)}, exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Errore nel caricamento degli embeddings")
 
     if embeddings is None or embeddings.size == 0:
+        logger.warning("No embeddings available", extra={"query": query})
         return []
+    
+    try:
+        k = max(1, min(int(limit or 12), len(embeddings) if embeddings is not None else 1))
+        similarity_results = search(query=query, embedding_matrix=embeddings, top_k=k)
+    except Exception as e:
+        logger.error("Search failed", extra={"query": query, "error": str(e)}, exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Errore in ricerca semantica")
 
-    similarity_results = search(query=query, embedding_matrix=embeddings, top_k=max(1, min(int(limit or 12), len(embeddings) if embeddings is not None else 1)))
-
-    # Rispetta il limite richiesto senza cappare a 3
+    # Rispetta il limite richiesto
     top_k = max(1, min(int(limit or 12), len(similarity_results)))
     top_results = similarity_results[:top_k]
 

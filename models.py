@@ -46,6 +46,8 @@ class JobStatus(BaseModel):
     status: str
     detail: Optional[str] = None
     result: Optional[Dict[str, Any]] = None
+    progress_percent: Optional[float] = None
+    progress: Optional[Dict[str, Any]] = None
   
 recipe_schema = {
   "name": "recipe_schema",

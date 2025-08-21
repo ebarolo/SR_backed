@@ -199,7 +199,9 @@ def save_embeddings_with_metadata(embeddings, metadata=None, out_path: Optional[
     # Scrittura atomica: salva su file temporaneo e poi replace
     out_dir = os.path.dirname(out_path) or '.'
     os.makedirs(out_dir, exist_ok=True)
-    tmp_path = out_path + ".tmp"
+    # Assicura che il file temporaneo mantenga l'estensione .npz
+    base, ext = os.path.splitext(out_path)
+    tmp_path = f"{base}.tmp{ext if ext else '.npz'}"
     if compress:
         np.savez_compressed(tmp_path, **arrays)
     else:
@@ -210,7 +212,10 @@ def save_embeddings_with_metadata(embeddings, metadata=None, out_path: Optional[
     return out_path
 
 def load_embeddings_with_metadata(path):
-    if path.endswith('.npz') and os.path.exists(path):
+    # Se il file non esiste, ritorna matrice vuota e nessun metadata
+    if not os.path.exists(path):
+        return np.empty((0, 0)), None, {}
+    if path.endswith('.npz'):
         with np.load(path, allow_pickle=True) as f:
             E = f['embeddings']
             meta_json = f.get('meta_json', None)
@@ -233,6 +238,13 @@ def load_embedding_matrix(embeddings_path):
         return np.load(embeddings_path)
 
 def search(query, embedding_matrix, top_k: Optional[int] = None):
+    query_embedding = _feature_extractor(query, return_tensors='pt')[0].numpy().mean(axis=0)
+
+    similarities = cosine_similarity([query_embedding], embedding_matrix)[0]
+    similarity_results = sorted(enumerate(similarities), key=lambda x: x[1], reverse=True)
+    return similarity_results
+
+def old_search(query, embedding_matrix, top_k: Optional[int] = None):
     query_embedding = _feature_extractor(query, return_tensors='pt')[0].numpy().mean(axis=0)
     # Assicura che le forme siano 2D
     embedding_matrix = np.atleast_2d(embedding_matrix)

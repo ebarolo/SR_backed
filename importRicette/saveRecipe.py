@@ -5,7 +5,7 @@ import asyncio
 import multiprocessing as mp
 import yt_dlp
 
-from typing import Dict, Any
+from typing import Dict, Any, Optional, Callable
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from models import RecipeDBSchema
@@ -52,7 +52,7 @@ async def yt_dlp_video(url: str) -> Dict[str, Any]:
         raise
 
 @retry(stop=stop_after_attempt(1), wait=wait_exponential(multiplier=1, min=4, max=10))
-async def process_video(recipe: str):
+async def process_video(recipe: str, progress_cb: Optional[Callable[[Dict[str, Any]], None]] = None):
     """
     Accetta un input che può essere:
     - username Instagram (no scheme http/https) → scarica tutti i reel video dell'account
@@ -61,12 +61,26 @@ async def process_video(recipe: str):
 
     urlPattern = r'^(ftp|http|https):\/\/[^ \"]+$'
 
+    def _emit_progress(stage: str, local_percent: float, message: Optional[str] = None):
+        if progress_cb is None:
+            return
+        try:
+            payload: Dict[str, Any] = {"stage": stage, "local_percent": float(local_percent)}
+            if message is not None:
+                payload["message"] = message
+            progress_cb(payload)
+        except Exception:
+            # Non interrompere il flusso in caso di errore nella callback
+            pass
+
     if not re.match(urlPattern, recipe):
         dws = await scarica_contenuti_account(recipe)
+        _emit_progress("download", 25.0)
     else:
         url_lower = recipe.lower()
         if any(host in url_lower for host in ["instagram.com", "instagr.am"]):
             dws = await scarica_contenuto_reel(recipe)
+            _emit_progress("download", 25.0)
         else:
             # usa yt-dlp per scaricare il singolo video in una cartella stile shortcode generico
             info = await yt_dlp_video(recipe)
@@ -88,6 +102,7 @@ async def process_video(recipe: str):
                 "caption": "",
                 "url_video": recipe,
             }]
+            _emit_progress("download", 25.0)
 
     for dw in dws:
         shortcode = dw.get("shortcode", "SHORTCODE_NON_TROVATO") # Default per logging
@@ -124,20 +139,24 @@ async def process_video(recipe: str):
                     text=True,
                 )
                 logger.info(f"Audio extraction successful: {audio_path}")
+                _emit_progress("extract_audio", 50.0)
             except subprocess.CalledProcessError as e:
                 logger.error(f"ffmpeg command failed with exit code {e.returncode}")
                 logger.error(f"ffmpeg stdout: {e.stdout}")
                 logger.error(f"ffmpeg stderr: {e.stderr}")
                 logger.error(f"Command was: {e.cmd}")
+                _emit_progress("error", 25.0, message=str(e))
                 raise RuntimeError(f"Errore durante l'estrazione dell'audio per shortcode '{shortcode}': {e.stderr}") from e
 
             logger.info(f"Inizio speech_to_text per shortcode '{shortcode}', audio: {audio_path}")
             ricetta_audio = await whisper_speech_recognition(audio_path, "it")
+            _emit_progress("stt", 85.0)
             logger.info(f"Fine speech_to_text per shortcode '{shortcode}'. Lunghezza testo: {len(ricetta_audio) if ricetta_audio else 0}")
 
             # Estrai informazioni dalla ricetta
             logger.info(f"Inizio estrazione informazioni ricetta dal testo trascritto per shortcode '{shortcode}'. Lunghezza testo: {len(ricetta_audio) if ricetta_audio else 0}")
             ricetta = await extract_recipe_info(ricetta_audio, captionSanit, [], [])
+            _emit_progress("parse_recipe", 100.0)
             if ricetta:
                 titolo_estratto = ricetta.get('title', 'N/A') if isinstance(ricetta, dict) else getattr(ricetta, 'title', 'N/A')
                 logger.info(f"Informazioni ricetta estratte con successo per shortcode '{shortcode}': titolo='{titolo_estratto}'")
@@ -145,8 +164,8 @@ async def process_video(recipe: str):
                 logger.warning(f"Nessuna informazione ricetta estratta per shortcode '{shortcode}' dal testo analizzato.")
                 pass
             
-            images_recipe = await generateRecipeImages(ricetta, shortcode)
-            
+            #images_recipe = await generateRecipeImages(ricetta, shortcode)
+            images_recipe = []
             # Convert the RecipeAIResponse object to a RecipeDBSchema object
             ricetta_dict = ricetta if isinstance(ricetta, dict) else (ricetta.model_dump() if ricetta else {})
 
@@ -173,6 +192,7 @@ async def process_video(recipe: str):
             return RecipeDBSchema(**ricetta_dict)
         except Exception as e:
             logger.error(f"Errore durante process_video per shortcode '{shortcode}': {e}", exc_info=True)
+            _emit_progress("error", 50.0, message=str(e))
             raise # Rilancia l'eccezione per interrompere l'elaborazione
     
 
