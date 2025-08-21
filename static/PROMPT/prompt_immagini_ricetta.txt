@@ -1,0 +1,5 @@
+Crea immagine per la ricetta di cucina
+Ecco il testo da cui prendere ispirazione:{testo}
+Stile reallistico. Soggetto principale in primo piano, con forti contrasti.
+La paletta dei colori deve rispecchiare il testo dai cui hai preso ispirazione, sfondo semplice.
+Composizione dinamica, visivamente accattivante, che attiri l'attenzione dell'utente.

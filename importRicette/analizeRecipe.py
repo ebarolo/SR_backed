@@ -10,93 +10,43 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 
 from utility import get_error_context, timeout, logger
 
-from config import openAIclient
+from config import openAIclient, BASE_FOLDER_RICETTE
 
-# Funzione per convertire il testo in un dizionario
-def testo_a_dizionario(testo):
-    risultato = {}
-    linee = testo.strip().split("\n")
-    chiave_corrente = None
-    valore_corrente = []
-    for linea in linee:
-        if not linea.strip():
-            continue
-        # Verifica se la linea è una chiave
-        if re.match(r"^\w+:", linea):
-            if chiave_corrente:
-                risultato[chiave_corrente] = "\n".join(valore_corrente).strip()
-            chiave_corrente, resto = linea.split(":", 1)
-            chiave_corrente = chiave_corrente.strip()
-            valore_corrente = [resto.strip()]
-        else:
-            valore_corrente.append(linea.strip())
-    if chiave_corrente:
-        risultato[chiave_corrente] = "\n".join(valore_corrente).strip()
-    return risultato
-
-def read_prompt_files(
-    recipe_audio_text="",
-    recipe_capiton_text="",
-    ingredients=None,
-    actions=None,
-    file_name="",
- ):
+def read_prompt_files(file_name: str, **kwargs) -> str:
     """
-    Legge i file di prompt e sostituisce le variabili con i valori forniti.
+    Legge un file di prompt e sostituisce i segnaposto con i valori forniti.
 
     Args:
-        recipe_text (str): Il testo della ricetta da sostituire
-        ingredients (list): Lista degli ingredienti
-        actions (list): Lista delle azioni
+        file_name (str): Il nome del file da leggere dalla cartella 'static'.
+        **kwargs: Coppie chiave-valore per le sostituzioni. 
+                  Ogni `{chiave}` nel file verrà sostituita con `valore`.
 
     Returns:
-        tuple: (user_prompt, system_prompt) contenenti i testi processati
+        str: Il testo del file con le sostituzioni effettuate.
     """
-    # Inizializza liste vuote se non fornite
-    if ingredients is None:
-        ingredients = []
-    if actions is None:
-        actions = []
-
     try:
-        # Leggi i file dalla cartella static
-        base_path = os.path.join("static")
+        # Costruisci il percorso completo del file
+        file_path = os.path.join("static", "PROMPT", file_name)
 
-        # Leggi prompt_user.txt
-        with open(os.path.join(base_path, file_name), "r", encoding="utf-8") as file:
-            user_prompt = file.read()
+        # Leggi il contenuto del file
+        with open(file_path, "r", encoding="utf-8") as file:
+            prompt_text = file.read()
 
-        # Leggi prompt_system.txt
-        with open(
-            os.path.join(base_path, "prompt_system.txt"), "r", encoding="utf-8"
-        ) as file:
-            system_prompt = file.read()
+        # Effettua le sostituzioni
+        for key, value in kwargs.items():
+            # Assicura che il valore sia una stringa prima della sostituzione
+            str_value = "\n".join(value) if isinstance(value, list) else str(value)
+            prompt_text = prompt_text.replace(f"{{{key}}}", str_value)
 
-        # Converti gli array in stringhe
-        ingredients_text = "\n".join(ingredients) if ingredients else ""
-        actions_text = "\n".join(actions) if actions else ""
+        return prompt_text
 
-        # Sostituisci le variabili nel testo
-        variables = {
-            "{recipe_audio}": recipe_audio_text,
-            "{recipe_caption}": recipe_capiton_text,
-            "{ingredients}": ingredients_text,
-            "{actions}": actions_text,
-        }
-
-        # Effettua le sostituzioni in entrambi i prompt
-        for var, value in variables.items():
-            user_prompt = user_prompt.replace(var, value)
-            system_prompt = system_prompt.replace(var, value)
-
-        return user_prompt, system_prompt
-
-    except FileNotFoundError as e:
-        print(f"Errore: File non trovato - {str(e)}")
-        return None, None
+    except FileNotFoundError:
+        logger.error(f"File di prompt non trovato: {file_path}")
+        # Rilanciare l'eccezione è spesso meglio che restituire None
+        raise
     except Exception as e:
-        print(f"Errore durante la lettura dei file: {str(e)}")
-        return None, None
+        logger.error(f"Errore durante la lettura del file di prompt {file_path}: {str(e)}")
+        raise
 
 def encode_image(image_path):
     """
@@ -109,6 +59,7 @@ def encode_image(image_path):
     except Exception as e:
         logger.error(f"Errore durante la codifica dell'immagine {image_path}: {str(e)}")
         raise
+
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
 @timeout(300)
@@ -148,13 +99,18 @@ async def analyze_recipe_frames(base64Frames):
 async def extract_recipe_info( recipe_audio_text: str, recipe_caption_text: str, ingredients: any, actions: any
  ):
 
-    user_prompt, system_prompt = read_prompt_files(
-        recipe_audio_text,
-        recipe_caption_text,
-        ingredients,
-        actions,
-        "prompt_user_TXT.txt",
-    )
+    # Prepara i valori per i segnaposto
+    replacements = {
+        "recipe_audio": recipe_audio_text,
+        "recipe_caption": recipe_caption_text,
+        "ingredients": ingredients if ingredients else [],
+        "actions": actions if actions else [],
+    }
+
+    # Leggi e popola i prompt in modo dinamico
+    user_prompt = read_prompt_files("prompt_user_TXT.txt", **replacements)
+    system_prompt = read_prompt_files("prompt_system.txt", **replacements)
+    
     logger.info(f"readed prompts")
     
     try:
@@ -396,8 +352,9 @@ async def whisper_speech_recognition(audio_file_path: str, language: str) -> str
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
 @timeout(300)  # 5 minuti di timeout
-async def generateRecipeImages(ricetta: dict, video_folder_post: str):
+async def generateRecipeImages(ricetta: dict, shortcode: str):
     # Costruisci un testo robusto per il prompt a partire dai campi di ricetta
+    image_folder = os.path.join(BASE_FOLDER_RICETTE, shortcode, "media_recipe")
     title = str(ricetta.get("title", ""))
     description = str(ricetta.get("description", ""))
     ingredients = ricetta.get("ingredients", [])
@@ -424,7 +381,6 @@ async def generateRecipeImages(ricetta: dict, video_folder_post: str):
     else:
         steps_text = str(steps)
 
-  
     tipologiaImmagin = [{
         "type": "copertina",
         "testo":  " ".join([p for p in [title, description] if p])
@@ -435,34 +391,35 @@ async def generateRecipeImages(ricetta: dict, video_folder_post: str):
     })
     tipologiaImmagin.append({
         "type": "ingredienti",
-        "testo": " ".join([p for p in [title, ingredients] if p])
+        "testo": " ".join([p for p in [title, ingredients_text] if p])
     })
     
+    all_saved_paths = []
     for img in tipologiaImmagin:
-     prompt_immagine:str = (
-        "Crea immagine per la ricetta di cucina. "
-        "Ecco il testo da cui prendere ispirazione: " + img.testo + ". "
-        "Stile reallistico. Soggetto principale in primo piano, con forti contrasti. "
-        "La palette di colori rispecchia le parole chiave, sfondo semplice. "
-        "Composizione dinamica, basata sul testo, visivamente accattivante, che attiri l'attenzione dell'utente."
-     )
-    
+     replacements = {
+      "testo": img["testo"]
+     }
+
+     # Leggi e popola i prompt in modo dinamico
+     image_prompt = read_prompt_files("prompt_immagini_ricetta.txt", **replacements)
+
      try:
         logger.info(f"try OpenAIclient")
         
         OpenAIresponse = await asyncio.to_thread(
             openAIclient.images.generate,
             model="gpt-image-1",
-            prompt=prompt_immagine,
-            size="1024x768",
+            prompt=image_prompt,
+            size="1536x1024",
             quality="high",
             n=1
         )
         
-        logger.info(f" OpenAIresponse: {OpenAIresponse}")
-        # Salva le 3 immagini nella cartella video_folder_post
+        #logger.info(f" OpenAIresponse: {OpenAIresponse}")
+        # Salva le immagini nella cartella image_folder
         try:
-            os.makedirs(video_folder_post, exist_ok=True)
+           
+            os.makedirs(image_folder, exist_ok=True)
             saved_paths = []
             data_items = []
             if hasattr(OpenAIresponse, "data"):
@@ -498,13 +455,13 @@ async def generateRecipeImages(ricetta: dict, video_folder_post: str):
                 else:
                     raise ValueError("Elemento immagine privo di 'b64_json' e 'url'")
 
-                out_path = os.path.join(video_folder_post, f"image_{img['type']}_{idx+1}.jpg")
+                out_path = os.path.join(image_folder, f"image_{img['type']}_{idx+1}.jpg")
                 with open(out_path, "wb") as f:
                     f.write(image_bytes)
                 saved_paths.append(out_path)
                 logger.info(f"Immagine salvata: {out_path}")
 
-            return saved_paths
+            all_saved_paths.extend(saved_paths)
         except Exception as e:
             logger.error(f"Errore durante il salvataggio delle immagini: {str(e)}")
             raise
@@ -512,3 +469,5 @@ async def generateRecipeImages(ricetta: dict, video_folder_post: str):
      except Exception as e:
         logger.error(f"OpenAIresponse error: {str(e)}")
         raise e
+
+    return all_saved_paths

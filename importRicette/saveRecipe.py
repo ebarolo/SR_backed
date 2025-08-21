@@ -67,7 +67,7 @@ async def process_video(recipe: str):
             logger.info(f"Inizio elaborazione per shortcode: {shortcode}, URL video: {dw.get('url_video', 'URL_NON_TROVATO')}")
             captionSanit = sanitize_text(dw["caption"])
 
-            video_folder_post = os.path.join(BASE_FOLDER_RICETTE, shortcode)
+            video_folder_post = os.path.join(BASE_FOLDER_RICETTE, shortcode, "media_original")
             logger.info(f"Cartella video per shortcode '{shortcode}': {video_folder_post}")
 
             # Cerca il file video nella cartella
@@ -117,7 +117,7 @@ async def process_video(recipe: str):
                 logger.warning(f"Nessuna informazione ricetta estratta per shortcode '{shortcode}' dal testo analizzato.")
                 pass
             
-            images_recipe = await generateRecipeImages(ricetta, video_folder_post)
+            images_recipe = await generateRecipeImages(ricetta, shortcode)
             
             # Convert the RecipeAIResponse object to a RecipeDBSchema object
             ricetta_dict = ricetta if isinstance(ricetta, dict) else (ricetta.model_dump() if ricetta else {})

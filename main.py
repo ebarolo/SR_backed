@@ -31,7 +31,7 @@ from DB.rag_system import (
 
 #from chatbot.natural_language_recipe_finder_llm import LLMNaturalLanguageProcessor, RecipeFinder
 #from chatbot.agent import get_recipes
-from config import MONGODB_URI, EMBEDDINGS_NPZ_PATH, EMBEDDING_MODEL
+from config import EMBEDDINGS_NPZ_PATH, EMBEDDING_MODEL
 #SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()

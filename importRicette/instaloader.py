@@ -74,6 +74,7 @@ async def scarica_contenuto_reel(url: str) -> Dict[str, Any]:
         shortcode_folder = os.path.join(
             os.getcwd(), "static", "mediaRicette", shortcode
         )
+        
         # Check if the folder already exists and contains files
         if os.path.exists(shortcode_folder) and os.listdir(shortcode_folder):
             logger.warning(
@@ -83,12 +84,13 @@ async def scarica_contenuto_reel(url: str) -> Dict[str, Any]:
             raise ValueError(f"Content for shortcode {shortcode} already downloaded")
 
         else:
-            os.makedirs(shortcode_folder, exist_ok=True)
+            downloadFolder = os.path.join(shortcode_folder, "media_original")
+            os.makedirs(downloadFolder, exist_ok=True)
 
             # Set the dirname_pattern to the shortcode folder for this download
-            L.dirname_pattern = shortcode_folder
+            L.dirname_pattern = downloadFolder
 
-            logger.info(f"Created folder for download: {shortcode_folder}")
+            logger.info(f"Created folder for download: {downloadFolder}")
             try:
                 post = instaloader.Post.from_shortcode(L.context, shortcode)
             except instaloader.exceptions.InstaloaderException as e:
@@ -98,15 +100,13 @@ async def scarica_contenuto_reel(url: str) -> Dict[str, Any]:
                 # Qui, restituisco un dizionario simile a quello di successo ma con un errore.
                 return [{ # Manteniamo la struttura a lista come nel caso di successo
                     "error": f"Errore durante il recupero del post con shortcode {shortcode}: {str(e)}",
-                    "shortcode": shortcode,
-                    "caption": "" 
+                    "shortcode": shortcode
                 }]
             except Exception as e: # Cattura generica per altri possibili errori non di Instaloader
                 logger.error(f"Unexpected error fetching post with shortcode {shortcode}: {str(e)}")
                 return [{
                     "error": f"Errore inaspettato durante il recupero del post con shortcode {shortcode}: {str(e)}",
                     "shortcode": shortcode,
-                    "caption": ""
                 }]
 
             # Log post attributes for debugging
@@ -127,8 +127,9 @@ async def scarica_contenuto_reel(url: str) -> Dict[str, Any]:
                         post_attributes[attr] = f"Error accessing attribute: {str(e)}"
 
             logger.info(f"Post attributes: {post_attributes}")
-
-            L.download_post(post, shortcode_folder)
+            # Download the post
+           
+            L.download_post(post, downloadFolder)
 
             res = {
                 "error": "",
@@ -137,13 +138,12 @@ async def scarica_contenuto_reel(url: str) -> Dict[str, Any]:
             }
 
             logger.info(f"Download completato per {url}")
-            logger.info(f" {str(res)}")
             result.append(res)
             return result
 
     except instaloader.exceptions.InstaloaderException as e:
-        logger.error(f"Errore di scarica_contenuto_reel: {str(e)}")
-        raise ValueError(f"Errore di scarica_contenuto_reel: {str(e)}")
+        logger.error(f"Errore scarica_contenuto_reel: {str(e)}")
+        raise ValueError(f"Errore scarica_contenuto_reel: {str(e)}")
 
 async def scarica_contenuti_account(username: str):
     result = []
@@ -159,9 +159,10 @@ async def scarica_contenuti_account(username: str):
 
         post_count = 0
         logger.info(f"Starting to fetch posts for profile: {username}")
+        downloadFolder = os.path.join(folder_path, "media_original")
         for post in profile.get_posts():
             if post.is_video:
-                L.download_post(post, target=folder_path)
+                L.download_post(post, target=downloadFolder)
                 post_count += 1
 
                 res = {
@@ -171,7 +172,7 @@ async def scarica_contenuti_account(username: str):
                         if post.caption
                         else str(post.mediaid)
                     ),
-                    "percorso_video": folder_path,
+                    "percorso_video": downloadFolder,
                     "caption": post.caption if post.caption else "",
                 }
 
