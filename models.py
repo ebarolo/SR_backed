@@ -40,6 +40,12 @@ class RecipeResponse(BaseModel):
     chef_advise: Optional[str]
     shortcode: str
     match_score: float = Field(..., description="Score di rilevanza della ricetta")
+
+class JobStatus(BaseModel):
+    job_id: str
+    status: str
+    detail: Optional[str] = None
+    result: Optional[Dict[str, Any]] = None
   
 recipe_schema = {
   "name": "recipe_schema",

@@ -163,6 +163,11 @@ async def process_video(recipe: str):
             ricetta_dict["ricetta_audio"] = ricetta_audio
             ricetta_dict["ricetta_caption"] = captionSanit
             ricetta_dict["shortcode"] = shortcode
+            # Persist generated images into metadata for frontend retrieval
+            if images_recipe:
+                ricetta_dict["images"] = images_recipe
+                if not ricetta_dict.get("image_url"):
+                    ricetta_dict["image_url"] = images_recipe[0]
 
             logger.info(f"process_video completato per shortcode '{shortcode}'. Titolo: '{ricetta_dict.get('title', 'N/A')}'")
             return RecipeDBSchema(**ricetta_dict)

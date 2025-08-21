@@ -13,16 +13,6 @@ from transformers import AutoTokenizer
 
 from config import BASE_FOLDER_RICETTE, EMBEDDING_MODEL
 
-# Initialize module logger using global config
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('backend.log', encoding='utf-8', mode='a'),
-        logging.StreamHandler()
-    ]
-)
-
 logger = logging.getLogger(__name__)
 
 _tokenizer_cache = {}

@@ -12,10 +12,13 @@ from typing import List, Optional
 
 from sqlalchemy.ext.declarative import declarative_base
 
-from models import RecipeDBSchema
+from models import RecipeDBSchema, JobStatus
 
+import logging
 from importRicette.saveRecipe import process_video
-from utility import get_error_context, logger, clean_text, ensure_text_within_token_limit
+from utility import get_error_context, clean_text, ensure_text_within_token_limit
+from logging_config import setup_logging
+from logging_config import request_id_var, job_id_var
 from DB.rag_system import (
     index_database,
     search,
@@ -54,6 +57,8 @@ class VideoURLs(BaseModel):
 # -------------------------------
 # Inizializzazione FastAPI e Dependency per il DB
 # -------------------------------
+setup_logging()
+logger = logging.getLogger(__name__)
 app = FastAPI(title="Backend Smart Recipe", version="0.5")
 # CORS middleware
 app.add_middleware(
@@ -77,6 +82,31 @@ ASSETS_DIR = os.path.join(DIST_DIR, "assets")
 if os.path.isdir(ASSETS_DIR):
     app.mount("/assets", StaticFiles(directory=ASSETS_DIR), name="assets")
 
+# Middleware: assegna un request_id a ogni richiesta
+import uuid
+from fastapi import BackgroundTasks, Request
+
+@app.middleware("http")
+async def add_request_id(request: Request, call_next):
+    token = None
+    try:
+        rid = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+        token = request_id_var.set(rid)
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = rid
+        logger.info(
+            "HTTP",
+            extra={
+                "path": request.url.path,
+                "method": request.method,
+                "status": response.status_code,
+            },
+        )
+        return response
+    finally:
+        if token is not None:
+            request_id_var.reset(token)
+
 # Warmup e cache embeddings su startup
 @app.on_event("startup")
 async def on_startup():
@@ -87,6 +117,50 @@ async def on_startup():
             logger.info(f"Embeddings preload: vettori={_E.shape if _E is not None else None}")
     except Exception as e:
         logger.warning(f"Startup preload embeddings fallito: {e}")
+
+    # Inizializza job store in-memory
+    app.state.jobs = {}
+
+def _ingest_urls_job(job_id: str, urls: List[str]):
+    import asyncio as _asyncio
+    async def _runner():
+        from importRicette.saveRecipe import process_video
+        texts_for_embedding = []
+        metadatas = []
+        for url in urls:
+            try:
+                recipe_data = await process_video(url)
+                if not recipe_data:
+                    continue
+                from utility import clean_text, ensure_text_within_token_limit
+                title_clean = clean_text(recipe_data.title)
+                category_clean = ' '.join([clean_text(cat) for cat in recipe_data.category])
+                steps_clean = ' '.join([clean_text(step) for step in recipe_data.recipe_step])
+                ingredients_clean = ' '.join([clean_text(ing.name) for ing in recipe_data.ingredients])
+                text_for_embedding = f"{title_clean}. {recipe_data.description}. {category_clean}. {ingredients_clean}. {steps_clean}"
+                text_for_embedding = ensure_text_within_token_limit(text_for_embedding)
+                texts_for_embedding.append(text_for_embedding)
+                metadatas.append(recipe_data)
+            except Exception as e:
+                continue
+        if texts_for_embedding:
+            index_database(texts_for_embedding, metadata=metadatas, append=True)
+        return {"indexed": len(texts_for_embedding)}
+
+    loop = _asyncio.new_event_loop()
+    try:
+        _asyncio.set_event_loop(loop)
+        job_token = job_id_var.set(job_id)
+        result = loop.run_until_complete(_runner())
+        app.state.jobs[job_id] = {"status": "completed", "result": result}
+    except Exception as e:
+        app.state.jobs[job_id] = {"status": "failed", "detail": str(e)}
+    finally:
+        try:
+            job_id_var.reset(job_token)
+        except Exception:
+            pass
+        loop.close()
 
 @app.get("/", include_in_schema=False)
 async def index():
@@ -153,6 +227,20 @@ async def insert_recipe(videos: VideoURLs):
         return ["ok"]
     else:
         return urlNoteElaborated
+
+@app.post("/jobs/ingest", response_model=JobStatus, status_code=status.HTTP_202_ACCEPTED)
+async def enqueue_ingest(videos: VideoURLs, background_tasks: BackgroundTasks):
+    job_id = str(uuid.uuid4())
+    app.state.jobs[job_id] = {"status": "queued"}
+    background_tasks.add_task(_ingest_urls_job, job_id, [str(u) for u in videos.urls])
+    return JobStatus(job_id=job_id, status="queued")
+
+@app.get("/jobs/{job_id}", response_model=JobStatus)
+def job_status(job_id: str):
+    job = app.state.jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job non trovato")
+    return JobStatus(job_id=job_id, status=job.get("status"), detail=job.get("detail"), result=job.get("result"))
 
 @app.get("/ricette/{shortcode}")
 def get_recipe_by_shortcode(shortcode: str):
