@@ -19,7 +19,7 @@ from utility import get_error_context, logger, clean_text, ensure_text_within_to
 from DB.rag_system import (
     index_database,
     search,
-    load_embeddings_with_metadata,
+    load_embeddings_with_metadata_cached,
     set_rag_model,
     get_current_rag_model_name,
     recalculate_embeddings_from_npz,
@@ -77,6 +77,17 @@ ASSETS_DIR = os.path.join(DIST_DIR, "assets")
 if os.path.isdir(ASSETS_DIR):
     app.mount("/assets", StaticFiles(directory=ASSETS_DIR), name="assets")
 
+# Warmup e cache embeddings su startup
+@app.on_event("startup")
+async def on_startup():
+    try:
+        # Forza caricamento cache se file presente
+        if os.path.exists(EMBEDDINGS_NPZ_PATH):
+            _E, _M, _I = load_embeddings_with_metadata_cached(EMBEDDINGS_NPZ_PATH)
+            logger.info(f"Embeddings preload: vettori={_E.shape if _E is not None else None}")
+    except Exception as e:
+        logger.warning(f"Startup preload embeddings fallito: {e}")
+
 @app.get("/", include_in_schema=False)
 async def index():
     dist_index = os.path.join(DIST_DIR, "index.html")
@@ -130,7 +141,7 @@ async def insert_recipe(videos: VideoURLs):
 
     # Salvataggio embedding + metadati per batch
     try:
-        _ = index_database(texts_for_embedding, metadata=metadatas)
+        _ = index_database(texts_for_embedding, metadata=metadatas, append=True)
     except Exception as e:
         logger.error(f"Errore durante la generazione/salvataggio degli embedding per il batch: {str(e)}", exc_info=True)
         raise HTTPException(
@@ -151,7 +162,7 @@ def get_recipe_by_shortcode(shortcode: str):
     dove ogni ricetta è stata salvata come JSON serializzato.
     """
     try:
-        _, metadata, _ = load_embeddings_with_metadata(EMBEDDINGS_NPZ_PATH)
+        _, metadata, _ = load_embeddings_with_metadata_cached(EMBEDDINGS_NPZ_PATH)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Errore nel caricamento degli embeddings: {str(e)}")
 
@@ -177,14 +188,14 @@ def get_recipe_by_shortcode(shortcode: str):
 @app.get("/search/")
 def search_recipes(query: str, limit: int = 12):
     try:
-        embeddings, metadata, _ = load_embeddings_with_metadata(EMBEDDINGS_NPZ_PATH)
+        embeddings, metadata, _ = load_embeddings_with_metadata_cached(EMBEDDINGS_NPZ_PATH)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Errore nel caricamento degli embeddings: {str(e)}")
 
     if embeddings is None or embeddings.size == 0:
         return []
 
-    similarity_results = search(query=query, embedding_matrix=embeddings)
+    similarity_results = search(query=query, embedding_matrix=embeddings, top_k=max(1, min(int(limit or 12), len(embeddings) if embeddings is not None else 1)))
 
     # Rispetta il limite richiesto senza cappare a 3
     top_k = max(1, min(int(limit or 12), len(similarity_results)))

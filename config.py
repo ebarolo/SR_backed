@@ -13,8 +13,20 @@ ISTA_USERNAME = os.getenv("ISTA_USERNAME")
 ISTA_PASSWORD = os.getenv("ISTA_PASSWORD")
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_MODEL = "gpt-5"
+# Client OpenAI condiviso
 openAIclient = OpenAI(api_key=OPENAI_API_KEY)
+
+# -------------------------------
+# Modelli OpenAI/HF centralizzati
+# -------------------------------
+# Modello Responses (estrazione ricetta testuale)
+OPENAI_RESPONSES_MODEL = os.getenv("OPENAI_RESPONSES_MODEL", "gpt-5")
+# Modello Chat Vision (analisi frames immagine)
+OPENAI_VISION_CHAT_MODEL = os.getenv("OPENAI_VISION_CHAT_MODEL", "gpt-4o-mini")
+# Modello trascrizione audio
+OPENAI_TRANSCRIBE_MODEL = os.getenv("OPENAI_TRANSCRIBE_MODEL", "gpt-4o-transcribe")
+# Modello generazione immagini
+OPENAI_IMAGE_MODEL = os.getenv("OPENAI_IMAGE_MODEL", "gpt-image-1")
 
 # -------------------------------
 # Parametri RAG (mancanti) usati da DB/rag_system.py e main.py

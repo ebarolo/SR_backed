@@ -10,7 +10,14 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 
 from utility import get_error_context, timeout, logger
 
-from config import openAIclient, BASE_FOLDER_RICETTE
+from config import (
+    openAIclient,
+    BASE_FOLDER_RICETTE,
+    OPENAI_VISION_CHAT_MODEL,
+    OPENAI_RESPONSES_MODEL,
+    OPENAI_TRANSCRIBE_MODEL,
+    OPENAI_IMAGE_MODEL,
+)
 
 def read_prompt_files(file_name: str, **kwargs) -> str:
     """
@@ -80,7 +87,7 @@ async def analyze_recipe_frames(base64Frames):
         ]
         # logger.info({PROMPT_MESSAGES})
         params = {
-            "model": "gpt-4o-mini",
+            "model": OPENAI_VISION_CHAT_MODEL,
             "messages": PROMPT_MESSAGES,
             "max_tokens": 700,
         }
@@ -118,7 +125,7 @@ async def extract_recipe_info( recipe_audio_text: str, recipe_caption_text: str,
         
         OpenAIresponse = await asyncio.to_thread(
             openAIclient.responses.create,
-            model="gpt-5",
+            model=OPENAI_RESPONSES_MODEL,
             input=[
              {
                 "role": "developer",
@@ -332,7 +339,7 @@ async def whisper_speech_recognition(audio_file_path: str, language: str) -> str
             logger.info(f"Dimensione file audio: {file_size_kb:.2f} KB")
             transcription = await asyncio.to_thread(
                 openAIclient.audio.transcriptions.create,
-                model="gpt-4o-transcribe",
+                model=OPENAI_TRANSCRIBE_MODEL,
                 file=audio_file,
             )
             logger.info(f"transcription: {transcription}")
@@ -385,13 +392,15 @@ async def generateRecipeImages(ricetta: dict, shortcode: str):
         "type": "copertina",
         "testo":  " ".join([p for p in [title, description] if p])
     }]
+    '''
     tipologiaImmagin.append({
         "type": "stepricetta",
         "testo": " ".join([p for p in [title, steps_text] if p])
     })
+    '''
     tipologiaImmagin.append({
         "type": "ingredienti",
-        "testo": " ".join([p for p in [title, ingredients_text] if p])
+        "testo": " ".join([p for p in [ingredients_text] if p])
     })
     
     all_saved_paths = []
@@ -408,7 +417,7 @@ async def generateRecipeImages(ricetta: dict, shortcode: str):
         
         OpenAIresponse = await asyncio.to_thread(
             openAIclient.images.generate,
-            model="gpt-image-1",
+            model=OPENAI_IMAGE_MODEL,
             prompt=image_prompt,
             size="1536x1024",
             quality="high",

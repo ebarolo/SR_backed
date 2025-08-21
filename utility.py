@@ -141,13 +141,22 @@ def parse_ingredients(ingredients_str: str) -> List[str]:
 # Funzione per pulire il testo
 def clean_text(text):
     # Converti in minuscolo e rimuovi caratteri speciali
-    text = re.sub(r'[^\w\s]', ' ', text.lower())
-    # Tokenizza
-    tokens = word_tokenize(text)
-    # Rimuovi stop words
-    stop_words = set(stopwords.words('italian'))
-    filtered_tokens = [word for word in tokens if word not in stop_words]
-    return ' '.join(filtered_tokens)
+    text = re.sub(r'[^\w\s]', ' ', (text or '').lower())
+    # Tokenizza e rimuovi stop words con fallback se risorse NLTK mancano
+    try:
+        tokens = word_tokenize(text)
+        try:
+            stop_words = set(stopwords.words('italian'))
+        except LookupError:
+            # Fallback: lista minima di stopwords italiane
+            stop_words = { 'e', 'ed', 'di', 'a', 'da', 'in', 'con', 'su', 'per', 'tra', 'fra', 'il', 'lo', 'la', 'i', 'gli', 'le', 'un', 'uno', 'una', 'che', 'del', 'della', 'dei', 'delle' }
+        filtered_tokens = [word for word in tokens if word not in stop_words]
+        return ' '.join(filtered_tokens)
+    except LookupError:
+        # Se manca anche il tokenizer, fallback basato su split semplice
+        tokens = (text or '').split()
+        filtered_tokens = tokens
+        return ' '.join(filtered_tokens)
 
 def _get_embedding_tokenizer_and_max(model_name: str):
     cached = _tokenizer_cache.get(model_name)

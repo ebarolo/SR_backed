@@ -13,6 +13,46 @@ from config import RAG_EMBEDDING_MODEL, EMBEDDINGS_NPZ_PATH
 from utility import clean_text
 
 # -------------------------------------
+# Cache embeddings/metadata su file NPZ
+# -------------------------------------
+_npz_cache = {
+    'path': None,
+    'mtime': None,
+    'E': None,
+    'meta': None,
+    'info': None,
+}
+
+def _get_mtime(path: str):
+    try:
+        return os.path.getmtime(path)
+    except Exception:
+        return None
+
+def invalidate_embeddings_cache(path: Optional[str] = None):
+    global _npz_cache
+    if path is None or _npz_cache['path'] is None or os.path.abspath(path) == os.path.abspath(_npz_cache['path']):
+        _npz_cache = {'path': None, 'mtime': None, 'E': None, 'meta': None, 'info': None}
+
+def load_embeddings_with_metadata_cached(path):
+    """Carica embeddings+metadata con cache basata su mtime del file."""
+    global _npz_cache
+    path_abs = os.path.abspath(path)
+    mtime = _get_mtime(path_abs)
+    if (
+        _npz_cache['path'] == path_abs
+        and _npz_cache['mtime'] is not None
+        and mtime is not None
+        and _npz_cache['mtime'] == mtime
+        and _npz_cache['E'] is not None
+    ):
+        return _npz_cache['E'], _npz_cache['meta'], _npz_cache['info']
+
+    E, meta, info = load_embeddings_with_metadata(path_abs)
+    _npz_cache = {'path': path_abs, 'mtime': _get_mtime(path_abs), 'E': E, 'meta': meta, 'info': info}
+    return E, meta, info
+
+# -------------------------------------
 # Gestione dinamica del modello HF usato per gli embeddings
 # -------------------------------------
 _current_rag_model_name: str = RAG_EMBEDDING_MODEL
@@ -29,7 +69,7 @@ def set_rag_model(model_name: str) -> str:
     _feature_extractor = pipeline('feature-extraction', model=model_name, framework='pt')
     return _current_rag_model_name
 
-def index_database(data, metadata=None, out_path: Optional[str] = None):
+def index_database(data, metadata=None, out_path: Optional[str] = None, append: bool = True):
     if out_path is None:
         out_path = EMBEDDINGS_NPZ_PATH
     texts = [data] if isinstance(data, str) else list(data)
@@ -37,15 +77,63 @@ def index_database(data, metadata=None, out_path: Optional[str] = None):
     for text in texts:
         vec = _feature_extractor(text, return_tensors='pt')[0].numpy().mean(axis=0)
         vectors.append(vec)
-    embeddings = np.vstack(vectors) if len(vectors) > 0 else np.empty((0, 0))
+    new_E = np.vstack(vectors) if len(vectors) > 0 else np.empty((0, 0))
 
+    # Se append è richiesto, concatena agli embeddings esistenti (se presenti)
+    if append and os.path.exists(out_path):
+        try:
+            E_old, meta_old, _ = load_embeddings_with_metadata(out_path)
+        except Exception:
+            E_old, meta_old = None, None
+        if E_old is not None and E_old.size > 0 and new_E.size > 0:
+            # Verifica dimensioni coerenti
+            if E_old.shape[1] != new_E.shape[1]:
+                raise ValueError(
+                    f"Dimensione vettoriale diversa tra esistenti ({E_old.shape[1]}) e nuovi ({new_E.shape[1]}). "
+                    f"Cambia modello o ricalcola gli embeddings."
+                )
+            E_merged = np.vstack([E_old, new_E])
+        elif E_old is not None and E_old.size > 0 and new_E.size == 0:
+            E_merged = E_old
+        elif (E_old is None or E_old.size == 0) and new_E.size > 0:
+            E_merged = new_E
+        else:
+            E_merged = np.empty((0, 0))
+
+        # Gestione metadata
+        merged_meta = None
+        num_new = new_E.shape[0]
+        if meta_old is not None:
+            base_meta = list(meta_old)
+        else:
+            base_meta = None
+        if isinstance(metadata, dict):
+            metadata = [metadata] * num_new
+        if base_meta is not None and metadata is not None:
+            merged_meta = base_meta + list(metadata)
+        elif base_meta is not None and metadata is None:
+            merged_meta = base_meta + ([{}] * num_new)
+        elif base_meta is None and metadata is not None:
+            merged_meta = list(metadata)
+        else:
+            merged_meta = None
+
+        save_embeddings_with_metadata(
+            embeddings=E_merged,
+            metadata=merged_meta,
+            out_path=out_path,
+            info={'source': 'index_database_append'}
+        )
+        return E_merged
+
+    # No append: salva solo i nuovi
     save_embeddings_with_metadata(
-        embeddings=embeddings,
+        embeddings=new_E,
         metadata=metadata,
         out_path=out_path,
         info={'source': 'index_database'}
     )
-    return embeddings
+    return new_E
 
 def save_embeddings_with_metadata(embeddings, metadata=None, out_path: Optional[str] = None, info=None, compress=True):
     if out_path is None:
@@ -108,10 +196,17 @@ def save_embeddings_with_metadata(embeddings, metadata=None, out_path: Optional[
     info.setdefault('dim', int(E.shape[1] if E.size else 0))
     arrays['info_json'] = np.array([json.dumps(info, ensure_ascii=False, default=_json_default)], dtype=object)
 
+    # Scrittura atomica: salva su file temporaneo e poi replace
+    out_dir = os.path.dirname(out_path) or '.'
+    os.makedirs(out_dir, exist_ok=True)
+    tmp_path = out_path + ".tmp"
     if compress:
-        np.savez_compressed(out_path, **arrays)
+        np.savez_compressed(tmp_path, **arrays)
     else:
-        np.savez(out_path, **arrays)
+        np.savez(tmp_path, **arrays)
+    os.replace(tmp_path, out_path)
+    # invalida cache
+    invalidate_embeddings_cache(out_path)
     return out_path
 
 def load_embeddings_with_metadata(path):
@@ -137,7 +232,7 @@ def load_embedding_matrix(embeddings_path):
             return load_embeddings_with_metadata(default_npz)[0]
         return np.load(embeddings_path)
 
-def search(query, embedding_matrix):
+def search(query, embedding_matrix, top_k: Optional[int] = None):
     query_embedding = _feature_extractor(query, return_tensors='pt')[0].numpy().mean(axis=0)
     # Assicura che le forme siano 2D
     embedding_matrix = np.atleast_2d(embedding_matrix)
@@ -151,8 +246,16 @@ def search(query, embedding_matrix):
         )
 
     similarities = cosine_similarity(query_embedding, embedding_matrix)[0]
-    similarity_results = sorted(enumerate(similarities), key=lambda x: x[1], reverse=True)
-    return similarity_results
+    n = similarities.shape[0]
+    if top_k is None or top_k >= n:
+        similarity_results = sorted(enumerate(similarities), key=lambda x: x[1], reverse=True)
+        return similarity_results
+    # top-k efficiente
+    top_k = max(1, int(top_k))
+    idx = np.argpartition(similarities, -top_k)[-top_k:]
+    selected = [(int(i), float(similarities[i])) for i in idx]
+    selected.sort(key=lambda x: x[1], reverse=True)
+    return selected
 
 def visualize_space_query(data, query, embedding_matrix):
     #query_embedding = model.encode([query])['dense_vecs'][0]
@@ -242,7 +345,7 @@ def recalculate_embeddings_from_npz(npz_path: Optional[str] = None, model_name: 
         raise ValueError("Il file .npz non contiene 'meta_json'. Impossibile ricalcolare i testi per gli embeddings.")
 
     texts = [_text_from_metadata(m) for m in meta]
-    new_embeddings = index_database(texts, metadata=meta, out_path=out_path)
+    new_embeddings = index_database(texts, metadata=meta, out_path=out_path, append=False)
     return new_embeddings, meta, {
         'model': get_current_rag_model_name(),
         'source': 'recalculate_embeddings_from_npz'
@@ -250,7 +353,7 @@ def recalculate_embeddings_from_npz(npz_path: Optional[str] = None, model_name: 
 
 def load_npz_info(npz_path: Optional[str] = None) -> dict:
     npz_path = npz_path or EMBEDDINGS_NPZ_PATH
-    _, _, info = load_embeddings_with_metadata(npz_path)
+    _, _, info = load_embeddings_with_metadata_cached(npz_path)
     return {'path': npz_path, 'info': info, 'model_runtime': get_current_rag_model_name()}
 
 '''

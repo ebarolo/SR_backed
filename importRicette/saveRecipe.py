@@ -53,13 +53,41 @@ async def yt_dlp_video(url: str) -> Dict[str, Any]:
 
 @retry(stop=stop_after_attempt(1), wait=wait_exponential(multiplier=1, min=4, max=10))
 async def process_video(recipe: str):
+    """
+    Accetta un input che può essere:
+    - username Instagram (no scheme http/https) → scarica tutti i reel video dell'account
+    - URL: se Instagram → usa instaloader; per altri domini prova yt-dlp per scaricare e creare struttura coerente
+    """
 
-    urlPattern = r'^(ftp|http|https):\/\/[^ "]+$'
+    urlPattern = r'^(ftp|http|https):\/\/[^ \"]+$'
 
     if not re.match(urlPattern, recipe):
         dws = await scarica_contenuti_account(recipe)
     else:
-        dws = await scarica_contenuto_reel(recipe)
+        url_lower = recipe.lower()
+        if any(host in url_lower for host in ["instagram.com", "instagr.am"]):
+            dws = await scarica_contenuto_reel(recipe)
+        else:
+            # usa yt-dlp per scaricare il singolo video in una cartella stile shortcode generico
+            info = await yt_dlp_video(recipe)
+            # crea struttura compatibile
+            shortcode = sanitize_filename(info["video_title"]) or "video"
+            downloadFolder = os.path.join(BASE_FOLDER_RICETTE, shortcode, "media_original")
+            os.makedirs(downloadFolder, exist_ok=True)
+            # sposta/normalizza il file nella cartella target
+            src = info["video_filename"]
+            dst = os.path.join(downloadFolder, os.path.basename(info["video_filename"]))
+            try:
+                if os.path.abspath(src) != os.path.abspath(dst):
+                    os.replace(src, dst)
+            except Exception:
+                pass
+            dws = [{
+                "error": "",
+                "shortcode": shortcode,
+                "caption": "",
+                "url_video": recipe,
+            }]
 
     for dw in dws:
         shortcode = dw.get("shortcode", "SHORTCODE_NON_TROVATO") # Default per logging
