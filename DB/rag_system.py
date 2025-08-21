@@ -8,6 +8,7 @@ import json
 from datetime import datetime, date
 import os
 from typing import Optional, List, Tuple
+from FlagEmbedding import BGEM3FlagModel 
 
 from config import RAG_EMBEDDING_MODEL, EMBEDDINGS_NPZ_PATH
 from utility import clean_text
@@ -35,9 +36,12 @@ def invalidate_embeddings_cache(path: Optional[str] = None):
         _npz_cache = {'path': None, 'mtime': None, 'E': None, 'meta': None, 'info': None}
 
 def load_embeddings_with_metadata_cached(path):
-    """Carica embeddings+metadata con cache basata su mtime del file."""
-    global _npz_cache
     path_abs = os.path.abspath(path)
+    
+    """Carica embeddings+metadata con cache basata su mtime del file."""
+    '''
+    global _npz_cache
+    
     mtime = _get_mtime(path_abs)
     if (
         _npz_cache['path'] == path_abs
@@ -47,7 +51,8 @@ def load_embeddings_with_metadata_cached(path):
         and _npz_cache['E'] is not None
     ):
         return _npz_cache['E'], _npz_cache['meta'], _npz_cache['info']
-
+    '''
+    
     E, meta, info = load_embeddings_with_metadata(path_abs)
     _npz_cache = {'path': path_abs, 'mtime': _get_mtime(path_abs), 'E': E, 'meta': meta, 'info': info}
     return E, meta, info
@@ -56,7 +61,8 @@ def load_embeddings_with_metadata_cached(path):
 # Gestione dinamica del modello HF usato per gli embeddings
 # -------------------------------------
 _current_rag_model_name: str = RAG_EMBEDDING_MODEL
-_feature_extractor = pipeline('feature-extraction', model=_current_rag_model_name, framework='pt')
+#_feature_extractor = pipeline('feature-extraction', model=_current_rag_model_name, framework='pt')
+_feature_extractor = BGEM3FlagModel('BAAI/bge-m3', use_fp16=True)
 
 def get_current_rag_model_name() -> str:
     return _current_rag_model_name
@@ -66,8 +72,62 @@ def set_rag_model(model_name: str) -> str:
     if not model_name or not isinstance(model_name, str):
         raise ValueError("model_name non valido")
     _current_rag_model_name = model_name
-    _feature_extractor = pipeline('feature-extraction', model=model_name, framework='pt')
+    # Usa BGEM3 nativa quando richiesto, altrimenti fallback a pipeline HF
+    try:
+        mn = (model_name or "").lower()
+        if "bge-m3" in mn:
+            _feature_extractor = BGEM3FlagModel('BAAI/bge-m3', use_fp16=True)
+        else:
+            _feature_extractor = pipeline('feature-extraction', model=model_name, framework='pt')
+    except Exception:
+        # Fallback sicuro alla pipeline HF se l'inizializzazione specifica fallisce
+        _feature_extractor = pipeline('feature-extraction', model=model_name, framework='pt')
     return _current_rag_model_name
+
+def _encode_text_to_vec(text: str) -> np.ndarray:
+    """
+    Converte una stringa di testo in un vettore 1D numpy utilizzando l'estrattore corrente.
+    Supporta sia BGEM3FlagModel (metodo .encode) sia pipeline HF (mean pooling sull'ultimo hidden state).
+    """
+    # Caso 1: modelli tipo FlagEmbedding/SentenceTransformer con metodo .encode
+    if hasattr(_feature_extractor, 'encode'):
+        vec = _feature_extractor.encode(text)
+        # Alcuni modelli (es. BGEM3) ritornano un dict con 'dense_vecs'
+        if isinstance(vec, dict):
+            if 'dense_vecs' in vec:
+                arr = vec['dense_vecs']
+            else:
+                # prova a prendere il primo valore numerico disponibile
+                try:
+                    arr = next((v for v in vec.values() if hasattr(v, '__len__')))
+                except Exception:
+                    raise ValueError("Formato output encode non supportato")
+        else:
+            arr = vec
+        return np.asarray(arr, dtype=np.float32).ravel()
+
+    # Caso 2: pipeline HF feature-extraction
+    outputs = _feature_extractor(text, return_tensors='pt')
+    # outputs può essere una lista annidata oppure un tensore torch
+    if hasattr(outputs, 'detach') or hasattr(outputs, 'numpy'):
+        # tensore torch con shape [1, seq_len, hidden]
+        try:
+            tensor = outputs
+            # Compat: in alcune versioni pipeline ritorna direttamente una lista
+            # Se è tensore, ha ndim
+            if hasattr(tensor, 'ndim') and tensor.ndim == 3:
+                pooled = tensor[0].mean(dim=0)
+            else:
+                # fallback generico
+                pooled = tensor.mean(dim=0)
+            return pooled.detach().cpu().numpy().astype(np.float32).ravel()
+        except Exception:
+            pass
+    # Lista di liste: [batch=1][seq_len][hidden]
+    arr = np.array(outputs)
+    if arr.ndim == 3:
+        arr = arr[0]
+    return arr.mean(axis=0).astype(np.float32).ravel()
 
 def index_database(data, metadata=None, out_path: Optional[str] = None, append: bool = True):
     if out_path is None:
@@ -75,7 +135,7 @@ def index_database(data, metadata=None, out_path: Optional[str] = None, append: 
     texts = [data] if isinstance(data, str) else list(data)
     vectors = []
     for text in texts:
-        vec = _feature_extractor(text, return_tensors='pt')[0].numpy().mean(axis=0)
+        vec = _encode_text_to_vec(text)
         vectors.append(vec)
     new_E = np.vstack(vectors) if len(vectors) > 0 else np.empty((0, 0))
 
@@ -208,7 +268,7 @@ def save_embeddings_with_metadata(embeddings, metadata=None, out_path: Optional[
         np.savez(tmp_path, **arrays)
     os.replace(tmp_path, out_path)
     # invalida cache
-    invalidate_embeddings_cache(out_path)
+    #invalidate_embeddings_cache(out_path)
     return out_path
 
 def load_embeddings_with_metadata(path):
@@ -238,40 +298,15 @@ def load_embedding_matrix(embeddings_path):
         return np.load(embeddings_path)
 
 def search(query, embedding_matrix, top_k: Optional[int] = None):
-    query_embedding = _feature_extractor(query, return_tensors='pt')[0].numpy().mean(axis=0)
+    query_embedding = _encode_text_to_vec(query)
 
     similarities = cosine_similarity([query_embedding], embedding_matrix)[0]
     similarity_results = sorted(enumerate(similarities), key=lambda x: x[1], reverse=True)
     return similarity_results
 
-def old_search(query, embedding_matrix, top_k: Optional[int] = None):
-    query_embedding = _feature_extractor(query, return_tensors='pt')[0].numpy().mean(axis=0)
-    # Assicura che le forme siano 2D
-    embedding_matrix = np.atleast_2d(embedding_matrix)
-    query_embedding = query_embedding.reshape(1, -1)
-
-    # Validazione dimensioni
-    if embedding_matrix.size > 0 and query_embedding.shape[1] != embedding_matrix.shape[1]:
-        raise ValueError(
-            f"Dimensione vettoriale diversa tra query ({query_embedding.shape[1]}) e matrice ({embedding_matrix.shape[1]}). "
-            f"Ricalcola gli embeddings con il nuovo modello o seleziona un modello coerente."
-        )
-
-    similarities = cosine_similarity(query_embedding, embedding_matrix)[0]
-    n = similarities.shape[0]
-    if top_k is None or top_k >= n:
-        similarity_results = sorted(enumerate(similarities), key=lambda x: x[1], reverse=True)
-        return similarity_results
-    # top-k efficiente
-    top_k = max(1, int(top_k))
-    idx = np.argpartition(similarities, -top_k)[-top_k:]
-    selected = [(int(i), float(similarities[i])) for i in idx]
-    selected.sort(key=lambda x: x[1], reverse=True)
-    return selected
-
 def visualize_space_query(data, query, embedding_matrix):
     #query_embedding = model.encode([query])['dense_vecs'][0]
-    query_embedding = _feature_extractor(query, return_tensors='pt')[0].numpy().mean(axis=0)
+    query_embedding = _encode_text_to_vec(query)
 
     # Normalizza forme per l'aggregazione
     embedding_matrix = np.atleast_2d(embedding_matrix)
@@ -314,7 +349,6 @@ def visualize_space_query(data, query, embedding_matrix):
     plt.grid(True)
     plt.legend()
     plt.show()
-
 
 # -------------------------------------
 # Utilità: ricostruzione testo da metadata e ricalcolo embeddings
@@ -367,15 +401,3 @@ def load_npz_info(npz_path: Optional[str] = None) -> dict:
     npz_path = npz_path or EMBEDDINGS_NPZ_PATH
     _, _, info = load_embeddings_with_metadata_cached(npz_path)
     return {'path': npz_path, 'info': info, 'model_runtime': get_current_rag_model_name()}
-
-'''
-# Aggiunta della query
-query = "risotto ai gamberi"
-# index_database(frasi) # cread il database vettoriale
-#matrix = load_embedding_matrix("embeddings.npy")
-embedding, meta, info = load_embeddings_with_metadata('static/recipeEmbeddings.npz')
-
-out = search(query=query, embedding_matrix = embedding)[:3]
-print(out)
-visualize_space_query(meta, query, embedding)
-'''

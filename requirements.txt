@@ -37,4 +37,5 @@ scipy==1.16.1
 transformers==4.55.3
 torch>=2.8.0
 sentence-transformers>=5.1.0
+FlagEmbedding>=1.2.8
 

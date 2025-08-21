@@ -32,7 +32,7 @@ OPENAI_IMAGE_MODEL = os.getenv("OPENAI_IMAGE_MODEL", "gpt-image-1")
 # Parametri RAG (mancanti) usati da DB/rag_system.py e main.py
 # -------------------------------
 # Modello HF per l'estrazione di feature; default: usa EMBEDDING_MODEL già definito
-EMBEDDING_MODEL = "efederici/sentence-bert-base"
+EMBEDDING_MODEL = "BAAI/bge-m3"
 
 RAG_EMBEDDING_MODEL = os.getenv("RAG_EMBEDDING_MODEL", EMBEDDING_MODEL)
 

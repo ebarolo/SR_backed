@@ -374,7 +374,7 @@
       }
 
       // Debounce helper
-      function debounce(fn, wait = 300) {
+      function debounce(fn, wait = 1000) {
         let t;
         return (...args) => {
           clearTimeout(t);
