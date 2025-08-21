@@ -281,12 +281,12 @@ async def generateRecipeImages(ricetta: dict, shortcode: str):
         "type": "stepricetta",
         "testo": " ".join([p for p in [title, steps_text] if p])
     })
-    '''
+   
     tipologiaImmagin.append({
         "type": "ingredienti",
         "testo": " ".join([p for p in [ingredients_text] if p])
     })
-    
+     '''
     all_saved_paths = []
     for img in tipologiaImmagin:
      replacements = {

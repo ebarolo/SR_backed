@@ -3,10 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Ricette - Ricerca (MVP)</title>
+    <title>Smart Recipe</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-      // Tailwind config extension (facoltativo)
+      // Tailwind config extension
       tailwind.config = {
         theme: {
           extend: {
@@ -32,6 +32,7 @@
       .line-clamp-3 {
         display: -webkit-box;
         -webkit-line-clamp: 3;
+        line-clamp: 3;
         -webkit-box-orient: vertical;
         overflow: hidden;
       }
@@ -104,6 +105,7 @@
     <!-- App Script -->
     <script>
       // Dataset di esempio (MVP)
+      /*
       const RECIPES = [
         {
           id: 1,
@@ -176,7 +178,8 @@
           image: "https://images.unsplash.com/photo-1551024709-8f23befc6cf7?q=80&w=1200&auto=format&fit=crop",
         },
       ];
-
+      */
+      const RECIPES = [];
       // Mappatura categorie -> classi colore Tailwind
       const CATEGORY_COLOR = {
         Pasta: { bg: "bg-amber-50", text: "text-amber-700", ring: "ring-amber-100" },
@@ -197,61 +200,7 @@
         Forno: { bg: "bg-amber-50", text: "text-amber-700", ring: "ring-amber-100" },
       };
 
-      // Sinonomi molto basilari per simulare "NLP" (MVP)
-      const SYNONYMS = {
-        veloce: ["rapido", "express", "quick"],
-        piccante: ["speziato", "hot", "arrabbiata", "peperoncino"],
-        proteico: ["proteinico", "ricco di proteine"],
-        vegano: ["vegan"],
-        vegetariano: ["veggie"],
-        dolce: ["dessert", "dolci"],
-        "senza glutine": ["gluten free", "gluten-free", "celiaco", "sg"],
-        "senza lattosio": ["lactose free", "lactose-free", "senza latte"],
-        pasta: ["spaghetti", "penne", "fusilli"],
-      };
-
-      function normalizeText(text) {
-        return (text || "")
-          .toString()
-          .toLowerCase()
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .replace(/[^a-z0-9\s]/g, " ")
-          .replace(/\s+/g, " ")
-          .trim();
-      }
-
-      function expandQueryTokens(query) {
-        const base = normalizeText(query);
-        if (!base) return [];
-        const tokens = new Set(base.split(" "));
-
-        // Espansione sinonimi grezza
-        for (const token of Array.from(tokens)) {
-          for (const [key, values] of Object.entries(SYNONYMS)) {
-            const keyNorm = normalizeText(key);
-            if (token === keyNorm) {
-              values.forEach((v) => tokens.add(normalizeText(v)));
-            }
-          }
-        }
-        return Array.from(tokens).filter(Boolean);
-      }
-
-      function computeScore(recipe, tokens) {
-        if (!tokens.length) return 0;
-        const haystack = normalizeText(
-          [recipe.title, recipe.description, (recipe.categories || []).join(" ")].join(" ")
-        );
-        let score = 0;
-        for (const t of tokens) {
-          if (!t) continue;
-          const re = new RegExp(`(?<![a-z0-9])${t}(?![a-z0-9])`, "g");
-          const matches = haystack.match(re);
-          if (matches) score += matches.length;
-        }
-        return score;
-      }
+      // Rimosse funzioni NLP (sinonimi/normalizzazione/scoring) — la ricerca usa solo l'endpoint backend
 
       function renderRecipes(recipes) {
         const container = document.getElementById("results");
@@ -337,19 +286,100 @@
           : `Trovate ${n} ricette`;
       }
 
-      function searchAndRender(query) {
-        const tokens = expandQueryTokens(query);
-        if (!tokens.length) {
+      // Placeholder cards (loading state)
+      function renderLoading(n = 8) {
+        const container = document.getElementById("results");
+        container.innerHTML = "";
+        const fragment = document.createDocumentFragment();
+        for (let i = 0; i < n; i++) {
+          const card = document.createElement("article");
+          card.className = [
+            "mb-6",
+            "break-inside-avoid",
+            "overflow-hidden",
+            "rounded-2xl",
+            "bg-white",
+            "ring-1 ring-black/5",
+            "animate-pulse",
+          ].join(" ");
+          const phImg = document.createElement("div");
+          phImg.className = "h-48 w-full bg-gray-100";
+          const body = document.createElement("div");
+          body.className = "p-4";
+          const l1 = document.createElement("div");
+          l1.className = "h-4 w-2/3 bg-gray-100 rounded";
+          const l2 = document.createElement("div");
+          l2.className = "mt-3 h-3 w-full bg-gray-100 rounded";
+          const l3 = document.createElement("div");
+          l3.className = "mt-2 h-3 w-5/6 bg-gray-100 rounded";
+          const chips = document.createElement("div");
+          chips.className = "mt-4 flex gap-2";
+          for (let c = 0; c < 3; c++) {
+            const chip = document.createElement("span");
+            chip.className = "h-6 w-16 bg-gray-100 rounded-full";
+            chips.appendChild(chip);
+          }
+          body.appendChild(l1); body.appendChild(l2); body.appendChild(l3); body.appendChild(chips);
+          card.appendChild(phImg); card.appendChild(body);
+          fragment.appendChild(card);
+        }
+        container.appendChild(fragment);
+      }
+
+      function mapRecipeFromBackend(meta) {
+        const image = meta.image_url || (Array.isArray(meta.images) && meta.images[0]) || "https://images.unsplash.com/photo-1498575207490-3e0b1d5e3f51?q=80&w=1200&auto=format&fit=crop";
+        const categories = Array.isArray(meta.category) && meta.category.length
+          ? meta.category
+          : (Array.isArray(meta.tags) && meta.tags.length ? meta.tags : (meta.cuisine_type ? [meta.cuisine_type] : []));
+        return {
+          id: meta._id || meta.shortcode || meta.title,
+          title: meta.title || "Ricetta",
+          description: meta.description || "",
+          categories,
+          image,
+          score: typeof meta.score === "number" ? meta.score : undefined,
+        };
+      }
+
+      async function searchAndRender(query) {
+        const q = (query || "").trim();
+        if (!q) {
+          // Nessuna query: pagina iniziale senza chiamate
           renderRecipes(RECIPES);
           updateCount(RECIPES.length);
           return;
         }
-        const scored = RECIPES.map((r) => ({ r, s: computeScore(r, tokens) }))
-          .filter((x) => x.s > 0)
-          .sort((a, b) => b.s - a.s)
-          .map((x) => x.r);
-        renderRecipes(scored);
-        updateCount(scored.length);
+        try {
+          renderLoading(8);
+          console.log("fetching");
+          console.log(`/search/?query=${encodeURIComponent(q)}&limit=24`);
+          const r = await fetch(`/search/?query=${encodeURIComponent(q)}&limit=24`, {
+            headers: { "Accept": "application/json" },
+          });
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          const data = await r.json();
+          console.log("data response");
+          console.log(data);
+          const mapped = Array.isArray(data) ? data.map(mapRecipeFromBackend) : [];
+          console.log("mapped");
+          console.log(mapped);
+          renderRecipes(mapped);
+          updateCount(mapped.length);
+        } catch (err) {
+          console.error("Errore ricerca:", err);
+          const container = document.getElementById("results");
+          container.innerHTML = `<div class="text-sm text-red-600">Errore durante la ricerca. Riprova più tardi.</div>`;
+          updateCount(0);
+        }
+      }
+
+      // Debounce helper
+      function debounce(fn, wait = 300) {
+        let t;
+        return (...args) => {
+          clearTimeout(t);
+          t = setTimeout(() => fn.apply(null, args), wait);
+        };
       }
 
       // Init
@@ -359,13 +389,14 @@
 
         const form = document.getElementById("search-form");
         const input = document.getElementById("query-input");
+        const debouncedSearch = debounce((val) => searchAndRender(val), 350);
 
         form.addEventListener("submit", (e) => {
           e.preventDefault();
           searchAndRender(input.value);
         });
         input.addEventListener("input", () => {
-          searchAndRender(input.value);
+          debouncedSearch(input.value);
         });
       });
     </script>
