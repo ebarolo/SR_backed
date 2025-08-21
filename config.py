@@ -28,3 +28,15 @@ SPACY_MODEL_NAME = "it_core_news_lg"
 OPENAI_API_KEY = "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"
 OPENAI_MODEL = "gpt-5"
 openAIclient = OpenAI(api_key=OPENAI_API_KEY)
+
+# -------------------------------
+# Parametri RAG (mancanti) usati da DB/rag_system.py e main.py
+# -------------------------------
+# Modello HF per l'estrazione di feature; default: usa EMBEDDING_MODEL già definito
+RAG_EMBEDDING_MODEL = os.getenv("RAG_EMBEDDING_MODEL", EMBEDDING_MODEL)
+
+# Percorso file NPZ che contiene embeddings e metadati delle ricette
+EMBEDDINGS_NPZ_PATH = os.getenv(
+    "EMBEDDINGS_NPZ_PATH",
+    os.path.join(os.getcwd(), "static/recipeEmbeddings.npz")
+)

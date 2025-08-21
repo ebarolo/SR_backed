@@ -1,8 +1,0 @@
-Analyze the following text: Audio transcript, Caption recipe, Ingredients and Actions of a recipe.
-
-Audio transcript: {recipe_audio}
-Caption recipe: {recipe_caption}
-Ingredients: {ingredients}
-Actions: {actions}
-
-Your goal is extract all the information requested to answer in the correct way. For the answer use fluent Italian without grammatical and/or spelling errors, with a high accuracy. 

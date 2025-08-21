@@ -1,7 +1,9 @@
-from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi import FastAPI, HTTPException, status
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+
+import os
 import uvicorn
 import json
 
@@ -9,17 +11,14 @@ from pydantic import BaseModel, HttpUrl, validator
 from typing import List, Optional
 
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import Session
 
-from models import RecipeDBSchema, Ingredient, RecipeResponse
+from models import RecipeDBSchema
 
 from importRicette.saveRecipe import process_video
-from utility import get_error_context, logger, clean_text
+from utility import get_error_context, logger, clean_text, ensure_text_within_token_limit
 from DB.rag_system import (
     index_database,
     search,
-    visualize_space_query,
-    load_embedding_matrix,
     load_embeddings_with_metadata,
     set_rag_model,
     get_current_rag_model_name,
@@ -32,7 +31,7 @@ from DB.rag_system import (
 
 #from chatbot.natural_language_recipe_finder_llm import LLMNaturalLanguageProcessor, RecipeFinder
 #from chatbot.agent import get_recipes
-from config import MONGODB_URI, EMBEDDINGS_NPZ_PATH
+from config import MONGODB_URI, EMBEDDINGS_NPZ_PATH, EMBEDDING_MODEL
 #SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
@@ -70,18 +69,29 @@ app.mount("/mediaRicette", StaticFiles(directory="static/mediaRicette"), name="m
 # Mount static directory to serve HTML, CSS, JS and other assets
 app.mount("/static", StaticFiles(directory="static", html=True), name="static")
 
-#-------------------------------
-# Endpoints API
-# -------------------------------
-# -------------------------------
-@app.get("/", include_in_schema=False)
-async def root():
-    return FileResponse("static/index.html")
+# --- Statici React (build Vite) ---
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DIST_DIR = os.path.join(BASE_DIR, "frontend", "dist")
+ASSETS_DIR = os.path.join(DIST_DIR, "assets")
+# mount degli asset fingerprinted di Vite (JS/CSS/img) solo se esistono
+if os.path.isdir(ASSETS_DIR):
+    app.mount("/assets", StaticFiles(directory=ASSETS_DIR), name="assets")
 
-@app.post("/recipes/", response_model=List[RecipeDBSchema], status_code=status.HTTP_201_CREATED)
+@app.get("/", include_in_schema=False)
+async def index():
+    dist_index = os.path.join(DIST_DIR, "index.html")
+    static_index = os.path.join(BASE_DIR, "static", "index.html")
+    if os.path.isfile(dist_index):
+        return FileResponse(dist_index)
+    if os.path.isfile(static_index):
+        return FileResponse(static_index)
+    return JSONResponse({
+        "message": "Frontend non disponibile. Esegui 'npm ci && npm run build' nella cartella 'frontend' per generare la build."
+    })
+
+@app.post("/recipes/", status_code=status.HTTP_201_CREATED)
 async def insert_recipe(videos: VideoURLs):
     urls = [str(u) for u in videos.urls]
-    docs = []
     texts_for_embedding: List[str] = []
     metadatas: List[RecipeDBSchema] = []
     urlNoteElaborated = []
@@ -103,42 +113,20 @@ async def insert_recipe(videos: VideoURLs):
             ingredients_clean = ' '.join([clean_text(ing.name) for ing in recipe_data.ingredients])
             logger.info(f"Ingredients clean: {ingredients_clean}")
 
-            text_for_embedding = f"{title_clean}. {category_clean}. {ingredients_clean}. {steps_clean}"
+            text_for_embedding = f"{title_clean}. {recipe_data.description}. {category_clean}. {ingredients_clean}. {steps_clean}"
             logger.info(f"Testo per embedding generato per ricetta (shortcode: {recipe_data.shortcode}). Lunghezza: {len(text_for_embedding)}")
+            
+            # Controlla/tronca la lunghezza in token rispetto al modello embeddings corrente
+            text_for_embedding = ensure_text_within_token_limit(text_for_embedding)
+
             texts_for_embedding.append(text_for_embedding)
             metadatas.append(recipe_data)
 
-            doc = {
-                "title": recipe_data.title,
-                "category": recipe_data.category,
-                "preparation_time": recipe_data.preparation_time,
-                "cooking_time": recipe_data.cooking_time,
-                "ingredients": [ing.model_dump() for ing in recipe_data.ingredients],
-                "recipe_step": recipe_data.recipe_step,
-                "description": recipe_data.description,
-                "diet": recipe_data.diet,
-                "technique": recipe_data.technique,
-                "language": recipe_data.language,
-                "chef_advise": recipe_data.chef_advise,
-                "tags": recipe_data.tags,
-                "nutritional_info": recipe_data.nutritional_info,
-                "cuisine_type": recipe_data.cuisine_type,
-                "ricetta_audio": recipe_data.ricetta_audio,
-                "ricetta_caption": recipe_data.ricetta_caption,
-                "shortcode": recipe_data.shortcode
-            }
-            docs.append(doc)
         except Exception as e:
-            error_context = get_error_context()
-            logger.error(f"Errore imprevisto durante l'elaborazione dell'URL '{url}': {str(e)}. Contesto: {error_context}", exc_info=True)
-            urlNoteElaborated.append(url)
+            #error_context = get_error_context()
+            logger.error(f"Errore imprevisto durante l'elaborazione dell'URL '{url}'| {str(e)}", exc_info=True)
+            urlNoteElaborated.append("{url} | {str(e)}")
             continue
-
-    if not docs:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Nessun URL valido elaborato."
-        )
 
     # Salvataggio embedding + metadati per batch
     try:
@@ -147,44 +135,47 @@ async def insert_recipe(videos: VideoURLs):
         logger.error(f"Errore durante la generazione/salvataggio degli embedding per il batch: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Errore interno durante la generazione dell'identificativo semantico."
+            detail="Errore durante la generazione dell'embedding semantico."
         )
 
-    # Salva (opzionale) elenco titoli
+    if not urlNoteElaborated:
+        return ["ok"]
+    else:
+        return urlNoteElaborated
+
+@app.get("/ricette/{shortcode}")
+def get_recipe_by_shortcode(shortcode: str):
+    """Ritorna i metadati completi della ricetta identificata dallo shortcode.
+
+    I metadati sono prelevati dal file NPZ degli embeddings,
+    dove ogni ricetta è stata salvata come JSON serializzato.
+    """
     try:
-        with open('static/mediaRicette/ricette.json', 'w', encoding='utf-8') as f:
-            json.dump([d['title'] for d in docs], f, ensure_ascii=False, indent=4)
-    except Exception:
-        pass
+        _, metadata, _ = load_embeddings_with_metadata(EMBEDDINGS_NPZ_PATH)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Errore nel caricamento degli embeddings: {str(e)}")
 
-    return [
-        RecipeDBSchema(
-            title=doc["title"],
-            category=doc["category"],
-            preparation_time=doc["preparation_time"],
-            cooking_time=doc["cooking_time"],
-            ingredients=[Ingredient(**ing) for ing in doc["ingredients"]],
-            recipe_step=doc["recipe_step"],
-            description=doc["description"],
-            diet=doc["diet"],
-            technique=doc["technique"],
-            language=doc["language"],
-            chef_advise=doc["chef_advise"],
-            tags=doc["tags"],
-            nutritional_info=doc["nutritional_info"],
-            cuisine_type=doc["cuisine_type"],
-            ricetta_audio=doc["ricetta_audio"],
-            ricetta_caption=doc["ricetta_caption"],
-            shortcode=doc["shortcode"]
-        ) for doc in docs
-    ]
+    if not metadata:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nessuna ricetta disponibile")
 
-@app.get("/recipes/{recipe_id}", response_model=RecipeDBSchema)
-def get_recipe(recipe_id: int):
-    return ""
+    for m in metadata:
+        try:
+            if str(m.get("shortcode", "")) == str(shortcode):
+                # normalizza alcuni campi utili al frontend
+                result = dict(m)
+                if "_id" not in result:
+                    result["_id"] = result.get("shortcode")
+                images = result.get("images") or []
+                if not result.get("image_url") and isinstance(images, list) and images:
+                    result["image_url"] = images[0]
+                return result
+        except Exception:
+            continue
+
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ricetta non trovata")
 
 @app.get("/search/")
-def search_recipes(query: str, limit: int = 3):
+def search_recipes(query: str, limit: int = 12):
     try:
         embeddings, metadata, _ = load_embeddings_with_metadata(EMBEDDINGS_NPZ_PATH)
     except Exception as e:
@@ -195,7 +186,8 @@ def search_recipes(query: str, limit: int = 3):
 
     similarity_results = search(query=query, embedding_matrix=embeddings)
 
-    top_k = max(1, min(limit or 3, 3))
+    # Rispetta il limite richiesto senza cappare a 3
+    top_k = max(1, min(int(limit or 12), len(similarity_results)))
     top_results = similarity_results[:top_k]
 
     response = []
@@ -206,6 +198,17 @@ def search_recipes(query: str, limit: int = 3):
                 meta = dict(metadata[idx])
             except Exception:
                 meta = {}
+
+        # normalizza campi utili al frontend
+        try:
+            if "_id" not in meta and meta.get("shortcode"):
+                meta["_id"] = meta.get("shortcode")
+            images = meta.get("images") or []
+            if not meta.get("image_url") and isinstance(images, list) and images:
+                meta["image_url"] = images[0]
+        except Exception:
+            pass
+
         meta.update({"score": float(score)})
         response.append(meta)
 
@@ -253,6 +256,16 @@ def recalc_embeddings(body: RecalcBody):
 @app.get("/health", status_code=status.HTTP_200_OK)
 def health_check():
     return {"status": "ok"}
+
+@app.get("/{full_path:path}", include_in_schema=False)
+async def spa_fallback(full_path: str):
+    file_path = os.path.join(DIST_DIR, full_path)
+    if os.path.isfile(file_path):
+        return FileResponse(file_path)
+    dist_index = os.path.join(DIST_DIR, "index.html")
+    if os.path.isfile(dist_index):
+        return FileResponse(dist_index)
+    return JSONResponse({"detail": "Risorsa non trovata e frontend non costruito"}, status_code=404)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

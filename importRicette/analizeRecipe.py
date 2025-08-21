@@ -4,12 +4,12 @@ import base64
 import asyncio
 import re
 import json
+import requests
 
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from models import RecipeDBSchema, Ingredient, RecipeResponse
-
 from utility import get_error_context, timeout, logger
+
 from config import openAIclient
 
 # Funzione per convertire il testo in un dizionario
@@ -40,7 +40,7 @@ def read_prompt_files(
     ingredients=None,
     actions=None,
     file_name="",
-):
+ ):
     """
     Legge i file di prompt e sostituisce le variabili con i valori forniti.
 
@@ -145,9 +145,8 @@ async def analyze_recipe_frames(base64Frames):
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
 @timeout(180)  # 3 minuti
-async def extract_recipe_info(
-    recipe_audio_text: str, recipe_caption_text: str, ingredients: any, actions: any
-):
+async def extract_recipe_info( recipe_audio_text: str, recipe_caption_text: str, ingredients: any, actions: any
+ ):
 
     user_prompt, system_prompt = read_prompt_files(
         recipe_audio_text,
@@ -363,7 +362,6 @@ async def extract_recipe_info(
         logger.error(f"OpenAIresponse error: {str(e)}")
         raise e
 
-
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
 @timeout(300)  # 5 minuti di timeout
 async def whisper_speech_recognition(audio_file_path: str, language: str) -> str:
@@ -394,4 +392,123 @@ async def whisper_speech_recognition(audio_file_path: str, language: str) -> str
         logger.error(
             f"Errore durante il riconoscimento vocale: {str(e)} - {error_context}"
         )
+        raise e
+
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
+@timeout(300)  # 5 minuti di timeout
+async def generateRecipeImages(ricetta: dict, video_folder_post: str):
+    # Costruisci un testo robusto per il prompt a partire dai campi di ricetta
+    title = str(ricetta.get("title", ""))
+    description = str(ricetta.get("description", ""))
+    ingredients = ricetta.get("ingredients", [])
+    if isinstance(ingredients, list):
+        ingredient_parts = []
+        for ing in ingredients:
+            if isinstance(ing, dict):
+                name = str(ing.get("name") or "")
+                qt = ing.get("qt")
+                qt_str = str(qt) if qt is not None else ""
+                um = str(ing.get("um") or "")
+                piece = " ".join([x for x in [name, qt_str, um] if x])
+                if piece:
+                    ingredient_parts.append(piece)
+            else:
+                ingredient_parts.append(str(ing))
+        ingredients_text = ", ".join(ingredient_parts)
+    else:
+        ingredients_text = str(ingredients)
+
+    steps = ricetta.get("recipe_step", [])
+    if isinstance(steps, list):
+        steps_text = ". ".join([str(s) for s in steps])
+    else:
+        steps_text = str(steps)
+
+  
+    tipologiaImmagin = [{
+        "type": "copertina",
+        "testo":  " ".join([p for p in [title, description] if p])
+    }]
+    tipologiaImmagin.append({
+        "type": "stepricetta",
+        "testo": " ".join([p for p in [title, steps_text] if p])
+    })
+    tipologiaImmagin.append({
+        "type": "ingredienti",
+        "testo": " ".join([p for p in [title, ingredients] if p])
+    })
+    
+    for img in tipologiaImmagin:
+     prompt_immagine:str = (
+        "Crea immagine per la ricetta di cucina. "
+        "Ecco il testo da cui prendere ispirazione: " + img.testo + ". "
+        "Stile reallistico. Soggetto principale in primo piano, con forti contrasti. "
+        "La palette di colori rispecchia le parole chiave, sfondo semplice. "
+        "Composizione dinamica, basata sul testo, visivamente accattivante, che attiri l'attenzione dell'utente."
+     )
+    
+     try:
+        logger.info(f"try OpenAIclient")
+        
+        OpenAIresponse = await asyncio.to_thread(
+            openAIclient.images.generate,
+            model="gpt-image-1",
+            prompt=prompt_immagine,
+            size="1024x768",
+            quality="high",
+            n=1
+        )
+        
+        logger.info(f" OpenAIresponse: {OpenAIresponse}")
+        # Salva le 3 immagini nella cartella video_folder_post
+        try:
+            os.makedirs(video_folder_post, exist_ok=True)
+            saved_paths = []
+            data_items = []
+            if hasattr(OpenAIresponse, "data"):
+                data_items = getattr(OpenAIresponse, "data") or []
+            elif isinstance(OpenAIresponse, dict) and "data" in OpenAIresponse:
+                data_items = OpenAIresponse.get("data") or []
+
+            if not isinstance(data_items, list) or len(data_items) == 0:
+                raise ValueError("La risposta immagini non contiene alcun elemento in 'data'")
+
+            for idx, item in enumerate(data_items[:3]):
+                image_bytes = None
+                b64_val = None
+                url_val = None
+
+                if hasattr(item, "b64_json"):
+                    b64_val = getattr(item, "b64_json")
+                elif isinstance(item, dict):
+                    b64_val = item.get("b64_json")
+
+                if not b64_val:
+                    if hasattr(item, "url"):
+                        url_val = getattr(item, "url")
+                    elif isinstance(item, dict):
+                        url_val = item.get("url")
+
+                if b64_val:
+                    image_bytes = base64.b64decode(b64_val)
+                elif url_val:
+                    resp = requests.get(url_val, timeout=30)
+                    resp.raise_for_status()
+                    image_bytes = resp.content
+                else:
+                    raise ValueError("Elemento immagine privo di 'b64_json' e 'url'")
+
+                out_path = os.path.join(video_folder_post, f"image_{img['type']}_{idx+1}.jpg")
+                with open(out_path, "wb") as f:
+                    f.write(image_bytes)
+                saved_paths.append(out_path)
+                logger.info(f"Immagine salvata: {out_path}")
+
+            return saved_paths
+        except Exception as e:
+            logger.error(f"Errore durante il salvataggio delle immagini: {str(e)}")
+            raise
+
+     except Exception as e:
+        logger.error(f"OpenAIresponse error: {str(e)}")
         raise e

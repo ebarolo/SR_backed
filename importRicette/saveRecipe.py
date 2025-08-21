@@ -6,15 +6,14 @@ import multiprocessing as mp
 import yt_dlp
 
 from typing import Dict, Any
-from functools import wraps
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from models import RecipeDBSchema
 
-from utility import sanitize_text, sanitize_filename, get_error_context, timeout
-from importRicette.analizeRecipe import extract_recipe_info, whisper_speech_recognition
+from utility import sanitize_text, sanitize_filename, get_error_context, logger 
+from importRicette.analizeRecipe import extract_recipe_info, whisper_speech_recognition, generateRecipeImages
 from importRicette.instaloader import scarica_contenuto_reel, scarica_contenuti_account
-from utility import logger
+
 from config import BASE_FOLDER_RICETTE
 
 mp.set_start_method("spawn", force=True)
@@ -116,16 +115,10 @@ async def process_video(recipe: str):
                 logger.info(f"Informazioni ricetta estratte con successo per shortcode '{shortcode}': titolo='{titolo_estratto}'")
             else:
                 logger.warning(f"Nessuna informazione ricetta estratta per shortcode '{shortcode}' dal testo analizzato.")
-                # Potrebbe essere utile continuare il loop o sollevare un errore specifico
-                # Per ora, continuiamo assumendo che RecipeDBSchema possa gestire un ricetta=None o vuoto
-                # o che la logica a valle lo gestisca. Se ricetta è None, ricetta.model_dump() fallirà.
-                # Questo richiede una gestione più robusta qui o in extract_recipe_info.
-                # Assumendo che extract_recipe_info restituisca un oggetto con campi opzionali o vuoti:
-                # In caso contrario, si dovrebbe sollevare un errore o gestire il None qui.
-                # Se ricetta può essere None, il codice seguente va protetto.
-                # Per ora, lascio che un eventuale errore venga catturato dal blocco except generale.
-                pass # O gestire il caso in cui ricetta sia None
-
+                pass
+            
+            images_recipe = await generateRecipeImages(ricetta, video_folder_post)
+            
             # Convert the RecipeAIResponse object to a RecipeDBSchema object
             ricetta_dict = ricetta if isinstance(ricetta, dict) else (ricetta.model_dump() if ricetta else {})
 
@@ -147,16 +140,9 @@ async def process_video(recipe: str):
             return RecipeDBSchema(**ricetta_dict)
         except Exception as e:
             logger.error(f"Errore durante process_video per shortcode '{shortcode}': {e}", exc_info=True)
-            # Se si vuole continuare con gli altri video, commentare il raise seguente
-            # e forse restituire None o un marcatore di errore.
-            # Altrimenti, l'eccezione si propaga e interrompe il ciclo in main.py o dove viene chiamato process_video.
             raise # Rilancia l'eccezione per interrompere l'elaborazione
     
-    # Se nessun video è stato processato con successo (es. dws era vuoto o tutti hanno fallito e sono stati gestiti con 'continue')
-    # la funzione potrebbe restituire None implicitamente se il loop non esegue mai 'return'. 
-    # È bene essere espliciti. Se process_video deve sempre restituire una RecipeDBSchema o sollevare un errore,
-    # questo punto non dovrebbe essere raggiunto se dws non è vuoto. Se dws è vuoto, si potrebbe sollevare un errore prima.
-    # Se si arriva qui, significa che dws era vuoto o tutti i tentativi sono falliti senza un return o raise esplicito nel loop.
+
     if not dws:
         logger.warning("Nessun dato video fornito a process_video.")
         return None # O sollevare un errore se un risultato è sempre atteso

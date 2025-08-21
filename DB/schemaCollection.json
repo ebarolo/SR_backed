@@ -113,6 +113,12 @@
         },
         "title": {
           "bsonType": "string"
+        },
+        "images": {
+          "bsonType": "array",
+          "items": {
+            "bsonType": "string"
+          }
         }
       }
     }
