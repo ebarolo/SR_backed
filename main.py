@@ -2,6 +2,9 @@ from fastapi import FastAPI, HTTPException, status
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+# Middleware: assegna un request_id a ogni richiesta
+import uuid
+from fastapi import BackgroundTasks, Request
 
 import os
 import uvicorn
@@ -39,10 +42,13 @@ from config import EMBEDDINGS_NPZ_PATH, EMBEDDING_MODEL
 
 Base = declarative_base()
 
+# Directory base e frontend (MVP statico)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DIST_DIR = os.path.join(BASE_DIR, "frontend")
+
 # -------------------------------
 # Schemi Pydantic
 # -------------------------------
-
 class VideoURLs(BaseModel):
     urls: List[HttpUrl]
 
@@ -54,12 +60,13 @@ class VideoURLs(BaseModel):
                 raise ValueError(f"URL non supportato: {v}. Dominio deve essere tra: {', '.join(allowed_domains)}")
         return vs
 
+setup_logging()
+logger = logging.getLogger(__name__)
+
 # -------------------------------
 # Inizializzazione FastAPI e Dependency per il DB
 # -------------------------------
-setup_logging()
-logger = logging.getLogger(__name__)
-app = FastAPI(title="Backend Smart Recipe", version="0.5")
+app = FastAPI(title="Smart Recipe", version="0.7")
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -70,21 +77,12 @@ app.add_middleware(
 )
 
 # Mount mediaRicette directory explicitly to ensure all dynamic subfolders are accessible
-app.mount("/mediaRicette", StaticFiles(directory="static/mediaRicette"), name="mediaRicette")
+app.mount("/mediaRicette", StaticFiles(directory=os.path.join(BASE_DIR, "static", "mediaRicette")), name="mediaRicette")
 # Mount static directory to serve HTML, CSS, JS and other assets
-app.mount("/static", StaticFiles(directory="static", html=True), name="static")
+app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static"), html=True), name="static")
+# Mount frontend MVP so it is reachable at /frontend
+app.mount("/frontend", StaticFiles(directory=os.path.join(BASE_DIR, "frontend"), html=True), name="frontend")
 
-# --- Statici React (build Vite) ---
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DIST_DIR = os.path.join(BASE_DIR, "frontend", "dist")
-ASSETS_DIR = os.path.join(DIST_DIR, "assets")
-# mount degli asset fingerprinted di Vite (JS/CSS/img) solo se esistono
-if os.path.isdir(ASSETS_DIR):
-    app.mount("/assets", StaticFiles(directory=ASSETS_DIR), name="assets")
-
-# Middleware: assegna un request_id a ogni richiesta
-import uuid
-from fastapi import BackgroundTasks, Request
 
 @app.middleware("http")
 async def add_request_id(request: Request, call_next):
@@ -170,9 +168,12 @@ async def index():
         return FileResponse(dist_index)
     if os.path.isfile(static_index):
         return FileResponse(static_index)
-    return JSONResponse({
-        "message": "Frontend non disponibile. Esegui 'npm ci && npm run build' nella cartella 'frontend' per generare la build."
-    })
+    return JSONResponse({"detail": "index.html non trovato"}, status_code=404)
+
+'''
+# -------------------------------
+# OLD Endpoints per ingest delle ricette
+# -------------------------------
 
 @app.post("/recipes/", status_code=status.HTTP_201_CREATED)
 async def insert_recipe(videos: VideoURLs):
@@ -227,22 +228,29 @@ async def insert_recipe(videos: VideoURLs):
         return ["ok"]
     else:
         return urlNoteElaborated
-
-@app.post("/jobs/ingest", response_model=JobStatus, status_code=status.HTTP_202_ACCEPTED)
+'''
+@app.post("/ingest/", response_model=JobStatus, status_code=status.HTTP_202_ACCEPTED)
 async def enqueue_ingest(videos: VideoURLs, background_tasks: BackgroundTasks):
     job_id = str(uuid.uuid4())
     app.state.jobs[job_id] = {"status": "queued"}
     background_tasks.add_task(_ingest_urls_job, job_id, [str(u) for u in videos.urls])
     return JobStatus(job_id=job_id, status="queued")
 
-@app.get("/jobs/{job_id}", response_model=JobStatus)
+@app.get("/ingest/{job_id}", response_model=JobStatus)
 def job_status(job_id: str):
     job = app.state.jobs.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job non trovato")
     return JobStatus(job_id=job_id, status=job.get("status"), detail=job.get("detail"), result=job.get("result"))
 
-@app.get("/ricette/{shortcode}")
+@app.get("/ingest/status")
+def jobs_status():
+    jobs = app.state.jobs.values()
+    if not jobs:
+        raise HTTPException(status_code=404, detail="nessun jobs non trovato")
+    return jobs
+
+@app.get("/recipe/{shortcode}")
 def get_recipe_by_shortcode(shortcode: str):
     """Ritorna i metadati completi della ricetta identificata dallo shortcode.
 

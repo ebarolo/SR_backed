@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ricette - Ricerca (MVP)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      // Tailwind config extension (facoltativo)
+      tailwind.config = {
+        theme: {
+          extend: {
+            boxShadow: {
+              soft: "0 10px 25px -5px rgb(0 0 0 / 0.05), 0 8px 10px -6px rgb(0 0 0 / 0.05)",
+            },
+            keyframes: {
+              float: {
+                "0%, 100%": { transform: "translateY(0)" },
+                "50%": { transform: "translateY(-2px)" },
+              },
+            },
+            animation: {
+              float: "float 4s ease-in-out infinite",
+            },
+          },
+        },
+      };
+    </script>
+
+    <style>
+      /* Utility per clamp senza plugin (fallback ellissi) */
+      .line-clamp-3 {
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      /* Bilanciamento colonne per masonry (migliora distribuzione) */
+      @supports (column-fill: balance) {
+        .columns-balance { column-fill: balance; }
+      }
+    </style>
+  </head>
+  <body class="min-h-screen bg-gray-50 text-gray-800 antialiased">
+    <!-- Header -->
+    <header class="sticky top-0 z-40 w-full bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-gray-100">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex items-center justify-between h-16">
+          <div class="flex items-center gap-2">
+            <div class="h-9 w-9 rounded-xl bg-emerald-500 text-white grid place-items-center shadow-soft">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-5 w-5">
+                <path d="M12 2a7 7 0 0 0-7 7c0 1.6.53 3.08 1.42 4.27A8.99 8.99 0 0 0 3 20a1 1 0 0 0 1.34.94A12.02 12.02 0 0 1 12 20c2.64 0 5.08.85 7.06 2.29A1 1 0 0 0 20 21a8.99 8.99 0 0 0-3.42-6.73A7 7 0 0 0 12 2Z" />
+              </svg>
+            </div>
+            <span class="text-lg font-semibold tracking-tight">Sapori Radar</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <!-- Search / NLP input -->
+      <section aria-labelledby="search-title" class="mb-6 sm:mb-8">
+        <h1 id="search-title" class="sr-only">Cerca ricette</h1>
+        <form id="search-form" class="relative" autocomplete="off">
+          <div class="flex items-stretch gap-2">
+            <div class="relative flex-1">
+              <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-gray-400">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-5 w-5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 1 0 5.25 5.25a7.5 7.5 0 0 0 11.4 11.4Z" />
+                </svg>
+              </span>
+              <input
+                id="query-input"
+                type="search"
+                class="w-full rounded-2xl border border-gray-200 bg-white/90 px-12 py-3 text-[15px] shadow-soft outline-none transition-all focus:border-emerald-400 focus:ring-2 focus:ring-emerald-200"
+                placeholder="Scrivi in naturale: 'cena veloce senza lattosio', 'pasta piccante', 'dolce vegano'..."
+                aria-label="Cerca ricette con linguaggio naturale"
+              />
+            </div>
+            <button type="submit" class="hidden sm:inline-flex items-center gap-2 rounded-2xl bg-emerald-500 px-5 py-3 text-sm font-semibold text-white shadow-soft transition-colors hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-300">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4">
+                <path d="M3.5 12a.75.75 0 0 1 .75-.75h9.69L10.22 7.53a.75.75 0 1 1 1.06-1.06l5.5 5.5a.75.75 0 0 1 0 1.06l-5.5 5.5a.75.75 0 0 1-1.06-1.06l3.72-3.72H4.25A.75.75 0 0 1 3.5 12Z" />
+              </svg>
+              Cerca
+            </button>
+          </div>
+        </form>
+        <p id="result-count" class="mt-3 text-sm text-gray-500">Suggerimenti per iniziare: "pasta veloce", "insalata proteica", "dessert senza glutine"</p>
+      </section>
+
+      <!-- Results masonry -->
+      <section aria-labelledby="results-title">
+        <h2 id="results-title" class="sr-only">Risultati</h2>
+        <div id="results" class="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-6 columns-balance"></div>
+      </section>
+    </main>
+
+    <footer class="py-10 text-center text-sm text-gray-500">
+      Ispirato al layout masonry di CodePen · TailwindCSS
+    </footer>
+
+    <!-- App Script -->
+    <script>
+      // Dataset di esempio (MVP)
+      const RECIPES = [
+        {
+          id: 1,
+          title: "Pasta al Pomodoro Veloce",
+          description: "Classico intramontabile in 15 minuti. Sugo di pomodoro, basilico e un filo d'olio.",
+          categories: ["Pasta", "Veloce", "Vegetariano"],
+          image: "https://images.unsplash.com/photo-1528712306091-ed0763094c98?q=80&w=1200&auto=format&fit=crop",
+        },
+        {
+          id: 2,
+          title: "Insalata di Quinoa Proteica",
+          description: "Quinoa, ceci, avocado e verdure croccanti. Perfetta per un pranzo leggero e completo.",
+          categories: ["Insalata", "Proteico", "Vegano", "Senza Glutine"],
+          image: "https://images.unsplash.com/photo-1540420773420-3366772f4999?q=80&w=1200&auto=format&fit=crop",
+        },
+        {
+          id: 3,
+          title: "Curry di Verdure al Latte di Cocco",
+          description: "Aromatico e delicato, con latte di cocco e spezie. Naturalmente senza lattosio.",
+          categories: ["Curry", "Vegetariano", "Senza Lattosio", "Speziato"],
+          image: "https://images.unsplash.com/photo-1512058564366-18510be2db19?q=80&w=1200&auto=format&fit=crop",
+        },
+        {
+          id: 4,
+          title: "Brownies al Cioccolato Senza Glutine",
+          description: "Fondenti e umidi, realizzati con farina di mandorle. Perfetti per celiaci.",
+          categories: ["Dolci", "Senza Glutine"],
+          image: "https://images.unsplash.com/photo-1606313564200-e75d5e30476e?q=80&w=1200&auto=format&fit=crop",
+        },
+        {
+          id: 5,
+          title: "Zuppa di Lenticchie Speziata",
+          description: "Con cumino e paprika affumicata. Confortante e ricca di proteine vegetali.",
+          categories: ["Zuppa", "Proteico", "Vegano"],
+          image: "https://images.unsplash.com/photo-1512058564366-18510be2db19?q=80&w=1200&auto=format&fit=crop",
+        },
+        {
+          id: 6,
+          title: "Tacos di Pesce con Salsa allo Yogurt",
+          description: "Filetti di pesce speziati, cavolo croccante e salsa fresca allo yogurt.",
+          categories: ["Pesce", "Street Food"],
+          image: "https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=1200&auto=format&fit=crop",
+        },
+        {
+          id: 7,
+          title: "Pancake Integrali con Frutti di Bosco",
+          description: "Soffici, con sciroppo d'acero e frutti di bosco. Opzione senza lattosio disponibile.",
+          categories: ["Colazione", "Dolci", "Senza Lattosio"],
+          image: "https://images.unsplash.com/photo-1495214783159-3503fd1b572d?q=80&w=1200&auto=format&fit=crop",
+        },
+        {
+          id: 8,
+          title: "Pollo al Limone al Forno",
+          description: "Pollo tenero al profumo di limone e rosmarino. Facile, pratico e veloce.",
+          categories: ["Carne", "Forno", "Veloce"],
+          image: "https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=1200&auto=format&fit=crop",
+        },
+        {
+          id: 9,
+          title: "Pasta Piccante all'Arrabbiata",
+          description: "Salsa al pomodoro con peperoncino e aglio. Un classico piccante e saporito.",
+          categories: ["Pasta", "Speziato", "Veloce"],
+          image: "https://images.unsplash.com/photo-1523986371872-9d3ba2e2f642?q=80&w=1200&auto=format&fit=crop",
+        },
+        {
+          id: 10,
+          title: "Gelato Vegano alla Banana (Nice Cream)",
+          description: "Solo banane congelate e un goccio di latte vegetale. Dolce, cremoso e leggero.",
+          categories: ["Dolci", "Vegano", "Senza Lattosio"],
+          image: "https://images.unsplash.com/photo-1551024709-8f23befc6cf7?q=80&w=1200&auto=format&fit=crop",
+        },
+      ];
+
+      // Mappatura categorie -> classi colore Tailwind
+      const CATEGORY_COLOR = {
+        Pasta: { bg: "bg-amber-50", text: "text-amber-700", ring: "ring-amber-100" },
+        Veloce: { bg: "bg-emerald-50", text: "text-emerald-700", ring: "ring-emerald-100" },
+        Vegetariano: { bg: "bg-lime-50", text: "text-lime-700", ring: "ring-lime-100" },
+        Vegano: { bg: "bg-green-50", text: "text-green-700", ring: "ring-green-100" },
+        "Senza Glutine": { bg: "bg-sky-50", text: "text-sky-700", ring: "ring-sky-100" },
+        "Senza Lattosio": { bg: "bg-cyan-50", text: "text-cyan-700", ring: "ring-cyan-100" },
+        Proteico: { bg: "bg-purple-50", text: "text-purple-700", ring: "ring-purple-100" },
+        Speziato: { bg: "bg-rose-50", text: "text-rose-700", ring: "ring-rose-100" },
+        Dolci: { bg: "bg-pink-50", text: "text-pink-700", ring: "ring-pink-100" },
+        Curry: { bg: "bg-orange-50", text: "text-orange-700", ring: "ring-orange-100" },
+        Zuppa: { bg: "bg-blue-50", text: "text-blue-700", ring: "ring-blue-100" },
+        Pesce: { bg: "bg-teal-50", text: "text-teal-700", ring: "ring-teal-100" },
+        "Street Food": { bg: "bg-stone-100", text: "text-stone-700", ring: "ring-stone-200" },
+        Colazione: { bg: "bg-yellow-50", text: "text-yellow-700", ring: "ring-yellow-100" },
+        Carne: { bg: "bg-red-50", text: "text-red-700", ring: "ring-red-100" },
+        Forno: { bg: "bg-amber-50", text: "text-amber-700", ring: "ring-amber-100" },
+      };
+
+      // Sinonomi molto basilari per simulare "NLP" (MVP)
+      const SYNONYMS = {
+        veloce: ["rapido", "express", "quick"],
+        piccante: ["speziato", "hot", "arrabbiata", "peperoncino"],
+        proteico: ["proteinico", "ricco di proteine"],
+        vegano: ["vegan"],
+        vegetariano: ["veggie"],
+        dolce: ["dessert", "dolci"],
+        "senza glutine": ["gluten free", "gluten-free", "celiaco", "sg"],
+        "senza lattosio": ["lactose free", "lactose-free", "senza latte"],
+        pasta: ["spaghetti", "penne", "fusilli"],
+      };
+
+      function normalizeText(text) {
+        return (text || "")
+          .toString()
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-z0-9\s]/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+      }
+
+      function expandQueryTokens(query) {
+        const base = normalizeText(query);
+        if (!base) return [];
+        const tokens = new Set(base.split(" "));
+
+        // Espansione sinonimi grezza
+        for (const token of Array.from(tokens)) {
+          for (const [key, values] of Object.entries(SYNONYMS)) {
+            const keyNorm = normalizeText(key);
+            if (token === keyNorm) {
+              values.forEach((v) => tokens.add(normalizeText(v)));
+            }
+          }
+        }
+        return Array.from(tokens).filter(Boolean);
+      }
+
+      function computeScore(recipe, tokens) {
+        if (!tokens.length) return 0;
+        const haystack = normalizeText(
+          [recipe.title, recipe.description, (recipe.categories || []).join(" ")].join(" ")
+        );
+        let score = 0;
+        for (const t of tokens) {
+          if (!t) continue;
+          const re = new RegExp(`(?<![a-z0-9])${t}(?![a-z0-9])`, "g");
+          const matches = haystack.match(re);
+          if (matches) score += matches.length;
+        }
+        return score;
+      }
+
+      function renderRecipes(recipes) {
+        const container = document.getElementById("results");
+        container.innerHTML = "";
+
+        const fragment = document.createDocumentFragment();
+        for (const r of recipes) {
+          const card = document.createElement("article");
+          card.className = [
+            "group",
+            "mb-6",
+            "break-inside-avoid",
+            "overflow-hidden",
+            "rounded-2xl",
+            "bg-white",
+            "shadow-md",
+            "ring-1 ring-black/5",
+            "transition-all duration-300",
+            "hover:-translate-y-1 hover:shadow-xl",
+          ].join(" ");
+
+          // Image wrapper
+          const figure = document.createElement("figure");
+          figure.className = "relative aspect-[4/3] overflow-hidden";
+          const img = document.createElement("img");
+          img.src = r.image;
+          img.alt = r.title;
+          img.loading = "lazy";
+          img.className = "h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105";
+          const overlay = document.createElement("div");
+          overlay.className = "pointer-events-none absolute inset-0 bg-gradient-to-b from-black/0 via-black/0 to-black/10";
+          figure.appendChild(img);
+          figure.appendChild(overlay);
+
+          // Body
+          const body = document.createElement("div");
+          body.className = "p-4";
+          const h3 = document.createElement("h3");
+          h3.className = "text-base font-semibold text-gray-900";
+          h3.textContent = r.title;
+          const p = document.createElement("p");
+          p.className = "mt-2 text-sm text-gray-600 line-clamp-3";
+          p.textContent = r.description;
+
+          // Chips
+          const chips = document.createElement("div");
+          chips.className = "mt-3 flex flex-wrap gap-2";
+          (r.categories || []).forEach((c) => {
+            const color = CATEGORY_COLOR[c] || { bg: "bg-gray-100", text: "text-gray-700", ring: "ring-gray-200" };
+            const chip = document.createElement("span");
+            chip.className = [
+              "inline-flex items-center gap-1",
+              "rounded-full px-2.5 py-1 text-xs font-medium",
+              color.bg,
+              color.text,
+              "ring-1",
+              color.ring,
+              "transition-colors",
+              "group-hover:brightness-105",
+            ].join(" ");
+            chip.textContent = c;
+            chips.appendChild(chip);
+          });
+
+          body.appendChild(h3);
+          body.appendChild(p);
+          body.appendChild(chips);
+
+          card.appendChild(figure);
+          card.appendChild(body);
+          fragment.appendChild(card);
+        }
+
+        container.appendChild(fragment);
+      }
+
+      function updateCount(n) {
+        const el = document.getElementById("result-count");
+        el.textContent = n === RECIPES.length
+          ? `Mostro ${n} ricette popolari`
+          : n === 0
+          ? "Nessun risultato. Prova con: 'pasta veloce', 'vegano', 'senza lattosio'"
+          : `Trovate ${n} ricette`;
+      }
+
+      function searchAndRender(query) {
+        const tokens = expandQueryTokens(query);
+        if (!tokens.length) {
+          renderRecipes(RECIPES);
+          updateCount(RECIPES.length);
+          return;
+        }
+        const scored = RECIPES.map((r) => ({ r, s: computeScore(r, tokens) }))
+          .filter((x) => x.s > 0)
+          .sort((a, b) => b.s - a.s)
+          .map((x) => x.r);
+        renderRecipes(scored);
+        updateCount(scored.length);
+      }
+
+      // Init
+      document.addEventListener("DOMContentLoaded", () => {
+        renderRecipes(RECIPES);
+        updateCount(RECIPES.length);
+
+        const form = document.getElementById("search-form");
+        const input = document.getElementById("query-input");
+
+        form.addEventListener("submit", (e) => {
+          e.preventDefault();
+          searchAndRender(input.value);
+        });
+        input.addEventListener("input", () => {
+          searchAndRender(input.value);
+        });
+      });
+    </script>
+  </body>
+  </html>
+
+
