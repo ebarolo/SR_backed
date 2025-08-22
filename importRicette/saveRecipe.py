@@ -105,10 +105,12 @@ async def process_video(recipe: str, progress_cb: Optional[Callable[[Dict[str, A
             _emit_progress("download", 25.0)
 
     for dw in dws:
+        print(f"dw: {dw}")
         shortcode = dw.get("shortcode", "SHORTCODE_NON_TROVATO") # Default per logging
         try:
-            logger.info(f"Inizio elaborazione per shortcode: {shortcode}, URL video: {dw.get('url_video', 'URL_NON_TROVATO')}")
-            captionSanit = sanitize_text(dw["caption"])
+            logger.info(f"Inizio elaborazione per shortcode: {shortcode}")
+           
+            captionSanit = sanitize_text(dw.get("caption", "caption NON_TROVATO")) # Default per logging
 
             video_folder_post = os.path.join(BASE_FOLDER_RICETTE, shortcode, "media_original")
             logger.info(f"Cartella video per shortcode '{shortcode}': {video_folder_post}")
@@ -164,10 +166,18 @@ async def process_video(recipe: str, progress_cb: Optional[Callable[[Dict[str, A
                 logger.warning(f"Nessuna informazione ricetta estratta per shortcode '{shortcode}' dal testo analizzato.")
                 pass
             
-            #images_recipe = await generateRecipeImages(ricetta, shortcode)
-            images_recipe = []
-            # Convert the RecipeAIResponse object to a RecipeDBSchema object
+            # Normalizza la ricetta in un dict per uso successivo
             ricetta_dict = ricetta if isinstance(ricetta, dict) else (ricetta.model_dump() if ricetta else {})
+
+            images_recipe = await generateRecipeImages(ricetta_dict, shortcode)
+            #images_recipe = []
+            if images_recipe:
+                ricetta_dict["images"] = images_recipe
+                if not ricetta_dict.get("image_url"):
+                    ricetta_dict["image_url"] = images_recipe[0]
+
+            # Convert the RecipeAIResponse object to a RecipeDBSchema object
+            
 
             # Keep ingredients and recipe_step as lists
             ricetta_dict["ingredients"] = ricetta_dict.get("ingredients", [])

@@ -2,6 +2,9 @@ from fastapi import FastAPI, HTTPException, status
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+
+from utility import clean_text
+
 # Middleware: assegna un request_id a ogni richiesta
 import uuid
 from fastapi import BackgroundTasks, Request
@@ -23,15 +26,16 @@ from importRicette.saveRecipe import process_video
 from utility import get_error_context, clean_text, ensure_text_within_token_limit
 from logging_config import setup_logging
 from logging_config import request_id_var, job_id_var
-from DB.rag_system import (
-    index_database,
-    search,
-    load_embeddings_with_metadata_cached,
-    set_rag_model,
-    get_current_rag_model_name,
-    recalculate_embeddings_from_npz,
-    load_npz_info,
-)
+#from DB.rag_system import (
+#    index_database,
+#    search,
+#    load_embeddings_with_metadata_cached,
+#    set_rag_model,
+#    get_current_rag_model_name,
+#    recalculate_embeddings_from_npz,
+#    load_npz_info,
+#)
+from DB.chromaDB import ingest_json_to_chroma
 
 #from DB.mongoDB import get_mongo_collection, get_db
 #from DB.embedding import get_embedding
@@ -137,8 +141,9 @@ async def on_startup():
     try:
         # Forza caricamento cache se file presente
         if os.path.exists(EMBEDDINGS_NPZ_PATH):
-            _E, _M, _I = load_embeddings_with_metadata_cached(EMBEDDINGS_NPZ_PATH)
-            logger.info(f"Embeddings preload: vettori={_E.shape if _E is not None else None}")
+            #_E, _M, _I = load_embeddings_with_metadata_cached(EMBEDDINGS_NPZ_PATH)
+            #logger.info(f"Embeddings preload: vettori={_E.shape if _E is not None else None}")
+            pass
     except Exception as e:
         logger.warning(f"Startup preload embeddings fallito: {e}")
 
@@ -187,7 +192,7 @@ def _ingest_urls_job(job_id: str, urls: List[str]):
 
     async def _runner():
         from importRicette.saveRecipe import process_video
-        texts_for_embedding = []
+        #texts_for_embedding = []
         metadatas = []
         success = 0
         failed = 0
@@ -228,21 +233,20 @@ def _ingest_urls_job(job_id: str, urls: List[str]):
                     progress["percentage"] = _recalc_job_percentage()
                     continue
 
-                from utility import clean_text, ensure_text_within_token_limit
                 title_clean = clean_text(recipe_data.title)
                 category_clean = ' '.join([clean_text(cat) for cat in recipe_data.category])
                 steps_clean = ' '.join([clean_text(step) for step in recipe_data.recipe_step])
                 ingredients_clean = ' '.join([clean_text(ing.name) for ing in recipe_data.ingredients])
-                text_for_embedding = f"{title_clean}. {recipe_data.description}. {category_clean}. {ingredients_clean}. {steps_clean}"
-                text_for_embedding = ensure_text_within_token_limit(text_for_embedding)
-                texts_for_embedding.append(text_for_embedding)
+                #text_for_embedding = f"{title_clean}. {recipe_data.description}. {category_clean}. {ingredients_clean}. {steps_clean}"
+                #text_for_embedding = ensure_text_within_token_limit(text_for_embedding)
+                #texts_for_embedding.append(text_for_embedding)
                 metadatas.append(recipe_data)
 
                 success += 1
                 if 0 <= idx0 < len(progress.get("urls", [])):
-                    progress["urls"][idx0].update({"status": "success", "stage": "done", "local_percent": 100.0})
-                progress["success"] = success
-                progress["percentage"] = _recalc_job_percentage()
+                 progress["urls"][idx0].update({"status": "success", "stage": "done", "local_percent": 100.0})
+                 progress["success"] = success
+                 progress["percentage"] = _recalc_job_percentage()
             except Exception:
                 failed += 1
                 if 0 <= idx0 < len(progress.get("urls", [])):
@@ -254,20 +258,22 @@ def _ingest_urls_job(job_id: str, urls: List[str]):
                 progress["percentage"] = _recalc_job_percentage()
                 continue
 
-        if texts_for_embedding:
+        if metadatas:
             # Fase di indicizzazione
             progress["stage"] = "indexing"
             progress["percentage"] = max(float(progress.get("percentage") or 0.0), 95.0)
-            index_database(texts_for_embedding, metadata=metadatas, append=True)
-
+            #index_database(texts_for_embedding, metadata=metadatas, append=True)
+            n, coll = ingest_json_to_chroma(metadatas, collection_name="smartRecipe")
+            print(f"Inseriti {n} record nella collection '{coll}'.")
+            
         # Completa job
         job_entry["result"] = {
-            "indexed": len(texts_for_embedding),
+            "indexed": len(metadatas),
             "total_urls": total,
             "success": success,
             "failed": failed,
         }
-        if len(texts_for_embedding) > 0:
+        if len(metadatas) > 0:
             job_entry["status"] = "completed"
         else:
             job_entry["status"] = "failed"
@@ -426,7 +432,9 @@ def get_recipe_by_shortcode(shortcode: str):
     dove ogni ricetta è stata salvata come JSON serializzato.
     """
     try:
-        _, metadata, _ = load_embeddings_with_metadata_cached(EMBEDDINGS_NPZ_PATH)
+        #_, metadata, _ = load_embeddings_with_metadata_cached(EMBEDDINGS_NPZ_PATH)
+        metadata = []
+        pass
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Errore nel caricamento degli embeddings: {str(e)}")
 
@@ -452,7 +460,10 @@ def get_recipe_by_shortcode(shortcode: str):
 @app.get("/search/")
 def search_recipes(query: str, limit: int = 12):
     try:
-        embeddings, metadata, _ = load_embeddings_with_metadata_cached(EMBEDDINGS_NPZ_PATH)
+        #embeddings, metadata, _ = load_embeddings_with_metadata_cached(EMBEDDINGS_NPZ_PATH)
+        embeddings = []
+        metadata = []
+        pass
     except Exception as e:
         logger.error("Embeddings load failed", extra={"error": str(e)}, exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Errore nel caricamento degli embeddings")
@@ -463,7 +474,9 @@ def search_recipes(query: str, limit: int = 12):
     
     try:
         k = max(1, min(int(limit or 12), len(embeddings) if embeddings is not None else 1))
-        similarity_results = search(query=query, embedding_matrix=embeddings, top_k=k)
+        #similarity_results = search(query=query, embedding_matrix=embeddings, top_k=k)
+        similarity_results = []
+        pass
     except Exception as e:
         logger.error("Search failed", extra={"query": query, "error": str(e)}, exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Errore in ricerca semantica")
@@ -506,11 +519,12 @@ class SetModelBody(BaseModel):
 
 @app.get("/embeddings/info")
 def embeddings_info():
-    return load_npz_info(EMBEDDINGS_NPZ_PATH)
+    return #load_npz_info(EMBEDDINGS_NPZ_PATH)
 
 @app.post("/embeddings/model")
 def change_embedding_model(body: SetModelBody):
-    new_name = set_rag_model(body.model_name)
+    #new_name = #set_rag_model(body.model_name)
+    new_name = ""
     return {"status": "ok", "model": new_name}
 
 class RecalcBody(BaseModel):
@@ -519,17 +533,17 @@ class RecalcBody(BaseModel):
 
 @app.post("/embeddings/recalculate")
 def recalc_embeddings(body: RecalcBody):
-    E, meta, info = recalculate_embeddings_from_npz(
-        npz_path=EMBEDDINGS_NPZ_PATH,
-        model_name=body.model_name,
-        out_path=body.out_path or EMBEDDINGS_NPZ_PATH,
-    )
+    #E, meta, info = recalculate_embeddings_from_npz(
+    #    npz_path=EMBEDDINGS_NPZ_PATH,
+    #    model_name=body.model_name,
+    #    out_path=body.out_path or EMBEDDINGS_NPZ_PATH,
+    #)
     return {
         "status": "ok",
-        "num_vectors": int(E.shape[0]),
-        "dim": int(E.shape[1] if E.size else 0),
-        "model": get_current_rag_model_name(),
-        "out_path": body.out_path or EMBEDDINGS_NPZ_PATH,
+        #"num_vectors": int(E.shape[0]),
+        #"dim": int(E.shape[1] if E.size else 0),
+        #"model": get_current_rag_model_name(),
+        #"out_path": body.out_path or EMBEDDINGS_NPZ_PATH,
     }
     
 # -------------------------------

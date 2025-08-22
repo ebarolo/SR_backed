@@ -271,12 +271,14 @@ async def generateRecipeImages(ricetta: dict, shortcode: str):
         steps_text = ". ".join([str(s) for s in steps])
     else:
         steps_text = str(steps)
-
+        
+    tipologiaImmagin = []
+    '''
     tipologiaImmagin = [{
         "type": "copertina",
         "testo":  " ".join([p for p in [title, description] if p])
     }]
-    '''
+    
     tipologiaImmagin.append({
         "type": "stepricetta",
         "testo": " ".join([p for p in [title, steps_text] if p])
@@ -304,6 +306,7 @@ async def generateRecipeImages(ricetta: dict, shortcode: str):
             model=OPENAI_IMAGE_MODEL,
             prompt=image_prompt,
             size="1536x1024",
+            output_format="jpeg",
             quality="high",
             n=1
         )
