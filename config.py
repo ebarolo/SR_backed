@@ -41,3 +41,12 @@ EMBEDDINGS_NPZ_PATH = os.getenv(
     "EMBEDDINGS_NPZ_PATH",
     os.path.join(os.getcwd(), "static/recipeEmbeddings.npz")
 )
+
+# -------------------------------
+# Configurazione ChromaDB
+# -------------------------------
+# Forza l'uso della versione locale di ChromaDB invece di Chroma Cloud
+USE_LOCAL_CHROMA = os.getenv("USE_LOCAL_CHROMA", "true").lower() in ("true", "1", "yes")
+
+# Percorso per il database ChromaDB locale (se None, usa in-memory)
+CHROMA_LOCAL_PATH = os.getenv("CHROMA_LOCAL_PATH", os.path.join(os.getcwd(), "chroma_db"))

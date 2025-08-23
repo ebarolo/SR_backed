@@ -263,8 +263,16 @@ def _ingest_urls_job(job_id: str, urls: List[str]):
             progress["stage"] = "indexing"
             progress["percentage"] = max(float(progress.get("percentage") or 0.0), 95.0)
             #index_database(texts_for_embedding, metadata=metadatas, append=True)
-            n, coll = ingest_json_to_chroma(metadatas, collection_name="smartRecipe")
-            print(f"Inseriti {n} record nella collection '{coll}'.")
+            filename = f"metadatas_{job_id}.json"
+            
+            try:
+                with open(filename, 'w', encoding='utf-8') as f:
+                 json.dump(metadatas, f, indent=2, ensure_ascii=False, default=str)
+            except Exception as e:
+                logger.error(f"Errore durante la scrittura del file JSON: {str(e)}")
+                raise
+        n, coll = ingest_json_to_chroma(metadatas, collection_name="smartRecipe")
+        print(f"Inseriti {n} record nella collection '{coll}'.")
             
         # Completa job
         job_entry["result"] = {
@@ -375,7 +383,7 @@ async def insert_recipe(videos: VideoURLs):
     else:
         return urlNoteElaborated
 '''
-@app.post("/ingest/", response_model=JobStatus, status_code=status.HTTP_202_ACCEPTED)
+@app.post("/ingest/recipes", response_model=JobStatus, status_code=status.HTTP_202_ACCEPTED)
 async def enqueue_ingest(videos: VideoURLs, background_tasks: BackgroundTasks):
     job_id = str(uuid.uuid4())
     url_list = [str(u) for u in videos.urls]
@@ -398,14 +406,6 @@ async def enqueue_ingest(videos: VideoURLs, background_tasks: BackgroundTasks):
     background_tasks.add_task(_ingest_urls_job, job_id, url_list)
     return JobStatus(job_id=job_id, status="queued", progress_percent=0.0, progress=app.state.jobs[job_id]["progress"])
 
-@app.get("/ingest/{job_id}", response_model=JobStatus)
-def job_status(job_id: str):
-    job = app.state.jobs.get(job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job non trovato")
-    progress = job.get("progress") or {}
-    return JobStatus(job_id=job_id, status=job.get("status"), detail=job.get("detail"), result=job.get("result"), progress_percent=progress.get("percentage"), progress=progress)
-
 @app.get("/ingest/status")
 def jobs_status():
     jobs_dict = app.state.jobs
@@ -423,6 +423,14 @@ def jobs_status():
             "detail": job.get("detail"),
         })
     return out
+
+@app.get("/ingest/status/{job_id}", response_model=JobStatus)
+def job_status(job_id: str):
+    job = app.state.jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job non trovato")
+    progress = job.get("progress") or {}
+    return JobStatus(job_id=job_id, status=job.get("status"), detail=job.get("detail"), result=job.get("result"), progress_percent=progress.get("percentage"), progress=progress)
 
 @app.get("/recipe/{shortcode}")
 def get_recipe_by_shortcode(shortcode: str):
