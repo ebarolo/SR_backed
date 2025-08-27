@@ -1,14 +1,9 @@
 import re
 import os
-from datetime import datetime
 import logging
-import random
 import traceback
 import asyncio
 from functools import wraps
-from typing import List
-from nltk.corpus import stopwords
-from nltk.tokenize import word_tokenize
 from transformers import AutoTokenizer
 
 from config import BASE_FOLDER_RICETTE, EMBEDDING_MODEL
@@ -33,73 +28,9 @@ def sanitize_folder_name(folder_name: str) -> str:
     # Sostituisce i caratteri non validi con un carattere di sottolineatura
     return re.sub(r'[<>:"/\\|?*]', '_', folder_name)
 
-def is_number(value):
-    """Verifica se il valore è un numero."""
-    try:
-        float(str(value))
-        return True
-    except (ValueError, TypeError):
-        return False
-    
-def create_date_folder() -> str:
-    """Crea una cartella con la data odierna se non esiste già."""
-    today = datetime.now().strftime("%Y-%m-%d")
-    date_folder = os.path.join(BASE_FOLDER_RICETTE, today)
-    os.makedirs(date_folder, exist_ok=True)
-    return date_folder
 
-def rename_files(video_folder,file_name:str):
-    # Check if the folder exists
-    if not os.path.exists(video_folder):
-        error_context = get_error_context()
-        logger.error(f"Cannot rename files: folder {video_folder} does not exist - {error_context}")
-        return ""
-        
-    # Rinominare tutti i file nella cartella video_folder_new mantenendo l'estensione originale
-    try:
-        for filename in os.listdir(video_folder):
-            old_file_path = os.path.join(video_folder, filename)
-            name, ext = os.path.splitext(filename)  # Separare nome ed estensione
-            new_file_path = os.path.join(video_folder, f"{file_name}{ext}")
-            os.rename(old_file_path, new_file_path)
-        return ""
-    except Exception as e:
-        error_context = get_error_context()
-        logger.error(f"Error renaming files in {video_folder}: {e} - {error_context}")
-        return ""
 
-def rename_folder(percorso_vecchio: str, nuovo_nome: str) -> bool:
-    """
-    Rinomina una cartella in modo sicuro.
-    
-    Args:
-        percorso_vecchio: Percorso completo della cartella da rinominare
-        nuovo_nome: Nuovo nome della cartella
-        
-    Returns:
-        bool: True se il rinominamento è avvenuto con successo, False altrimenti
-    """
-    try:
-        if not os.path.exists(percorso_vecchio):
-            error_context = get_error_context()
-            logger.error(f"La cartella {percorso_vecchio} non esiste - {error_context}")
-            return percorso_vecchio
-            
-        cartella_base = os.path.dirname(percorso_vecchio)
-        percorso_nuovo = os.path.join(cartella_base, nuovo_nome)
-        
-        if os.path.exists(percorso_nuovo):
-            error_context = get_error_context()
-            logger.error(f"Esiste già una cartella chiamata {nuovo_nome} - {error_context}")
-            percorso_nuovo = percorso_nuovo+"_"+str(random.randint(0,100)) 
-        os.rename(percorso_vecchio, percorso_nuovo)
-        logger.info(f"Cartella rinominata da {percorso_vecchio} a {percorso_nuovo}")
-        return percorso_nuovo
-        
-    except OSError as e:
-        error_context = get_error_context()
-        logger.error(f"Errore durante il rinominamento della cartella: {e} - {error_context}")
-        return percorso_vecchio
+
 
 def get_error_context():
     """Get the current file, line number and function name where the error occurred"""
@@ -122,31 +53,7 @@ def timeout(seconds):
         return wrapper
     return decorator
  
-def parse_ingredients(ingredients_str: str) -> List[str]:
-    """Converte la stringa di ingredienti in lista"""
-    if not ingredients_str:
-        return []
-    return [ing.strip() for ing in ingredients_str.split(",")]
 
-# Funzione per pulire il testo
-def clean_text(text):
-    # Converti in minuscolo e rimuovi caratteri speciali
-    text = re.sub(r'[^\w\s]', ' ', (text or '').lower())
-    # Tokenizza e rimuovi stop words con fallback se risorse NLTK mancano
-    try:
-        tokens = word_tokenize(text)
-        try:
-            stop_words = set(stopwords.words('italian'))
-        except LookupError:
-            # Fallback: lista minima di stopwords italiane
-            stop_words = { 'e', 'ed', 'di', 'a', 'da', 'in', 'con', 'su', 'per', 'tra', 'fra', 'il', 'lo', 'la', 'i', 'gli', 'le', 'un', 'uno', 'una', 'che', 'del', 'della', 'dei', 'delle' }
-        filtered_tokens = [word for word in tokens if word not in stop_words]
-        return ' '.join(filtered_tokens)
-    except LookupError:
-        # Se manca anche il tokenizer, fallback basato su split semplice
-        tokens = (text or '').split()
-        filtered_tokens = tokens
-        return ' '.join(filtered_tokens)
 
 def _get_embedding_tokenizer_and_max(model_name: str):
     cached = _tokenizer_cache.get(model_name)

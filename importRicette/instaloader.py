@@ -3,7 +3,7 @@ import instaloader
 from typing import Dict, Any
 
 from utility import sanitize_folder_name, logger
-from config import ISTA_USERNAME, ISTA_PASSWORD
+from config import ISTA_USERNAME, ISTA_PASSWORD, BASE_FOLDER_RICETTE
 
 def get_instaloader():
     L = instaloader.Instaloader(
@@ -16,7 +16,7 @@ def get_instaloader():
         sanitize_paths=True,
         post_metadata_txt_pattern="",  # Disable metadata txt files
         dirname_pattern=os.path.join(
-            os.getcwd(), "static", "mediaRicette", "{shortcode}"
+            BASE_FOLDER_RICETTE, "{shortcode}"
         ),
         filename_pattern="{shortcode}",
     )
@@ -72,7 +72,7 @@ async def scarica_contenuto_reel(url: str) -> Dict[str, Any]:
         logger.info(f"Extracted shortcode: {shortcode}")
         # Create a folder named after the shortcode inside static/mediaRicette
         shortcode_folder = os.path.join(
-            os.getcwd(), "static", "mediaRicette", shortcode
+            BASE_FOLDER_RICETTE, shortcode
         )
         
         # Check if the folder already exists and contains files
@@ -95,9 +95,7 @@ async def scarica_contenuto_reel(url: str) -> Dict[str, Any]:
                 post = instaloader.Post.from_shortcode(L.context, shortcode)
             except instaloader.exceptions.InstaloaderException as e:
                 logger.error(f"Error fetching post with shortcode {shortcode}: {str(e)}")
-                # Restituisci un dizionario di errore o solleva un'eccezione personalizzata
-                # a seconda di come vuoi gestire l'errore a livello superiore.
-                # Qui, restituisco un dizionario simile a quello di successo ma con un errore.
+                
                 return [{ # Manteniamo la struttura a lista come nel caso di successo
                     "error": f"Errore durante il recupero del post con shortcode {shortcode}: {str(e)}",
                     "shortcode": shortcode
@@ -108,9 +106,6 @@ async def scarica_contenuto_reel(url: str) -> Dict[str, Any]:
                     "error": f"Errore inaspettato durante il recupero del post con shortcode {shortcode}: {str(e)}",
                     "shortcode": shortcode,
                 }]
-
-            # Log post attributes for debugging
-            logger.info(f"Post title: {post.title}")
 
             # Dump all available post attributes
             post_attributes = {}
@@ -127,8 +122,8 @@ async def scarica_contenuto_reel(url: str) -> Dict[str, Any]:
                         post_attributes[attr] = f"Error accessing attribute: {str(e)}"
 
             logger.info(f"Post attributes: {post_attributes}")
+            
             # Download the post
-           
             L.download_post(post, downloadFolder)
 
             res = {
@@ -137,7 +132,6 @@ async def scarica_contenuto_reel(url: str) -> Dict[str, Any]:
                 "caption": post.caption if post.caption else "",
             }
 
-            logger.info(f"Download completato per {url}")
             result.append(res)
             return result
 

@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Ricette – Ricerca (Warm)</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50:  '#FFF4EC',
+              100: '#FFE6D6',
+              200: '#FFC8AE',
+              300: '#FFAA85',
+              400: '#FF8B5C',
+              500: '#FF6B3D',
+              600: '#E0552F',
+              700: '#BE4627',
+              800: '#9C3A21',
+              900: '#6B2716',
+            }
+          },
+          boxShadow: {
+            card: '0 8px 22px rgba(0,0,0,.10), 0 2px 8px rgba(0,0,0,.06)',
+            cardHover: '0 22px 48px rgba(0,0,0,.18), 0 6px 16px rgba(0,0,0,.10)'
+          }
+        }
+      }
+    }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"></script>
+  <style>
+    .avoid-break { break-inside: avoid; }
+    .clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .smooth { transition: all .25s ease; }
+    .glass { background: rgba(255,255,255,.85); backdrop-filter: saturate(130%) blur(4px); }
+  </style>
+
+</head>
+<body class="bg-gradient-to-b from-orange-50 via-amber-50 to-rose-50 text-neutral-900 antialiased">
+  <header class="sticky top-0 z-30 backdrop-blur bg-white/70 border-b border-neutral-200">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-4 flex items-center gap-4">
+      <div class="flex items-center gap-3">
+        <div class="h-10 w-10 rounded-2xl bg-brand-500 flex items-center justify-center text-white font-semibold">R</div>
+        <div>
+          <h1 class="text-xl font-semibold tracking-tight">Cerca ricette</h1>
+          <p class="text-sm text-neutral-500">ChromaDB + BGE-M3 · Palette calde</p>
+        </div>
+      </div>
+      <div class="ml-auto flex items-center gap-2">
+        <button id="btnClear" class="px-3 py-2 rounded-full text-sm bg-neutral-100 hover:bg-neutral-200 smooth">Azzera</button>
+        <button id="btnRandom" class="px-3 py-2 rounded-full text-sm bg-brand-500 text-white hover:bg-brand-600 smooth">Mi ispira ✨</button>
+      </div>
+    </div>
+  </header>
+
+  <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-6">
+    <div class="rounded-3xl shadow-card bg-white p-4 sm:p-5 smooth">
+      <div class="flex items-center gap-3">
+        <div class="hidden sm:flex h-11 w-11 rounded-2xl bg-brand-50 text-brand-700 items-center justify-center">🔎</div>
+        <div class="flex-1">
+          <label for="q" class="sr-only">Cerca</label>
+          <input id="q" type="text" autocomplete="off"
+            placeholder="Es. primo veloce <20 con pomodoro, dolce senza cottura, zuppa vegana con ceci…"
+            class="w-full h-12 sm:h-14 px-4 sm:px-6 rounded-2xl bg-neutral-50 border border-neutral-200 focus:border-brand-400 focus:ring-4 focus:ring-brand-100 outline-none text-base sm:text-lg smooth" />
+        </div>
+        <button id="btnSearch"
+          class="h-12 sm:h-14 px-5 rounded-2xl bg-brand-500 text-white text-sm sm:text-base font-medium hover:bg-brand-600 smooth">
+          Cerca
+        </button>
+      </div>
+      <div id="chips" class="mt-4 flex flex-wrap gap-2"></div>
+      <div class="mt-3 text-sm text-neutral-500">
+        Suggerimenti: 
+        <button class="underline hover:text-neutral-700 smooth" onclick="preset('primi veloci <20 senza lattosio')">primi veloci &lt;20</button> ·
+        <button class="underline hover:text-neutral-700 smooth" onclick="preset('dolce senza cottura con fragole')">dolce senza cottura</button> ·
+        <button class="underline hover:text-neutral-700 smooth" onclick="preset('zuppa vegana con ceci <40')">zuppa vegana con ceci</button>
+      </div>
+    </div>
+  </section>
+
+  <main class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-16">
+    <div id="stats" class="mb-4 text-sm text-neutral-500"></div>
+    <div id="grid" class="columns-1 sm:columns-2 lg:columns-3 gap-6"></div>
+    <div id="empty" class="hidden rounded-3xl border border-dashed border-neutral-300 p-10 text-center bg-white">
+      <div class="mx-auto w-16 h-16 rounded-2xl bg-neutral-100 flex items-center justify-center text-2xl">🥄</div>
+      <h3 class="mt-4 text-lg font-semibold">Nessun risultato</h3>
+      <p class="mt-1 text-neutral-500">Prova a rimuovere qualche filtro o usa termini più generici.</p>
+    </div>
+  </main>
+
+  <script>
+    const ricette = [
+      { id:'r1', titolo:'Pasta al pomodoro veloce', descrizione:'Un classico italiano in 20 minuti, con salsa di pomodoro, basilico e un tocco di olio EVO.', immagine:'https://images.unsplash.com/photo-1521389508051-d7ffb5dc8bbf?q=80&w=1600&auto=format&fit=crop', categoria:'Primo', tempoCottura:20, tipologia:['vegetariano'], ingredienti:['pasta','pomodoro','basilico','olio','sale'] },
+      { id:'r2', titolo:'Cheesecake senza cottura', descrizione:'Dolce fresco e cremoso con base di biscotti, perfetto per l’estate.', immagine:'https://images.unsplash.com/photo-1551024709-8f23befc6cf7?q=80&w=1600&auto=format&fit=crop', categoria:'Dolce', tempoCottura:0, tipologia:['vegetariano'], ingredienti:['biscotti','formaggio spalmabile','burro','zucchero'] },
+      { id:'r3', titolo:'Pollo al curry', descrizione:'Secondo piatto profumato con latte di cocco e spezie, pronto in 35 minuti.', immagine:'https://images.unsplash.com/photo-1589302168068-964664d93dc0?q=80&w=1600&auto=format&fit=crop', categoria:'Secondo', tempoCottura:35, tipologia:['carne'], ingredienti:['pollo','curry','latte di cocco','cipolla','riso'] },
+      { id:'r4', titolo:'Zuppa di lenticchie vegana', descrizione:'Calda e nutriente, ricca di proteine vegetali. Perfetta nelle serate fredde.', immagine:'https://images.unsplash.com/photo-1547592166-23ac45744acd?q=80&w=1600&auto=format&fit=crop', categoria:'Zuppa', tempoCottura:40, tipologia:['vegano'], ingredienti:['lenticchie','carota','sedano','cipolla','pomodoro'] },
+      { id:'r5', titolo:'Insalata di quinoa senza glutine', descrizione:'Piatto unico leggero con verdure croccanti, pronto in 15 minuti.', immagine:'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?q=80&w=1600&auto=format&fit=crop', categoria:'Piatto unico', tempoCottura:15, tipologia:['senza glutine','vegetariano'], ingredienti:['quinoa','cetriolo','pomodorini','mais','olio','limone'] },
+      { id:'r6', titolo:'Branzino al forno', descrizione:'Pesce delicato al forno con erbe aromatiche, pronto in meno di mezz’ora.', immagine:'https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=1600&auto=format&fit=crop', categoria:'Secondo', tempoCottura:25, tipologia:['pesce'], ingredienti:['branzino','limone','rosmarino','olio','sale'] },
+      { id:'r7', titolo:'Tiramisù classico', descrizione:'Il dessert italiano più amato, con savoiardi e mascarpone.', immagine:'https://images.unsplash.com/photo-1622790698146-0a8c8d8351b5?q=80&w=1600&auto=format&fit=crop', categoria:'Dolce', tempoCottura:30, tipologia:['vegetariano'], ingredienti:['savoiardi','mascarpone','caffè','cacao','zucchero','uova'] },
+      { id:'r8', titolo:'Pancakes integrali light', descrizione:'Soffici pancakes per colazione, meno zuccheri e farine integrali.', immagine:'https://images.unsplash.com/photo-1548865164-96a3467df93b?q=80&w=1600&auto=format&fit=crop', categoria:'Colazione', tempoCottura:20, tipologia:['light','vegetariano'], ingredienti:['farina integrale','latte','uova','lievito','miele'] },
+    ];
+
+    const TIPI = ['vegano','vegetariano','senza glutine','light','pesce','carne','senza lattosio'];
+    const MAP_CATEG = {'antipasto':'Antipasto','antipasti':'Antipasto','primo':'Primo','primi':'Primo','pasta':'Primo','risotto':'Primo','secondo':'Secondo','secondi':'Secondo','carne':'Secondo','pesce':'Secondo','contorno':'Contorno','contorni':'Contorno','dolce':'Dolce','dolci':'Dolce','dessert':'Dolce','piatto unico':'Piatto unico','unico':'Piatto unico','zuppa':'Zuppa','minestra':'Zuppa','vellutata':'Zuppa','colazione':'Colazione','breakfast':'Colazione','bevanda':'Bevanda','drink':'Bevanda'};
+    const NORMALIZE = s => s.toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g,'');
+
+    function parseQuery(q) {
+      const raw = NORMALIZE(q);
+      const tokens = raw.split(/[\\s,]+/).filter(Boolean);
+      const includeWords = []; const excludeWords = []; const categorie = new Set(); const tipologie = new Set(); let maxMinuti = null;
+      const ltNum = raw.match(/<\\s*(\\d{1,3})/); if (ltNum) maxMinuti = parseInt(ltNum[1],10);
+      const numMin = raw.match(/(\\d{1,3})\\s*(m|min|minuti)\\b/); if (!maxMinuti && numMin) maxMinuti = parseInt(numMin[1],10);
+      const menoDi = raw.match(/meno\\s+di\\s+(\\d{1,3})/); if (!maxMinuti && menoDi) maxMinuti = parseInt(menoDi[1],10);
+      Object.keys(MAP_CATEG).forEach(k=>{ if (raw.includes(k)) categorie.add(MAP_CATEG[k]); });
+      TIPI.forEach(t=>{ if (raw.includes(t)) tipologie.add(t); });
+      const senzaMatches = [...raw.matchAll(/senza\\s+([a-zàèéìòù\\-]+)/g)]; senzaMatches.forEach(m=> excludeWords.push(m[1]));
+      const conMatches = [...raw.matchAll(/\\bcon\\s+([a-zàèéìòù\\-]+)/g)]; conMatches.forEach(m=> includeWords.push(m[1]));
+      if (includeWords.length === 0) {
+        tokens.forEach(t=>{ if (t.length>3 && !['meno','di','con','senza','che','per','una','alle','alla','gli','del','dei','delle'].includes(t)) includeWords.push(t); });
+      }
+      return { maxMinuti, categorie:[...categorie], tipologie:[...tipologie], include:[...new Set(includeWords)], exclude:[...new Set(excludeWords)] };
+    }
+
+    function matchRicetta(r, query) {
+      const hay = NORMALIZE([r.titolo, r.descrizione, r.categoria, r.tipologia?.join(' '), r.ingredienti?.join(' ')].join(' '));
+      if (query.maxMinuti!=null && (r.tempoCottura ?? 999) > query.maxMinuti) return false;
+      if (query.categorie.length>0 && !query.categorie.includes(r.categoria)) return false;
+      for (const t of query.tipologie) { const ok = (r.tipologia||[]).some(rt => NORMALIZE(rt) === t); if (!ok) return false; }
+      for (const inc of query.include) { if (!hay.includes(NORMALIZE(inc))) return false; }
+      for (const exc of query.exclude) { if (hay.includes(NORMALIZE(exc))) return false; }
+      return true;
+    }
+
+    const grid = document.getElementById('grid');
+    const empty = document.getElementById('empty');
+    const stats = document.getElementById('stats');
+    const chips = document.getElementById('chips');
+    const input = document.getElementById('q');
+    let currentFilters = parseQuery('');
+
+    function renderChips(q) {
+      chips.innerHTML = '';
+      const make = (label, onRemove) => {
+        const el = document.createElement('button');
+        el.className = 'group px-3 py-1.5 rounded-full bg-neutral-100 hover:bg-neutral-200 text-sm smooth border border-neutral-200';
+        el.innerHTML = `${label} <span class="ml-1 text-neutral-500 group-hover:text-neutral-700">✕</span>`;
+        el.onclick = onRemove; chips.appendChild(el);
+      };
+      if (q.maxMinuti!=null) make(`<${q.maxMinuti} min`, ()=>{ currentFilters.maxMinuti=null; apply(); });
+      q.categorie.forEach(c=> make(c, ()=>{ currentFilters.categorie = q.categorie.filter(x=>x!==c); apply(); }));
+      q.tipologie.forEach(t=> make(t, ()=>{ currentFilters.tipologie = q.tipologie.filter(x=>x!==t); apply(); }));
+      q.include.forEach(k=> make(`include:${k}`, ()=>{ currentFilters.include = q.include.filter(x=>x!==k); apply(); }));
+      q.exclude.forEach(k=> make(`senza:${k}`, ()=>{ currentFilters.exclude = q.exclude.filter(x=>x!==k); apply(); }));
+    }
+
+    function setCardTint(img, skinEl) {
+      if (!window.Vibrant || !img || !skinEl) return;
+      
+      // Fallback: colori predefiniti per evitare errori CORS (theme warm)
+      const fallbackColors = [
+        'rgba(255, 107, 61, 0.14)', // brand-500 warm
+        'rgba(255, 170, 133, 0.14)', // brand-300 warm
+        'rgba(255, 139, 92, 0.14)', // brand-400 warm
+        'rgba(255, 200, 174, 0.14)', // brand-200 warm
+      ];
+      const randomFallback = fallbackColors[Math.floor(Math.random() * fallbackColors.length)];
+      
+      try {
+        // Controlla se l'immagine è accessibile (stesso dominio o CORS abilitato)
+        if (img.crossOrigin !== 'anonymous' && !img.src.startsWith(window.location.origin)) {
+          // Usa fallback per immagini cross-origin senza CORS
+          skinEl.style.background = `linear-gradient(180deg, ${randomFallback}, rgba(255, 107, 61, 0.05))`;
+          skinEl.style.borderColor = `rgba(255, 107, 61, 0.25)`;
+          return;
+        }
+
+        Vibrant.from(img).getPalette().then(p => {
+          const sw = p.Vibrant || p.Muted || p.LightVibrant || p.DarkMuted;
+          if (!sw) {
+            // Fallback se non vengono estratti colori
+            skinEl.style.background = `linear-gradient(180deg, ${randomFallback}, rgba(255, 107, 61, 0.05))`;
+            skinEl.style.borderColor = `rgba(255, 107, 61, 0.25)`;
+            return;
+          }
+          const rgb = sw.rgb.map(x=>Math.round(x));
+          const r=rgb[0], g=rgb[1], b=rgb[2];
+          skinEl.style.background = `linear-gradient(180deg, rgba(${r},${g},${b},0.14), rgba(${r},${g},${b},0.05))`;
+          skinEl.style.borderColor = `rgba(${r},${g},${b},0.25)`;
+        }).catch(err => {
+          // Gestisce errori CORS e altri errori di Vibrant
+          console.warn('Vibrant color extraction failed (probabilmente CORS):', err.message);
+          skinEl.style.background = `linear-gradient(180deg, ${randomFallback}, rgba(255, 107, 61, 0.05))`;
+          skinEl.style.borderColor = `rgba(255, 107, 61, 0.25)`;
+        });
+      } catch(e) { 
+        // Fallback finale per qualsiasi errore
+        console.warn('setCardTint error:', e.message);
+        skinEl.style.background = `linear-gradient(180deg, ${randomFallback}, rgba(255, 107, 61, 0.05))`;
+        skinEl.style.borderColor = `rgba(255, 107, 61, 0.25)`;
+      }
+    }
+
+    function render(recList){
+      grid.innerHTML='';
+      if (recList.length===0){ empty.classList.remove('hidden'); stats.textContent='0 ricette'; return; }
+      empty.classList.add('hidden'); stats.textContent = `${recList.length} ricette`;
+
+      recList.forEach(r=>{
+        const card = document.createElement('article');
+        card.className = 'avoid-break mb-6 smooth';
+        card.innerHTML = `
+          <div class="group rounded-3xl shadow-card hover:shadow-cardHover smooth overflow-hidden border border-neutral-100 card-skin" style="background: linear-gradient(180deg, rgba(255,107,61,.06), rgba(255,107,61,.03));">
+            <div class="relative">
+              <img loading="lazy" crossorigin="anonymous" src="${r.immagine}" alt="${r.titolo}" class="w-full object-cover max-h-[300px] sm:max-h-[360px] group-hover:scale-[1.02] smooth" onerror="this.style.display='none'; this.parentElement.querySelector('.img-fallback').classList.remove('hidden')" />
+              <div class="img-fallback hidden w-full h-48 bg-gradient-to-br from-brand-50 to-neutral-100"></div>
+              <div class="absolute top-3 left-3"><span class="px-3 py-1 rounded-full text-xs font-medium bg-black/60 text-white backdrop-blur">⏱️ ${r.tempoCottura} min</span></div>
+              <div class="absolute top-3 right-3"><span class="px-3 py-1 rounded-full text-xs font-medium bg-white/90 text-neutral-800 border border-neutral-200">${r.categoria}</span></div>
+            </div>
+            <div class="p-4 sm:p-5 glass">
+              <h3 class="text-lg sm:text-xl font-semibold tracking-tight">${r.titolo}</h3>
+              <p class="mt-2 text-sm text-neutral-700 clamp-3">${r.descrizione}</p>
+              <div class="mt-4 flex flex-wrap gap-2">
+                ${(r.tipologia||[]).map(t=>`<span class="px-2.5 py-1 rounded-full text-xs bg-brand-100 text-brand-800 border border-brand-200">${t}</span>`).join('')}
+                ${(r.ingredienti||[]).slice(0,4).map(i=>`<span class="px-2.5 py-1 rounded-full text-xs bg-white/80 border">${i}</span>`).join('')}
+              </div>
+              <div class="mt-4 flex items-center justify-between">
+                <button class="px-3 py-2 rounded-xl bg-white/80 hover:bg-white text-sm smooth border">Dettagli</button>
+                <button class="px-3 py-2 rounded-xl bg-brand-500 text-white hover:bg-brand-600 text-sm smooth">Aggiungi ai preferiti</button>
+              </div>
+            </div>
+          </div>`;
+        grid.appendChild(card);
+        const img = card.querySelector('img');
+        const skin = card.querySelector('.card-skin');
+        if (img && skin) {
+          if (img.complete) setCardTint(img, skin);
+          else img.addEventListener('load', () => setCardTint(img, skin), { once: true });
+        }
+      });
+    }
+
+    function apply(){ renderChips(currentFilters); fetchResults(); }
+    async function fetchResults(){
+      const API='http://localhost:8000';
+      const body = { q: input.value.trim() || 'ricette', max_minuti: currentFilters.maxMinuti, categorie: currentFilters.categorie, tipologie: currentFilters.tipologie, include: currentFilters.include, exclude: currentFilters.exclude, n_results: 30 };
+      try {
+        const res = await fetch(API + '/search', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+        const data = await res.json();
+        const items = data.items || [];
+        stats.textContent = items.length + ' ricette';
+        render(items);
+      } catch (e) { console.error(e); stats.textContent='Errore API'; render([]); }
+    }
+    function searchNow(){ currentFilters = parseQuery(input.value.trim()); apply(); }
+    document.getElementById('btnSearch').addEventListener('click', searchNow);
+    document.getElementById('btnClear').addEventListener('click', ()=>{ input.value=''; currentFilters = parseQuery(''); apply(); });
+    document.getElementById('btnRandom').addEventListener('click', ()=>{ const s=['primo veloce <20 con pomodoro','dolce senza cottura con fragole','zuppa vegana con ceci <40','secondo di pesce <30','senza glutine con quinoa <20'][Math.floor(Math.random()*5)]; input.value=s; currentFilters=parseQuery(s); apply(); });
+    input.addEventListener('keydown', (e)=>{ if(e.key==='Enter') searchNow(); });
+
+    apply();
+  </script>
+</body>
+</html>

@@ -3,7 +3,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-from utility import clean_text
+from config import ( openAIclient, BASE_FOLDER_RICETTE, COLLECTION_NAME)
 
 # Middleware: assegna un request_id a ogni richiesta
 import uuid
@@ -16,36 +16,18 @@ import json
 from pydantic import BaseModel, HttpUrl, validator
 from typing import List, Optional
 
-from sqlalchemy.ext.declarative import declarative_base
-
 from models import RecipeDBSchema, JobStatus
 
 import logging
 from time import perf_counter
 from importRicette.saveRecipe import process_video
-from utility import get_error_context, clean_text, ensure_text_within_token_limit
 from logging_config import setup_logging
 from logging_config import request_id_var, job_id_var
-#from DB.rag_system import (
-#    index_database,
-#    search,
-#    load_embeddings_with_metadata_cached,
-#    set_rag_model,
-#    get_current_rag_model_name,
-#    recalculate_embeddings_from_npz,
-#    load_npz_info,
-#)
-from DB.chromaDB import ingest_json_to_chroma
+import asyncio as _asyncio
 
-#from DB.mongoDB import get_mongo_collection, get_db
-#from DB.embedding import get_embedding
+from DB.chromaDB import ingest_json_to_chroma, search_recipes_chroma, get_recipe_by_shortcode_chroma, recipe_db
 
-#from chatbot.natural_language_recipe_finder_llm import LLMNaturalLanguageProcessor, RecipeFinder
-#from chatbot.agent import get_recipes
-from config import EMBEDDINGS_NPZ_PATH, EMBEDDING_MODEL
-#SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-Base = declarative_base()
+from config import EMBEDDING_MODEL
 
 # Directory base e frontend (MVP statico)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -135,23 +117,13 @@ async def add_request_id(request: Request, call_next):
         if token is not None:
             request_id_var.reset(token)
 
-# Warmup e cache embeddings su startup
+# Startup handler per inizializzazione
 @app.on_event("startup")
 async def on_startup():
-    try:
-        # Forza caricamento cache se file presente
-        if os.path.exists(EMBEDDINGS_NPZ_PATH):
-            #_E, _M, _I = load_embeddings_with_metadata_cached(EMBEDDINGS_NPZ_PATH)
-            #logger.info(f"Embeddings preload: vettori={_E.shape if _E is not None else None}")
-            pass
-    except Exception as e:
-        logger.warning(f"Startup preload embeddings fallito: {e}")
-
     # Inizializza job store in-memory
     app.state.jobs = {}
 
 def _ingest_urls_job(job_id: str, urls: List[str]):
-    import asyncio as _asyncio
     total = len(urls)
     # Stato iniziale running e progress structure
     job_entry = app.state.jobs.get(job_id) or {}
@@ -191,7 +163,6 @@ def _ingest_urls_job(job_id: str, urls: List[str]):
             return float(progress.get("percentage", 0.0) or 0.0)
 
     async def _runner():
-        from importRicette.saveRecipe import process_video
         #texts_for_embedding = []
         metadatas = []
         success = 0
@@ -203,7 +174,7 @@ def _ingest_urls_job(job_id: str, urls: List[str]):
             try:
                 progress["urls"][idx0].update({"status": "running", "stage": "download"})
             except Exception:
-                pass
+                logger.warning(f"Failed to update progress for URL {idx0}")
 
             def _cb(event: dict):
                 try:
@@ -220,26 +191,32 @@ def _ingest_urls_job(job_id: str, urls: List[str]):
                             url_entry["error"] = str(event.get("message"))
                             url_entry["status"] = "failed"
                         progress["percentage"] = _recalc_job_percentage()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Failed to update progress callback: {e}")
 
+            #processo i dati della ricetta
             try:
                 recipe_data = await process_video(url, progress_cb=_cb)
+                logger.info(f"response from process_video: {recipe_data}")
                 if not recipe_data:
                     failed += 1
                     if 0 <= idx0 < len(progress.get("urls", [])):
                         progress["urls"][idx0].update({"status": "failed", "stage": "error"})
                     progress["failed"] = failed
                     progress["percentage"] = _recalc_job_percentage()
-                    continue
+                    raise Exception("Recipe data is empty")
+                
+                try:
+                 filename = os.path.join(BASE_FOLDER_RICETTE, recipe_data.shortcode, "media_original", f"metadata_{recipe_data.shortcode}.json")
+                 logger.info(f"path metadati della ricetta {filename}")
+                 with open(filename, 'w', encoding='utf-8') as f:
+                  json.dump(recipe_data.model_dump(), f, indent=1, ensure_ascii=False)
+                 logger.info(f"Scrivo i metadati della ricetta in {filename}")
 
-                title_clean = clean_text(recipe_data.title)
-                category_clean = ' '.join([clean_text(cat) for cat in recipe_data.category])
-                steps_clean = ' '.join([clean_text(step) for step in recipe_data.recipe_step])
-                ingredients_clean = ' '.join([clean_text(ing.name) for ing in recipe_data.ingredients])
-                #text_for_embedding = f"{title_clean}. {recipe_data.description}. {category_clean}. {ingredients_clean}. {steps_clean}"
-                #text_for_embedding = ensure_text_within_token_limit(text_for_embedding)
-                #texts_for_embedding.append(text_for_embedding)
+                except Exception as e:
+                 logger.error(f"Errore durante la scrittura del file JSON: {str(e)}")
+                 continue
+             
                 metadatas.append(recipe_data)
 
                 success += 1
@@ -260,19 +237,12 @@ def _ingest_urls_job(job_id: str, urls: List[str]):
 
         if metadatas:
             # Fase di indicizzazione
+            logger.info(f"Inizio indicizzazione")
             progress["stage"] = "indexing"
             progress["percentage"] = max(float(progress.get("percentage") or 0.0), 95.0)
-            #index_database(texts_for_embedding, metadata=metadatas, append=True)
-            filename = f"metadatas_{job_id}.json"
             
-            try:
-                with open(filename, 'w', encoding='utf-8') as f:
-                 json.dump(metadatas, f, indent=2, ensure_ascii=False, default=str)
-            except Exception as e:
-                logger.error(f"Errore durante la scrittura del file JSON: {str(e)}")
-                raise
-        n, coll = ingest_json_to_chroma(metadatas, collection_name="smartRecipe")
-        print(f"Inseriti {n} record nella collection '{coll}'.")
+            n, coll = ingest_json_to_chroma(metadatas, collection_name=COLLECTION_NAME)
+            print(f"Inseriti {n} record nella collection '{coll}'.")
             
         # Completa job
         job_entry["result"] = {
@@ -310,8 +280,8 @@ def _ingest_urls_job(job_id: str, urls: List[str]):
     finally:
         try:
             job_id_var.reset(job_token)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to reset job_id_var: {e}")
         loop.close()
 
 @app.get("/", include_in_schema=False)
@@ -324,65 +294,7 @@ async def index():
         return FileResponse(static_index)
     return JSONResponse({"detail": "index.html non trovato"}, status_code=404)
 
-'''
-# -------------------------------
-# OLD Endpoints per ingest delle ricette
-# -------------------------------
 
-@app.post("/recipes/", status_code=status.HTTP_201_CREATED)
-async def insert_recipe(videos: VideoURLs):
-    urls = [str(u) for u in videos.urls]
-    texts_for_embedding: List[str] = []
-    metadatas: List[RecipeDBSchema] = []
-    urlNoteElaborated = []
-    for url in urls:
-        try:
-            recipe_data = await process_video(url)
-            if not recipe_data:
-                error_context = get_error_context()
-                logger.error(f"Impossibile elaborare il video dall'URL '{url}'. Nessun dato ricetta ricevuto da process_video. Contesto: {error_context}")
-                continue
-
-            # Prepara i dati per l'embedding
-            title_clean = clean_text(recipe_data.title)
-            logger.info(f"Title clean: {title_clean}")
-            category_clean = ' '.join([clean_text(cat) for cat in recipe_data.category])
-            logger.info(f"Category clean: {category_clean}")
-            steps_clean = ' '.join([clean_text(step) for step in recipe_data.recipe_step])
-            logger.info(f"Steps clean: {steps_clean}")
-            ingredients_clean = ' '.join([clean_text(ing.name) for ing in recipe_data.ingredients])
-            logger.info(f"Ingredients clean: {ingredients_clean}")
-
-            text_for_embedding = f"{title_clean}. {recipe_data.description}. {category_clean}. {ingredients_clean}. {steps_clean}"
-            logger.info(f"Testo per embedding generato per ricetta (shortcode: {recipe_data.shortcode}). Lunghezza: {len(text_for_embedding)}")
-            
-            # Controlla/tronca la lunghezza in token rispetto al modello embeddings corrente
-            text_for_embedding = ensure_text_within_token_limit(text_for_embedding)
-
-            texts_for_embedding.append(text_for_embedding)
-            metadatas.append(recipe_data)
-
-        except Exception as e:
-            #error_context = get_error_context()
-            logger.error(f"Errore imprevisto durante l'elaborazione dell'URL '{url}'| {str(e)}", exc_info=True)
-            urlNoteElaborated.append("{url} | {str(e)}")
-            continue
-
-    # Salvataggio embedding + metadati per batch
-    try:
-        _ = index_database(texts_for_embedding, metadata=metadatas, append=True)
-    except Exception as e:
-        logger.error(f"Errore durante la generazione/salvataggio degli embedding per il batch: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Errore durante la generazione dell'embedding semantico."
-        )
-
-    if not urlNoteElaborated:
-        return ["ok"]
-    else:
-        return urlNoteElaborated
-'''
 @app.post("/ingest/recipes", response_model=JobStatus, status_code=status.HTTP_202_ACCEPTED)
 async def enqueue_ingest(videos: VideoURLs, background_tasks: BackgroundTasks):
     job_id = str(uuid.uuid4())
@@ -434,89 +346,73 @@ def job_status(job_id: str):
 
 @app.get("/recipe/{shortcode}")
 def get_recipe_by_shortcode(shortcode: str):
-    """Ritorna i metadati completi della ricetta identificata dallo shortcode.
-
-    I metadati sono prelevati dal file NPZ degli embeddings,
-    dove ogni ricetta è stata salvata come JSON serializzato.
+    """
+    Ritorna i metadati completi della ricetta identificata dallo shortcode.
+    
+    Usa il sistema ChromaDB ottimizzato con BGE-M3.
     """
     try:
-        #_, metadata, _ = load_embeddings_with_metadata_cached(EMBEDDINGS_NPZ_PATH)
-        metadata = []
-        pass
+        recipe_data = get_recipe_by_shortcode_chroma(shortcode)
+        
+        if not recipe_data:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ricetta non trovata")
+        
+        # Normalizza campi per frontend
+        if "_id" not in recipe_data:
+            recipe_data["_id"] = recipe_data.get("shortcode")
+        
+        images = recipe_data.get("images") or []
+        if not recipe_data.get("image_url") and isinstance(images, list) and images:
+            recipe_data["image_url"] = images[0]
+        
+        return recipe_data
+        
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Errore nel caricamento degli embeddings: {str(e)}")
+        logger.error(f"Errore recupero ricetta {shortcode}: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Errore interno: {str(e)}")
 
-    if not metadata:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nessuna ricetta disponibile")
-
-    for m in metadata:
-        try:
-            if str(m.get("shortcode", "")) == str(shortcode):
-                # normalizza alcuni campi utili al frontend
-                result = dict(m)
-                if "_id" not in result:
+@app.get("/search/")
+def search_recipes(query: str, limit: int = 12, max_time: Optional[int] = None, difficulty: Optional[str] = None, diet: Optional[str] = None, cuisine: Optional[str] = None):
+    """
+    Ricerca semantica ottimizzata con ChromaDB e BGE-M3.
+    
+    Supporta filtri avanzati per tempo, difficoltà, dieta e cucina.
+    """
+    try:
+        # Costruisci filtri da parametri query
+        filters = {}
+        if max_time is not None:
+            filters["max_time"] = max_time
+        if difficulty:
+            filters["difficulty"] = difficulty
+        if diet:
+            filters["diet"] = diet  
+        if cuisine:
+            filters["cuisine"] = cuisine
+        
+        # Usa il sistema ChromaDB ottimizzato
+        results = search_recipes_chroma(query, limit, filters)
+        
+        # Normalizza campi per frontend
+        for result in results:
+            try:
+                if "_id" not in result and result.get("shortcode"):
                     result["_id"] = result.get("shortcode")
+                
                 images = result.get("images") or []
                 if not result.get("image_url") and isinstance(images, list) and images:
                     result["image_url"] = images[0]
-                return result
-        except Exception:
-            continue
-
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ricetta non trovata")
-
-@app.get("/search/")
-def search_recipes(query: str, limit: int = 12):
-    try:
-        #embeddings, metadata, _ = load_embeddings_with_metadata_cached(EMBEDDINGS_NPZ_PATH)
-        embeddings = []
-        metadata = []
-        pass
-    except Exception as e:
-        logger.error("Embeddings load failed", extra={"error": str(e)}, exc_info=True)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Errore nel caricamento degli embeddings")
-
-    if embeddings is None or embeddings.size == 0:
-        logger.warning("No embeddings available", extra={"query": query})
-        return []
-    
-    try:
-        k = max(1, min(int(limit or 12), len(embeddings) if embeddings is not None else 1))
-        #similarity_results = search(query=query, embedding_matrix=embeddings, top_k=k)
-        similarity_results = []
-        pass
+            except Exception as e:
+                logger.warning(f"Failed to normalize recipe result: {e}")
+        
+        logger.info(f"Ricerca '{query}': {len(results)} risultati trovati")
+        return results
+        
     except Exception as e:
         logger.error("Search failed", extra={"query": query, "error": str(e)}, exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Errore in ricerca semantica")
-
-    # Rispetta il limite richiesto
-    top_k = max(1, min(int(limit or 12), len(similarity_results)))
-    top_results = similarity_results[:top_k]
-
-    response = []
-    for idx, score in top_results:
-        meta = {}
-        if metadata is not None and 0 <= idx < len(metadata):
-            try:
-                meta = dict(metadata[idx])
-            except Exception:
-                meta = {}
-
-        # normalizza campi utili al frontend
-        try:
-            if "_id" not in meta and meta.get("shortcode"):
-                meta["_id"] = meta.get("shortcode")
-            images = meta.get("images") or []
-            if not meta.get("image_url") and isinstance(images, list) and images:
-                meta["image_url"] = images[0]
-        except Exception:
-            pass
-
-        meta.update({"score": float(score)})
-        response.append(meta)
-
-    return response
-    #visualize_space_query(frasi, query, matrix)
 
 # -------------------------------
 # Endpoints amministrativi: gestione modello e ricalcolo embeddings
@@ -527,13 +423,45 @@ class SetModelBody(BaseModel):
 
 @app.get("/embeddings/info")
 def embeddings_info():
-    return #load_npz_info(EMBEDDINGS_NPZ_PATH)
+    """
+    Ritorna informazioni sul sistema di embedding ottimizzato
+    """
+    try:
+        stats = recipe_db.get_stats()
+        
+        return {
+            "status": "ok",
+            "embedding_model": EMBEDDING_MODEL,
+            "total_recipes": stats.get("total_recipes", 0),
+            "collection_name": stats.get("collection_name", ""),
+            "database_type": "ChromaDB",
+            "optimization": "BGE-M3 multilingual"
+        }
+    except Exception as e:
+        logger.error(f"Errore info embeddings: {e}")
+        return {"status": "error", "detail": str(e)}
 
 @app.post("/embeddings/model")
 def change_embedding_model(body: SetModelBody):
-    #new_name = #set_rag_model(body.model_name)
-    new_name = ""
-    return {"status": "ok", "model": new_name}
+    """
+    Cambia il modello di embedding (riavvio richiesto per applicare)
+    """
+    try:
+        current_model = EMBEDDING_MODEL
+        
+        # Per ora ritorniamo il modello corrente 
+        # Un cambio di modello richiederebbe riavvio dell'applicazione
+        logger.info(f"Richiesta cambio modello da {current_model} a {body.model_name}")
+        
+        return {
+            "status": "info", 
+            "current_model": current_model,
+            "requested_model": body.model_name,
+            "message": "Riavvio applicazione richiesto per cambiare modello"
+        }
+    except Exception as e:
+        logger.error(f"Errore cambio modello: {e}")
+        return {"status": "error", "detail": str(e)}
 
 class RecalcBody(BaseModel):
     model_name: Optional[str] = None
@@ -541,25 +469,61 @@ class RecalcBody(BaseModel):
 
 @app.post("/embeddings/recalculate")
 def recalc_embeddings(body: RecalcBody):
-    #E, meta, info = recalculate_embeddings_from_npz(
-    #    npz_path=EMBEDDINGS_NPZ_PATH,
-    #    model_name=body.model_name,
-    #    out_path=body.out_path or EMBEDDINGS_NPZ_PATH,
-    #)
-    return {
-        "status": "ok",
-        #"num_vectors": int(E.shape[0]),
-        #"dim": int(E.shape[1] if E.size else 0),
-        #"model": get_current_rag_model_name(),
-        #"out_path": body.out_path or EMBEDDINGS_NPZ_PATH,
-    }
+    """
+    Ricalcola embeddings con nuovo modello (non necessario con ChromaDB)
+    
+    Con ChromaDB gli embeddings sono calcolati on-the-fly,
+    quindi questa operazione non è necessaria.
+    """
+    try:
+        stats = recipe_db.get_stats()
+        
+        return {
+            "status": "info",
+            "message": "ChromaDB calcola embeddings on-the-fly, ricalcolo non necessario",
+            "current_model": EMBEDDING_MODEL,
+            "total_recipes": stats.get("total_recipes", 0),
+            "database_type": "ChromaDB optimized"
+        }
+    except Exception as e:
+        logger.error(f"Errore info ricalcolo: {e}")
+        return {"status": "error", "detail": str(e)}
     
 # -------------------------------
 # Endpoints per la validazione di stato e prova
 # -------------------------------
 @app.get("/health", status_code=status.HTTP_200_OK)
 def health_check():
-    return {"status": "ok"}
+    """
+    Check di salute esteso con info sul sistema ottimizzato
+    """
+    try:
+        stats = recipe_db.get_stats()
+        
+        return {
+            "status": "ok",
+            "system": "Smart Recipe API",
+            "version": "0.7 - Ottimizzato",
+            "embedding_model": EMBEDDING_MODEL,
+            "database": {
+                "type": "ChromaDB",
+                "total_recipes": stats.get("total_recipes", 0),
+                "collection": stats.get("collection_name", ""),
+                "optimization": "BGE-M3 multilingual"
+            }
+        }
+    except Exception as e:
+        logger.error(f"Errore health check: {e}")
+        return {
+            "status": "degraded",
+            "error": str(e),
+            "system": "Smart Recipe API"
+        }
+
+# -------------------------------
+# NUOVI ENDPOINTS OTTIMIZZATI
+# -------------------------------
+
 
 @app.get("/{full_path:path}", include_in_schema=False)
 async def spa_fallback(full_path: str):

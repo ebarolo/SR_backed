@@ -27,9 +27,9 @@ async def yt_dlp_video(url: str) -> Dict[str, Any]:
 
     try:
         with yt_dlp.YoutubeDL(opzioni) as ydl:
-            logger.info(f"Inizio download del video: {url}")
+            #logger.info(f"Inizio download del video: {url}")
             info = await asyncio.to_thread(ydl.extract_info, url, download=True)
-            logger.info(f"Download completato con successo: {url}")
+            #logger.info(f"Download completato con successo: {url}")
             video_title = sanitize_filename(info["title"])
             video_filename = ydl.prepare_filename(info)
         return {"video_title": video_title, "video_filename": video_filename}
@@ -94,8 +94,8 @@ async def process_video(recipe: str, progress_cb: Optional[Callable[[Dict[str, A
             try:
                 if os.path.abspath(src) != os.path.abspath(dst):
                     os.replace(src, dst)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to move downloaded file: {e}")
             dws = [{
                 "error": "",
                 "shortcode": shortcode,
@@ -108,12 +108,12 @@ async def process_video(recipe: str, progress_cb: Optional[Callable[[Dict[str, A
         print(f"dw: {dw}")
         shortcode = dw.get("shortcode", "SHORTCODE_NON_TROVATO") # Default per logging
         try:
-            logger.info(f"Inizio elaborazione per shortcode: {shortcode}")
+            #logger.info(f"Inizio elaborazione per shortcode: {shortcode}")
            
             captionSanit = sanitize_text(dw.get("caption", "caption NON_TROVATO")) # Default per logging
 
             video_folder_post = os.path.join(BASE_FOLDER_RICETTE, shortcode, "media_original")
-            logger.info(f"Cartella video per shortcode '{shortcode}': {video_folder_post}")
+            #logger.info(f"Cartella video per shortcode '{shortcode}': {video_folder_post}")
 
             # Cerca il file video nella cartella
             video_files = [
@@ -131,7 +131,6 @@ async def process_video(recipe: str, progress_cb: Optional[Callable[[Dict[str, A
             audio_filename = f"{os.path.splitext(shortcode)[0]}.mp3"
             audio_path = os.path.join(video_folder_post, audio_filename)
 
-            logger.info(f"estrazione audio da video: {video_path}")
             try:
                 process = await asyncio.to_thread(
                     subprocess.run,
@@ -140,7 +139,6 @@ async def process_video(recipe: str, progress_cb: Optional[Callable[[Dict[str, A
                     capture_output=True,
                     text=True,
                 )
-                logger.info(f"Audio extraction successful: {audio_path}")
                 _emit_progress("extract_audio", 50.0)
             except subprocess.CalledProcessError as e:
                 logger.error(f"ffmpeg command failed with exit code {e.returncode}")
@@ -150,21 +148,16 @@ async def process_video(recipe: str, progress_cb: Optional[Callable[[Dict[str, A
                 _emit_progress("error", 25.0, message=str(e))
                 raise RuntimeError(f"Errore durante l'estrazione dell'audio per shortcode '{shortcode}': {e.stderr}") from e
 
-            logger.info(f"Inizio speech_to_text per shortcode '{shortcode}', audio: {audio_path}")
             ricetta_audio = await whisper_speech_recognition(audio_path, "it")
             _emit_progress("stt", 85.0)
-            logger.info(f"Fine speech_to_text per shortcode '{shortcode}'. Lunghezza testo: {len(ricetta_audio) if ricetta_audio else 0}")
 
             # Estrai informazioni dalla ricetta
-            logger.info(f"Inizio estrazione informazioni ricetta dal testo trascritto per shortcode '{shortcode}'. Lunghezza testo: {len(ricetta_audio) if ricetta_audio else 0}")
             ricetta = await extract_recipe_info(ricetta_audio, captionSanit, [], [])
             _emit_progress("parse_recipe", 100.0)
             if ricetta:
                 titolo_estratto = ricetta.get('title', 'N/A') if isinstance(ricetta, dict) else getattr(ricetta, 'title', 'N/A')
-                logger.info(f"Informazioni ricetta estratte con successo per shortcode '{shortcode}': titolo='{titolo_estratto}'")
             else:
                 logger.warning(f"Nessuna informazione ricetta estratta per shortcode '{shortcode}' dal testo analizzato.")
-                pass
             
             # Normalizza la ricetta in un dict per uso successivo
             ricetta_dict = ricetta if isinstance(ricetta, dict) else (ricetta.model_dump() if ricetta else {})

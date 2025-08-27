@@ -96,7 +96,7 @@ async def analyze_recipe_frames(base64Frames):
         # Esegui la chiamata bloccante nel thread pool passando i kwargs correttamente
         result = await asyncio.to_thread(openAIclient.chat.completions.create, **params)
 
-        logger.info(result.choices[0])
+        #logger.info(result.choices[0])
         return result.choices[0].message.content
     except Exception as e:
         logger.error(f"Errore durante l'analisi dei fotogrammi: {str(e)}")
@@ -118,11 +118,8 @@ async def extract_recipe_info( recipe_audio_text: str, recipe_caption_text: str,
     # Leggi e popola i prompt in modo dinamico
     user_prompt = read_prompt_files("prompt_user_TXT.txt", **replacements)
     system_prompt = read_prompt_files("prompt_system.txt", **replacements)
-    
-    logger.info(f"readed prompts")
-    
+        
     try:
-        logger.info(f"try OpenAIclient")
         
         OpenAIresponse = await asyncio.to_thread(
             openAIclient.responses.create,
@@ -172,7 +169,7 @@ async def extract_recipe_info( recipe_audio_text: str, recipe_caption_text: str,
                 try:
                     return json.loads(output_text)
                 except Exception:
-                    pass
+                    logger.warning("Failed to parse output_text as JSON")
 
             # 2) Estrai il primo messaggio con content non vuoto e prendi il testo
             output_items = getattr(OpenAIresponse, "output", []) or []
@@ -220,7 +217,6 @@ async def whisper_speech_recognition(audio_file_path: str, language: str) -> str
             file_size_bytes = audio_file.tell()
             audio_file.seek(0)     # torna all'inizio del file
             file_size_kb = file_size_bytes / 1024
-            logger.info(f"Dimensione file audio: {file_size_kb:.2f} KB")
             transcription = await asyncio.to_thread(
                 openAIclient.audio.transcriptions.create,
                 model=OPENAI_TRANSCRIBE_MODEL,
@@ -299,7 +295,6 @@ async def generateRecipeImages(ricetta: dict, shortcode: str):
      image_prompt = read_prompt_files("prompt_immagini_ricetta.txt", **replacements)
 
      try:
-        logger.info(f"try OpenAIclient")
         
         OpenAIresponse = await asyncio.to_thread(
             openAIclient.images.generate,

@@ -1,406 +1,464 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="it">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Smart Recipe</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      // Tailwind config extension
-      tailwind.config = {
-        theme: {
-          extend: {
-            boxShadow: {
-              soft: "0 10px 25px -5px rgb(0 0 0 / 0.05), 0 8px 10px -6px rgb(0 0 0 / 0.05)",
-            },
-            keyframes: {
-              float: {
-                "0%, 100%": { transform: "translateY(0)" },
-                "50%": { transform: "translateY(-2px)" },
-              },
-            },
-            animation: {
-              float: "float 4s ease-in-out infinite",
-            },
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Ricette – Ricerca</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    // Palette/Theme (One UI-like: soft, arioso, focus su contenuto)
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50:  '#eef6ff',
+              100: '#d9ebff',
+              200: '#b7d7ff',
+              300: '#8fbfff',
+              400: '#5b9bff',
+              500: '#2a73ff',  // accento
+              600: '#1f5be0',
+              700: '#1a4cbc',
+              800: '#173f9a',
+              900: '#132f72',
+            }
           },
-        },
-      };
-    </script>
+          boxShadow: {
+            card: '0 6px 18px rgba(0,0,0,.08), 0 2px 6px rgba(0,0,0,.05)',
+            cardHover: '0 16px 32px rgba(0,0,0,.14), 0 4px 12px rgba(0,0,0,.08)'
+          }
+        }
+      }
+    }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/node-vibrant/dist/vibrant.min.js"></script>
 
-    <style>
-      /* Utility per clamp senza plugin (fallback ellissi) */
-      .line-clamp-3 {
-        display: -webkit-box;
-        -webkit-line-clamp: 3;
-        line-clamp: 3;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
-      }
-      /* Bilanciamento colonne per masonry (migliora distribuzione) */
-      @supports (column-fill: balance) {
-        .columns-balance { column-fill: balance; }
-      }
-    </style>
-  </head>
-  <body class="min-h-screen bg-gray-50 text-gray-800 antialiased">
-    <!-- Header -->
-    <header class="sticky top-0 z-40 w-full bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-gray-100">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex items-center justify-between h-16">
-          <div class="flex items-center gap-2">
-            <div class="h-9 w-9 rounded-xl bg-emerald-500 text-white grid place-items-center shadow-soft">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-5 w-5">
-                <path d="M12 2a7 7 0 0 0-7 7c0 1.6.53 3.08 1.42 4.27A8.99 8.99 0 0 0 3 20a1 1 0 0 0 1.34.94A12.02 12.02 0 0 1 12 20c2.64 0 5.08.85 7.06 2.29A1 1 0 0 0 20 21a8.99 8.99 0 0 0-3.42-6.73A7 7 0 0 0 12 2Z" />
-              </svg>
-            </div>
-            <span class="text-lg font-semibold tracking-tight">Sapori Radar</span>
-          </div>
+  <style>
+    /* Utility per masonry: evita il break dentro le card */
+    .avoid-break { break-inside: avoid; }
+    /* Clamp descrizione (senza plugin) */
+    .clamp-3 {
+      display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    /* Smooth hover */
+    .smooth { transition: all .25s ease; }
+  </style>
+</head>
+<body class="bg-neutral-50 text-neutral-900 antialiased">
+  <!-- App Bar -->
+  <header class="sticky top-0 z-30 backdrop-blur bg-white/70 border-b border-neutral-200">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-4 flex items-center gap-4">
+      <div class="flex items-center gap-3">
+        <div class="h-10 w-10 rounded-2xl bg-brand-500 flex items-center justify-center text-white font-semibold">R</div>
+        <div>
+          <h1 class="text-xl font-semibold tracking-tight">Cerca ricette</h1>
+          <p class="text-sm text-neutral-500"> Ricerca semantica + filtri smart</p>
         </div>
       </div>
-    </header>
 
-    <!-- Main -->
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <!-- Search / NLP input -->
-      <section aria-labelledby="search-title" class="mb-6 sm:mb-8">
-        <h1 id="search-title" class="sr-only">Cerca ricette</h1>
-        <form id="search-form" class="relative" autocomplete="off">
-          <div class="flex items-stretch gap-2">
-            <div class="relative flex-1">
-              <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-gray-400">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-5 w-5">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 1 0 5.25 5.25a7.5 7.5 0 0 0 11.4 11.4Z" />
-                </svg>
-              </span>
-              <input
-                id="query-input"
-                type="search"
-                class="w-full rounded-2xl border border-gray-200 bg-white/90 px-12 py-3 text-[15px] shadow-soft outline-none transition-all focus:border-emerald-400 focus:ring-2 focus:ring-emerald-200"
-                placeholder="Scrivi in naturale: 'cena veloce senza lattosio', 'pasta piccante', 'dolce vegano'..."
-                aria-label="Cerca ricette con linguaggio naturale"
-              />
-            </div>
-            <button type="submit" class="hidden sm:inline-flex items-center gap-2 rounded-2xl bg-emerald-500 px-5 py-3 text-sm font-semibold text-white shadow-soft transition-colors hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-300">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4">
-                <path d="M3.5 12a.75.75 0 0 1 .75-.75h9.69L10.22 7.53a.75.75 0 1 1 1.06-1.06l5.5 5.5a.75.75 0 0 1 0 1.06l-5.5 5.5a.75.75 0 0 1-1.06-1.06l3.72-3.72H4.25A.75.75 0 0 1 3.5 12Z" />
-              </svg>
-              Cerca
-            </button>
-          </div>
-        </form>
-        <p id="result-count" class="mt-3 text-sm text-gray-500">Suggerimenti per iniziare: "pasta veloce", "insalata proteica", "dessert senza glutine"</p>
-      </section>
+    </div>
+  </header>
 
-      <!-- Results masonry -->
-      <section aria-labelledby="results-title">
-        <h2 id="results-title" class="sr-only">Risultati</h2>
-        <div id="results" class="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-6 columns-balance"></div>
-      </section>
-    </main>
+  <!-- Search + NLP chips -->
+  <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-6">
+    <div class="rounded-3xl shadow-card bg-white p-4 sm:p-5 smooth">
+      <div class="flex items-center gap-3">
+        <div class="hidden sm:flex h-11 w-11 rounded-2xl bg-brand-50 text-brand-700 items-center justify-center">🔎</div>
+        <div class="flex-1">
+          <label for="q" class="sr-only">Cerca</label>
+          <input id="q" type="text" autocomplete="off"
+            placeholder="Es. pasta al pomodoro veloce senza glutine <30 min, dolci freddi, zuppa vegana con ceci…"
+            class="w-full h-12 sm:h-14 px-4 sm:px-6 rounded-2xl bg-neutral-50 border border-neutral-200 focus:border-brand-400 focus:ring-4 focus:ring-brand-100 outline-none text-base sm:text-lg smooth" />
+        </div>
+        <button id="btnSearch"
+          class="h-12 sm:h-14 px-5 rounded-2xl bg-brand-500 text-white text-sm sm:text-base font-medium hover:bg-brand-600 smooth">
+          Cerca
+        </button>
+      </div>
 
-    <footer class="py-10 text-center text-sm text-gray-500">
-      Ispirato al layout masonry di CodePen · TailwindCSS
-    </footer>
+      <!-- Chips NLP -->
+      <div id="chips" class="mt-4 flex flex-wrap gap-2"></div>
 
-    <!-- App Script -->
-    <script>
-      // Dataset di esempio (MVP)
-      /*
-      const RECIPES = [
-        {
-          id: 1,
-          title: "Pasta al Pomodoro Veloce",
-          description: "Classico intramontabile in 15 minuti. Sugo di pomodoro, basilico e un filo d'olio.",
-          categories: ["Pasta", "Veloce", "Vegetariano"],
-          image: "https://images.unsplash.com/photo-1528712306091-ed0763094c98?q=80&w=1200&auto=format&fit=crop",
-        },
-        {
-          id: 2,
-          title: "Insalata di Quinoa Proteica",
-          description: "Quinoa, ceci, avocado e verdure croccanti. Perfetta per un pranzo leggero e completo.",
-          categories: ["Insalata", "Proteico", "Vegano", "Senza Glutine"],
-          image: "https://images.unsplash.com/photo-1540420773420-3366772f4999?q=80&w=1200&auto=format&fit=crop",
-        },
-        {
-          id: 3,
-          title: "Curry di Verdure al Latte di Cocco",
-          description: "Aromatico e delicato, con latte di cocco e spezie. Naturalmente senza lattosio.",
-          categories: ["Curry", "Vegetariano", "Senza Lattosio", "Speziato"],
-          image: "https://images.unsplash.com/photo-1512058564366-18510be2db19?q=80&w=1200&auto=format&fit=crop",
-        },
-        {
-          id: 4,
-          title: "Brownies al Cioccolato Senza Glutine",
-          description: "Fondenti e umidi, realizzati con farina di mandorle. Perfetti per celiaci.",
-          categories: ["Dolci", "Senza Glutine"],
-          image: "https://images.unsplash.com/photo-1606313564200-e75d5e30476e?q=80&w=1200&auto=format&fit=crop",
-        },
-        {
-          id: 5,
-          title: "Zuppa di Lenticchie Speziata",
-          description: "Con cumino e paprika affumicata. Confortante e ricca di proteine vegetali.",
-          categories: ["Zuppa", "Proteico", "Vegano"],
-          image: "https://images.unsplash.com/photo-1512058564366-18510be2db19?q=80&w=1200&auto=format&fit=crop",
-        },
-        {
-          id: 6,
-          title: "Tacos di Pesce con Salsa allo Yogurt",
-          description: "Filetti di pesce speziati, cavolo croccante e salsa fresca allo yogurt.",
-          categories: ["Pesce", "Street Food"],
-          image: "https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=1200&auto=format&fit=crop",
-        },
-        {
-          id: 7,
-          title: "Pancake Integrali con Frutti di Bosco",
-          description: "Soffici, con sciroppo d'acero e frutti di bosco. Opzione senza lattosio disponibile.",
-          categories: ["Colazione", "Dolci", "Senza Lattosio"],
-          image: "https://images.unsplash.com/photo-1495214783159-3503fd1b572d?q=80&w=1200&auto=format&fit=crop",
-        },
-        {
-          id: 8,
-          title: "Pollo al Limone al Forno",
-          description: "Pollo tenero al profumo di limone e rosmarino. Facile, pratico e veloce.",
-          categories: ["Carne", "Forno", "Veloce"],
-          image: "https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=1200&auto=format&fit=crop",
-        },
-        {
-          id: 9,
-          title: "Pasta Piccante all'Arrabbiata",
-          description: "Salsa al pomodoro con peperoncino e aglio. Un classico piccante e saporito.",
-          categories: ["Pasta", "Speziato", "Veloce"],
-          image: "https://images.unsplash.com/photo-1523986371872-9d3ba2e2f642?q=80&w=1200&auto=format&fit=crop",
-        },
-        {
-          id: 10,
-          title: "Gelato Vegano alla Banana (Nice Cream)",
-          description: "Solo banane congelate e un goccio di latte vegetale. Dolce, cremoso e leggero.",
-          categories: ["Dolci", "Vegano", "Senza Lattosio"],
-          image: "https://images.unsplash.com/photo-1551024709-8f23befc6cf7?q=80&w=1200&auto=format&fit=crop",
-        },
-      ];
-      */
-      const RECIPES = [];
-      // Mappatura categorie -> classi colore Tailwind
-      const CATEGORY_COLOR = {
-        Pasta: { bg: "bg-amber-50", text: "text-amber-700", ring: "ring-amber-100" },
-        Veloce: { bg: "bg-emerald-50", text: "text-emerald-700", ring: "ring-emerald-100" },
-        Vegetariano: { bg: "bg-lime-50", text: "text-lime-700", ring: "ring-lime-100" },
-        Vegano: { bg: "bg-green-50", text: "text-green-700", ring: "ring-green-100" },
-        "Senza Glutine": { bg: "bg-sky-50", text: "text-sky-700", ring: "ring-sky-100" },
-        "Senza Lattosio": { bg: "bg-cyan-50", text: "text-cyan-700", ring: "ring-cyan-100" },
-        Proteico: { bg: "bg-purple-50", text: "text-purple-700", ring: "ring-purple-100" },
-        Speziato: { bg: "bg-rose-50", text: "text-rose-700", ring: "ring-rose-100" },
-        Dolci: { bg: "bg-pink-50", text: "text-pink-700", ring: "ring-pink-100" },
-        Curry: { bg: "bg-orange-50", text: "text-orange-700", ring: "ring-orange-100" },
-        Zuppa: { bg: "bg-blue-50", text: "text-blue-700", ring: "ring-blue-100" },
-        Pesce: { bg: "bg-teal-50", text: "text-teal-700", ring: "ring-teal-100" },
-        "Street Food": { bg: "bg-stone-100", text: "text-stone-700", ring: "ring-stone-200" },
-        Colazione: { bg: "bg-yellow-50", text: "text-yellow-700", ring: "ring-yellow-100" },
-        Carne: { bg: "bg-red-50", text: "text-red-700", ring: "ring-red-100" },
-        Forno: { bg: "bg-amber-50", text: "text-amber-700", ring: "ring-amber-100" },
-      };
+      <!-- Sottosuggerimenti -->
+      <div class="mt-3 text-sm text-neutral-500">
+        Suggerimenti: 
+        <button class="underline hover:text-neutral-700 smooth"
+          onclick="preset('primi veloci <20 senza lattosio')">primi veloci &lt;20</button> ·
+        <button class="underline hover:text-neutral-700 smooth"
+          onclick="preset('dolce senza cottura con fragole')">dolce senza cottura</button> ·
+        <button class="underline hover:text-neutral-700 smooth"
+          onclick="preset('zuppa vegana con ceci <40')">zuppa vegana con ceci</button>
+      </div>
+    </div>
+  </section>
 
-      // Rimosse funzioni NLP (sinonimi/normalizzazione/scoring) — la ricerca usa solo l'endpoint backend
+  <!-- Results -->
+  <main class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-16">
+    <div id="stats" class="mb-4 text-sm text-neutral-500"></div>
 
-      function renderRecipes(recipes) {
-        const container = document.getElementById("results");
-        container.innerHTML = "";
+    <!-- Masonry Grid -->
+    <div id="grid" class="columns-1 sm:columns-2 lg:columns-3 gap-6"></div>
 
-        const fragment = document.createDocumentFragment();
-        for (const r of recipes) {
-          const card = document.createElement("article");
-          card.className = [
-            "group",
-            "mb-6",
-            "break-inside-avoid",
-            "overflow-hidden",
-            "rounded-2xl",
-            "bg-white",
-            "shadow-md",
-            "ring-1 ring-black/5",
-            "transition-all duration-300",
-            "hover:-translate-y-1 hover:shadow-xl",
-          ].join(" ");
+    <!-- Empty state -->
+    <div id="empty" class="hidden rounded-3xl border border-dashed border-neutral-300 p-10 text-center bg-white">
+      <div class="mx-auto w-16 h-16 rounded-2xl bg-neutral-100 flex items-center justify-center text-2xl">🥄</div>
+      <h3 class="mt-4 text-lg font-semibold">Nessun risultato</h3>
+      <p class="mt-1 text-neutral-500">Prova a rimuovere qualche filtro o usa termini più generici.</p>
+    </div>
+  </main>
 
-          // Image wrapper
-          const figure = document.createElement("figure");
-          figure.className = "relative aspect-[4/3] overflow-hidden";
-          const img = document.createElement("img");
-          img.src = r.image;
-          img.alt = r.title;
-          img.loading = "lazy";
-          img.className = "h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105";
-          const overlay = document.createElement("div");
-          overlay.className = "pointer-events-none absolute inset-0 bg-gradient-to-b from-black/0 via-black/0 to-black/10";
-          figure.appendChild(img);
-          figure.appendChild(overlay);
+  <script>
+    // ===========================
+    // DATI DI ESEMPIO
+    // ===========================
+    const ricette = [
+      {
+        id: 'r1',
+        titolo: 'Pasta al pomodoro veloce',
+        descrizione: 'Un classico italiano in 20 minuti, con salsa di pomodoro, basilico e un tocco di olio EVO.',
+        immagine: 'https://images.unsplash.com/photo-1521389508051-d7ffb5dc8bbf?q=80&w=1600&auto=format&fit=crop',
+        categoria: 'Primo',
+        tempoCottura: 20,
+        tipologia: ['vegetariano'],
+        ingredienti: ['pasta', 'pomodoro', 'basilico', 'olio', 'sale']
+      },
+      {
+        id: 'r2',
+        titolo: 'Cheesecake senza cottura',
+        descrizione: 'Dolce fresco e cremoso con base di biscotti, perfetto per l’estate.',
+        immagine: 'https://images.unsplash.com/photo-1551024709-8f23befc6cf7?q=80&w=1600&auto=format&fit=crop',
+        categoria: 'Dolce',
+        tempoCottura: 0,
+        tipologia: ['vegetariano'],
+        ingredienti: ['biscotti', 'formaggio spalmabile', 'burro', 'zucchero']
+      },
+      {
+        id: 'r3',
+        titolo: 'Pollo al curry',
+        descrizione: 'Secondo piatto profumato con latte di cocco e spezie, pronto in 35 minuti.',
+        immagine: 'https://images.unsplash.com/photo-1589302168068-964664d93dc0?q=80&w=1600&auto=format&fit=crop',
+        categoria: 'Secondo',
+        tempoCottura: 35,
+        tipologia: ['carne'],
+        ingredienti: ['pollo', 'curry', 'latte di cocco', 'cipolla', 'riso']
+      },
+      {
+        id: 'r4',
+        titolo: 'Zuppa di lenticchie vegana',
+        descrizione: 'Calda e nutriente, ricca di proteine vegetali. Perfetta nelle serate fredde.',
+        immagine: 'https://images.unsplash.com/photo-1547592166-23ac45744acd?q=80&w=1600&auto=format&fit=crop',
+        categoria: 'Zuppa',
+        tempoCottura: 40,
+        tipologia: ['vegano'],
+        ingredienti: ['lenticchie', 'carota', 'sedano', 'cipolla', 'pomodoro']
+      },
+      {
+        id: 'r5',
+        titolo: 'Insalata di quinoa senza glutine',
+        descrizione: 'Piatto unico leggero con verdure croccanti, pronto in 15 minuti.',
+        immagine: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?q=80&w=1600&auto=format&fit=crop',
+        categoria: 'Piatto unico',
+        tempoCottura: 15,
+        tipologia: ['senza glutine', 'vegetariano'],
+        ingredienti: ['quinoa', 'cetriolo', 'pomodorini', 'mais', 'olio', 'limone']
+      },
+      {
+        id: 'r6',
+        titolo: 'Branzino al forno',
+        descrizione: 'Pesce delicato al forno con erbe aromatiche, pronto in meno di mezz’ora.',
+        immagine: 'https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=1600&auto=format&fit=crop',
+        categoria: 'Secondo',
+        tempoCottura: 25,
+        tipologia: ['pesce'],
+        ingredienti: ['branzino', 'limone', 'rosmarino', 'olio', 'sale']
+      },
+      {
+        id: 'r7',
+        titolo: 'Tiramisù classico',
+        descrizione: 'Il dessert italiano più amato, con savoiardi e mascarpone.',
+        immagine: 'https://images.unsplash.com/photo-1622790698146-0a8c8d8351b5?q=80&w=1600&auto=format&fit=crop',
+        categoria: 'Dolce',
+        tempoCottura: 30,
+        tipologia: ['vegetariano'],
+        ingredienti: ['savoiardi', 'mascarpone', 'caffè', 'cacao', 'zucchero', 'uova']
+      },
+      {
+        id: 'r8',
+        titolo: 'Pancakes integrali light',
+        descrizione: 'Soffici pancakes per colazione, meno zuccheri e farine integrali.',
+        immagine: 'https://images.unsplash.com/photo-1548865164-96a3467df93b?q=80&w=1600&auto=format&fit=crop',
+        categoria: 'Colazione',
+        tempoCottura: 20,
+        tipologia: ['light', 'vegetariano'],
+        ingredienti: ['farina integrale', 'latte', 'uova', 'lievito', 'miele']
+      },
+    ];
 
-          // Body
-          const body = document.createElement("div");
-          body.className = "p-4";
-          const h3 = document.createElement("h3");
-          h3.className = "text-base font-semibold text-gray-900";
-          h3.textContent = r.title;
-          const p = document.createElement("p");
-          p.className = "mt-2 text-sm text-gray-600 line-clamp-3";
-          p.textContent = r.description;
+    // ===========================
+    // NLP-LIKE PARSER (semplice)
+    // ===========================
+    const CATEGORIE = ['Antipasto','Primo','Secondo','Contorno','Dolce','Piatto unico','Zuppa','Colazione','Bevanda'];
+    const MAP_CATEG = {
+      'antipasto':'Antipasto','antipasti':'Antipasto',
+      'primo':'Primo','primi':'Primo','pasta':'Primo','risotto':'Primo',
+      'secondo':'Secondo','secondi':'Secondo','carne':'Secondo','pesce':'Secondo',
+      'contorno':'Contorno','contorni':'Contorno',
+      'dolce':'Dolce','dolci':'Dolce','dessert':'Dolce',
+      'piatto unico':'Piatto unico','unico':'Piatto unico',
+      'zuppa':'Zuppa','minestra':'Zuppa','vellutata':'Zuppa',
+      'colazione':'Colazione','breakfast':'Colazione',
+      'bevanda':'Bevanda','drink':'Bevanda'
+    };
 
-          // Chips
-          const chips = document.createElement("div");
-          chips.className = "mt-3 flex flex-wrap gap-2";
-          (r.categories || []).forEach((c) => {
-            const color = CATEGORY_COLOR[c] || { bg: "bg-gray-100", text: "text-gray-700", ring: "ring-gray-200" };
-            const chip = document.createElement("span");
-            chip.className = [
-              "inline-flex items-center gap-1",
-              "rounded-full px-2.5 py-1 text-xs font-medium",
-              color.bg,
-              color.text,
-              "ring-1",
-              color.ring,
-              "transition-colors",
-              "group-hover:brightness-105",
-            ].join(" ");
-            chip.textContent = c;
-            chips.appendChild(chip);
-          });
+    const TIPI = ['vegano','vegetariano','senza glutine','light','pesce','carne','senza lattosio'];
+    const NORMALIZE = s => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
 
-          body.appendChild(h3);
-          body.appendChild(p);
-          body.appendChild(chips);
+    function parseQuery(q) {
+      const raw = NORMALIZE(q);
+      const tokens = raw.split(/[\s,]+/).filter(Boolean);
 
-          card.appendChild(figure);
-          card.appendChild(body);
-          fragment.appendChild(card);
-        }
+      const includeWords = [];
+      const excludeWords = [];
+      const categorie = new Set();
+      const tipologie = new Set();
+      let maxMinuti = null;
 
-        container.appendChild(fragment);
-      }
+      // pattern tempo: "<30", "<=20", "20m", "20min", "20 minuti", "meno di 30"
+      const ltNum = raw.match(/<\s*(\d{1,3})/);
+      if (ltNum) maxMinuti = parseInt(ltNum[1],10);
+      const numMin = raw.match(/(\d{1,3})\s*(m|min|minuti)\b/);
+      if (!maxMinuti && numMin) maxMinuti = parseInt(numMin[1],10);
+      const menoDi = raw.match(/meno\s+di\s+(\d{1,3})/);
+      if (!maxMinuti && menoDi) maxMinuti = parseInt(menoDi[1],10);
 
-      function updateCount(n) {
-        const el = document.getElementById("result-count");
-        el.textContent = n === RECIPES.length
-          ? `Mostro ${n} ricette popolari`
-          : n === 0
-          ? "Nessun risultato. Prova con: 'pasta veloce', 'vegano', 'senza lattosio'"
-          : `Trovate ${n} ricette`;
-      }
+      // categorie / tipologie
+      Object.keys(MAP_CATEG).forEach(k=>{
+        if (raw.includes(k)) categorie.add(MAP_CATEG[k]);
+      });
+      TIPI.forEach(t=>{
+        if (raw.includes(t)) tipologie.add(t);
+      });
 
-      // Placeholder cards (loading state)
-      function renderLoading(n = 8) {
-        const container = document.getElementById("results");
-        container.innerHTML = "";
-        const fragment = document.createDocumentFragment();
-        for (let i = 0; i < n; i++) {
-          const card = document.createElement("article");
-          card.className = [
-            "mb-6",
-            "break-inside-avoid",
-            "overflow-hidden",
-            "rounded-2xl",
-            "bg-white",
-            "ring-1 ring-black/5",
-            "animate-pulse",
-          ].join(" ");
-          const phImg = document.createElement("div");
-          phImg.className = "h-48 w-full bg-gray-100";
-          const body = document.createElement("div");
-          body.className = "p-4";
-          const l1 = document.createElement("div");
-          l1.className = "h-4 w-2/3 bg-gray-100 rounded";
-          const l2 = document.createElement("div");
-          l2.className = "mt-3 h-3 w-full bg-gray-100 rounded";
-          const l3 = document.createElement("div");
-          l3.className = "mt-2 h-3 w-5/6 bg-gray-100 rounded";
-          const chips = document.createElement("div");
-          chips.className = "mt-4 flex gap-2";
-          for (let c = 0; c < 3; c++) {
-            const chip = document.createElement("span");
-            chip.className = "h-6 w-16 bg-gray-100 rounded-full";
-            chips.appendChild(chip);
+      // senza X (esclusioni)
+      const senzaMatches = [...raw.matchAll(/senza\s+([a-zàèéìòù\-]+)/g)];
+      senzaMatches.forEach(m=> excludeWords.push(m[1]));
+
+      // con X (inclusioni semplici)
+      const conMatches = [...raw.matchAll(/\bcon\s+([a-zàèéìòù\-]+)/g)];
+      conMatches.forEach(m=> includeWords.push(m[1]));
+
+      // fallback: parole libere significative (>3 chars)
+      if (includeWords.length === 0) {
+        tokens.forEach(t=>{
+          if (t.length>3 && !['meno','di','con','senza','che','per','una','alle','alla','gli','del','dei','delle'].includes(t)) {
+            includeWords.push(t);
           }
-          body.appendChild(l1); body.appendChild(l2); body.appendChild(l3); body.appendChild(chips);
-          card.appendChild(phImg); card.appendChild(body);
-          fragment.appendChild(card);
+        });
+      }
+
+      return {
+        maxMinuti,
+        categorie: [...categorie],
+        tipologie: [...tipologie],
+        include: [...new Set(includeWords)],
+        exclude: [...new Set(excludeWords)],
+      };
+    }
+
+    function matchRicetta(r, query) {
+      const hay = NORMALIZE([r.titolo, r.descrizione, r.categoria, r.tipologia?.join(' '), r.ingredienti?.join(' ')].join(' '));
+      // tempo
+      if (query.maxMinuti!=null && (r.tempoCottura ?? 999) > query.maxMinuti) return false;
+      // categorie (se presenti -> OR)
+      if (query.categorie.length>0 && !query.categorie.includes(r.categoria)) return false;
+      // tipologie (tutte devono comparire)
+      for (const t of query.tipologie) {
+        const ok = (r.tipologia||[]).some(rt => NORMALIZE(rt) === t);
+        if (!ok) return false;
+      }
+      // include (tutte devono comparire)
+      for (const inc of query.include) {
+        if (!hay.includes(NORMALIZE(inc))) return false;
+      }
+      // exclude (nessuna deve comparire)
+      for (const exc of query.exclude) {
+        if (hay.includes(NORMALIZE(exc))) return false;
+      }
+      return true;
+    }
+
+    // ===========================
+    // RENDER
+    // ===========================
+    const grid = document.getElementById('grid');
+    const empty = document.getElementById('empty');
+    const stats = document.getElementById('stats');
+    const chips = document.getElementById('chips');
+    const input = document.getElementById('q');
+
+    let currentFilters = parseQuery('');
+
+    function render(recList){
+      grid.innerHTML = '';
+      if (recList.length === 0) {
+        empty.classList.remove('hidden');
+        stats.textContent = '0 ricette';
+        return;
+      }
+      empty.classList.add('hidden');
+      stats.textContent = `${recList.length} ricette`;
+
+      recList.forEach(r=>{
+        const card = document.createElement('article');
+        card.className = 'avoid-break mb-6 smooth';
+        card.innerHTML = `
+          <div class="group rounded-3xl bg-white shadow-card hover:shadow-cardHover smooth overflow-hidden border border-neutral-100 card-skin">
+            <div class="relative">
+              <img loading="lazy" crossorigin="anonymous" src="${r.immagine}" alt="${r.titolo}" class="w-full object-cover max-h-[300px] sm:max-h-[360px] group-hover:scale-[1.02] smooth" onerror="this.style.display='none'; this.parentElement.querySelector('.img-fallback').classList.remove('hidden')" />
+              <div class="img-fallback hidden w-full h-48 bg-gradient-to-br from-brand-50 to-neutral-100"></div>
+
+              <!-- Badge tempo -->
+              <div class="absolute top-3 left-3">
+                <span class="px-3 py-1 rounded-full text-xs font-medium bg-black/60 text-white backdrop-blur">
+                  ⏱️ ${r.tempoCottura} min
+                </span>
+              </div>
+              <!-- Badge categoria -->
+              <div class="absolute top-3 right-3">
+                <span class="px-3 py-1 rounded-full text-xs font-medium bg-white/90 text-neutral-800 border border-neutral-200">
+                  ${r.categoria}
+                </span>
+              </div>
+            </div>
+
+            <div class="p-4 sm:p-5">
+              <h3 class="text-lg sm:text-xl font-semibold tracking-tight">${r.titolo}</h3>
+              <p class="mt-2 text-sm text-neutral-600 clamp-3">${r.descrizione}</p>
+
+              <div class="mt-4 flex flex-wrap gap-2">
+                ${(r.tipologia||[]).map(t=>`<span class="px-2.5 py-1 rounded-full text-xs bg-brand-50 text-brand-700 border border-brand-100">${t}</span>`).join('')}
+                ${(r.ingredienti||[]).slice(0,4).map(i=>`<span class="px-2.5 py-1 rounded-full text-xs bg-neutral-100 text-neutral-700">${i}</span>`).join('')}
+              </div>
+
+              <div class="mt-4 flex items-center justify-between">
+                <button class="px-3 py-2 rounded-xl bg-neutral-100 hover:bg-neutral-200 text-sm smooth">Dettagli</button>
+                <button class="px-3 py-2 rounded-xl bg-brand-500 text-white hover:bg-brand-600 text-sm smooth">Aggiungi ai preferiti</button>
+              </div>
+            </div>
+          </div>
+        `;
+        grid.appendChild(card);
+        const img = card.querySelector('img');
+        const skin = card.querySelector('.card-skin');
+        if (img && skin) {
+          if (img.complete) setCardTint(img, skin);
+          else img.addEventListener('load', () => setCardTint(img, skin), { once: true });
         }
-        container.appendChild(fragment);
-      }
+      });
+    }
 
-      function mapRecipeFromBackend(meta) {
-        const image = meta.image_url || (Array.isArray(meta.images) && meta.images[0]) || "https://images.unsplash.com/photo-1498575207490-3e0b1d5e3f51?q=80&w=1200&auto=format&fit=crop";
-        const categories = Array.isArray(meta.category) && meta.category.length
-          ? meta.category
-          : (Array.isArray(meta.tags) && meta.tags.length ? meta.tags : (meta.cuisine_type ? [meta.cuisine_type] : []));
-        return {
-          id: meta._id || meta.shortcode || meta.title,
-          title: meta.title || "Ricetta",
-          description: meta.description || "",
-          categories,
-          image,
-          score: typeof meta.score === "number" ? meta.score : undefined,
-        };
-      }
+    function renderChips(q) {
+      chips.innerHTML = '';
+      const make = (label, onRemove) => {
+        const el = document.createElement('button');
+        el.className = 'group px-3 py-1.5 rounded-full bg-neutral-100 hover:bg-neutral-200 text-sm smooth border border-neutral-200';
+        el.innerHTML = `${label} <span class="ml-1 text-neutral-500 group-hover:text-neutral-700">✕</span>`;
+        el.onclick = onRemove;
+        chips.appendChild(el);
+      };
+      if (q.maxMinuti!=null) make(`<${q.maxMinuti} min`, ()=>{ currentFilters.maxMinuti=null; apply(); });
+      q.categorie.forEach(c=> make(c, ()=>{ currentFilters.categorie = q.categorie.filter(x=>x!==c); apply(); }));
+      q.tipologie.forEach(t=> make(t, ()=>{ currentFilters.tipologie = q.tipologie.filter(x=>x!==t); apply(); }));
+      q.include.forEach(k=> make(`include:${k}`, ()=>{ currentFilters.include = q.include.filter(x=>x!==k); apply(); }));
+      q.exclude.forEach(k=> make(`senza:${k}`, ()=>{ currentFilters.exclude = q.exclude.filter(x=>x!==k); apply(); }));
+    }
 
-      async function searchAndRender(query) {
-        const q = (query || "").trim();
-        if (!q) {
-          // Nessuna query: pagina iniziale senza chiamate
-          renderRecipes(RECIPES);
-          updateCount(RECIPES.length);
+    function apply() {
+      renderChips(currentFilters);
+      const results = ricette.filter(r=>matchRicetta(r,currentFilters));
+      render(results);
+    }
+
+    function setCardTint(img, skinEl) {
+      if (!window.Vibrant || !img || !skinEl) return;
+      
+      // Fallback: colori predefiniti per evitare errori CORS
+      const fallbackColors = [
+        'rgba(42, 115, 255, 0.14)', // brand-500
+        'rgba(139, 191, 255, 0.14)', // brand-300  
+        'rgba(91, 155, 255, 0.14)', // brand-400
+        'rgba(183, 215, 255, 0.14)', // brand-200
+      ];
+      const randomFallback = fallbackColors[Math.floor(Math.random() * fallbackColors.length)];
+      
+      try {
+        // Controlla se l'immagine è accessibile (stesso dominio o CORS abilitato)
+        if (img.crossOrigin !== 'anonymous' && !img.src.startsWith(window.location.origin)) {
+          // Usa fallback per immagini cross-origin senza CORS
+          skinEl.style.background = `linear-gradient(180deg, ${randomFallback}, rgba(42, 115, 255, 0.05))`;
+          skinEl.style.borderColor = `rgba(42, 115, 255, 0.25)`;
           return;
         }
-        try {
-          renderLoading(8);
-          console.log("fetching");
-          console.log(`/search/?query=${encodeURIComponent(q)}&limit=24`);
-          const r = await fetch(`/search/?query=${encodeURIComponent(q)}&limit=24`, {
-            headers: { "Accept": "application/json" },
-          });
-          if (!r.ok) throw new Error(`HTTP ${r.status}`);
-          const data = await r.json();
-          console.log("data response");
-          console.log(data);
-          const mapped = Array.isArray(data) ? data.map(mapRecipeFromBackend) : [];
-          console.log("mapped");
-          console.log(mapped);
-          renderRecipes(mapped);
-          updateCount(mapped.length);
-        } catch (err) {
-          console.error("Errore ricerca:", err);
-          const container = document.getElementById("results");
-          container.innerHTML = `<div class="text-sm text-red-600">Errore durante la ricerca. Riprova più tardi.</div>`;
-          updateCount(0);
-        }
-      }
 
-      // Debounce helper
-      function debounce(fn, wait = 1000) {
-        let t;
-        return (...args) => {
-          clearTimeout(t);
-          t = setTimeout(() => fn.apply(null, args), wait);
-        };
-      }
-
-      // Init
-      document.addEventListener("DOMContentLoaded", () => {
-        renderRecipes(RECIPES);
-        updateCount(RECIPES.length);
-
-        const form = document.getElementById("search-form");
-        const input = document.getElementById("query-input");
-        const debouncedSearch = debounce((val) => searchAndRender(val), 350);
-
-        form.addEventListener("submit", (e) => {
-          e.preventDefault();
-          searchAndRender(input.value);
+        Vibrant.from(img).getPalette().then(p => {
+          const sw = p.Vibrant || p.Muted || p.LightVibrant || p.DarkMuted;
+          if (!sw) {
+            // Fallback se non vengono estratti colori
+            skinEl.style.background = `linear-gradient(180deg, ${randomFallback}, rgba(42, 115, 255, 0.05))`;
+            skinEl.style.borderColor = `rgba(42, 115, 255, 0.25)`;
+            return;
+          }
+          const rgb = sw.rgb.map(x=>Math.round(x));
+          const r=rgb[0], g=rgb[1], b=rgb[2];
+          skinEl.style.background = `linear-gradient(180deg, rgba(${r},${g},${b},0.14), rgba(${r},${g},${b},0.05))`;
+          skinEl.style.borderColor = `rgba(${r},${g},${b},0.25)`;
+        }).catch(err => {
+          // Gestisce errori CORS e altri errori di Vibrant
+          console.warn('Vibrant color extraction failed (probabilmente CORS):', err.message);
+          skinEl.style.background = `linear-gradient(180deg, ${randomFallback}, rgba(42, 115, 255, 0.05))`;
+          skinEl.style.borderColor = `rgba(42, 115, 255, 0.25)`;
         });
-        input.addEventListener("input", () => {
-          debouncedSearch(input.value);
-        });
-      });
-    </script>
-  </body>
-  </html>
+      } catch(e) { 
+        // Fallback finale per qualsiasi errore
+        console.warn('setCardTint error:', e.message);
+        skinEl.style.background = `linear-gradient(180deg, ${randomFallback}, rgba(42, 115, 255, 0.05))`;
+        skinEl.style.borderColor = `rgba(42, 115, 255, 0.25)`;
+      }
+    }
+    // ===========================
+    // INTERAZIONE
+    // ===========================
+    function searchNow() {
+      currentFilters = parseQuery(input.value.trim());
+      apply();
+    }
+    document.getElementById('btnSearch').addEventListener('click', searchNow);
+    document.getElementById('btnClear').addEventListener('click', ()=>{
+      input.value = '';
+      currentFilters = parseQuery('');
+      apply();
+    });
+    document.getElementById('btnRandom').addEventListener('click', ()=>{
+      const samples = [
+        'primo veloce <20 con pomodoro',
+        'dolce senza cottura con fragole',
+        'zuppa vegana con ceci <40',
+        'secondo di pesce <30',
+        'senza glutine con quinoa <20'
+      ];
+      const s = samples[Math.floor(Math.random()*samples.length)];
+      input.value = s;
+      currentFilters = parseQuery(s);
+      apply();
+    });
+    input.addEventListener('keydown', (e)=>{ if(e.key==='Enter') searchNow(); });
 
+    // helper per suggerimenti
+    window.preset = (q)=>{ input.value=q; searchNow(); };
 
+    // first render
+    render(ricette);
+  </script>
+</body>
+</html>
