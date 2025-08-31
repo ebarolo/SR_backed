@@ -31,6 +31,7 @@ openAIclient = OpenAI(api_key=OPENAI_API_KEY)
 
 # modell EMBEDDING_MODEL da usare
 EMBEDDING_MODEL = "BAAI/bge-m3"
+FLAGEMBEDDING_AVAILABLE = True
 
 # Percorso file NPZ che contiene embeddings e metadati
 EMBEDDINGS_NPZ_PATH = os.getenv(
@@ -43,6 +44,7 @@ EMBEDDINGS_NPZ_PATH = os.getenv(
 # -------------------------------
 # Forza l'uso della versione locale di ChromaDB invece di Chroma Cloud
 USE_LOCAL_CHROMA = os.getenv("USE_LOCAL_CHROMA", "true").lower() in ("true", "1", "yes")
+CHROMADB_AVAILABLE = True
 
 # Percorso per il database ChromaDB locale (se None, usa in-memory)
 CHROMA_LOCAL_PATH = os.getenv("CHROMA_LOCAL_PATH", os.path.join(os.getcwd(), "chroma_db"))

@@ -2,13 +2,11 @@ from fastapi import FastAPI, HTTPException, status
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi import BackgroundTasks, Request
 
 from config import ( openAIclient, BASE_FOLDER_RICETTE, COLLECTION_NAME)
 
-# Middleware: assegna un request_id a ogni richiesta
 import uuid
-from fastapi import BackgroundTasks, Request
-
 import os
 import uvicorn
 import json
@@ -18,10 +16,12 @@ from typing import List, Optional
 
 from models import RecipeDBSchema, JobStatus
 
-import logging
+
 from time import perf_counter
 from importRicette.saveRecipe import process_video
-from logging_config import setup_logging
+from DB.chromaDB import RecipeDatabase
+import logging
+from logging_config import setup_logging, get_error_logger, clear_error_chain
 from logging_config import request_id_var, job_id_var
 import asyncio as _asyncio
 
@@ -48,7 +48,7 @@ class VideoURLs(BaseModel):
         return vs
 
 setup_logging()
-logger = logging.getLogger(__name__)
+error_logger = get_error_logger(__name__)
 
 # -------------------------------
 # Inizializzazione FastAPI e Dependency per il DB
@@ -84,33 +84,29 @@ async def add_request_id(request: Request, call_next):
         response = await call_next(request)
         duration_ms = int((perf_counter() - start) * 1000)
         response.headers["X-Request-ID"] = rid
-        level = logging.ERROR if response.status_code >= 500 else (logging.WARNING if response.status_code >= 400 else logging.INFO)
-        logger.log(
-            level,
-            "HTTP",
-            extra={
-                "path": request.url.path,
-                "method": request.method,
-                "query": request.url.query,
-                "status": response.status_code,
-                "duration_ms": duration_ms,
-                "client_ip": client_ip,
-                "user_agent": ua,
-            },
-        )
+        # Log solo errori e warning per ridurre verbosità
+        if response.status_code >= 400:
+            level = logging.ERROR if response.status_code >= 500 else logging.WARNING
+            error_logger.logger.log(
+                level,
+                f"HTTP {response.status_code} {request.method} {request.url.path}",
+                extra={
+                    "status": response.status_code,
+                    "duration_ms": duration_ms,
+                    "client_ip": client_ip,
+                }
+            )
         return response
     except Exception as e:
         duration_ms = int((perf_counter() - start) * 1000)
-        logger.exception(
-            "Unhandled exception",
-            extra={
+        error_logger.log_exception(
+            f"unhandled_http_exception",
+            e,
+            {
                 "path": request.url.path,
                 "method": request.method,
-                "query": request.url.query,
                 "duration_ms": duration_ms,
-                "client_ip": client_ip,
-                "user_agent": ua,
-            },
+            }
         )
         raise
     finally:
@@ -174,7 +170,7 @@ def _ingest_urls_job(job_id: str, urls: List[str]):
             try:
                 progress["urls"][idx0].update({"status": "running", "stage": "download"})
             except Exception:
-                logger.warning(f"Failed to update progress for URL {idx0}")
+                pass  # Non loggiamo errori minori di aggiornamento progress
 
             def _cb(event: dict):
                 try:
@@ -191,13 +187,12 @@ def _ingest_urls_job(job_id: str, urls: List[str]):
                             url_entry["error"] = str(event.get("message"))
                             url_entry["status"] = "failed"
                         progress["percentage"] = _recalc_job_percentage()
-                except Exception as e:
-                    logger.warning(f"Failed to update progress callback: {e}")
+                except Exception:
+                    pass  # Non loggiamo errori minori di callback
 
             #processo i dati della ricetta
             try:
                 recipe_data = await process_video(url, progress_cb=_cb)
-                logger.info(f"response from process_video: {recipe_data}")
                 if not recipe_data:
                     failed += 1
                     if 0 <= idx0 < len(progress.get("urls", [])):
@@ -208,13 +203,11 @@ def _ingest_urls_job(job_id: str, urls: List[str]):
                 
                 try:
                  filename = os.path.join(BASE_FOLDER_RICETTE, recipe_data.shortcode, "media_original", f"metadata_{recipe_data.shortcode}.json")
-                 logger.info(f"path metadati della ricetta {filename}")
                  with open(filename, 'w', encoding='utf-8') as f:
                   json.dump(recipe_data.model_dump(), f, indent=1, ensure_ascii=False)
-                 logger.info(f"Scrivo i metadati della ricetta in {filename}")
 
                 except Exception as e:
-                 logger.error(f"Errore durante la scrittura del file JSON: {str(e)}")
+                 error_logger.log_exception("save_metadata", e, {"shortcode": recipe_data.shortcode})
                  continue
              
                 metadatas.append(recipe_data)
@@ -236,11 +229,11 @@ def _ingest_urls_job(job_id: str, urls: List[str]):
                 continue
 
         if metadatas:
-            # Fase di indicizzazione
-            logger.info(f"Inizio indicizzazione")
+            
             progress["stage"] = "indexing"
             progress["percentage"] = max(float(progress.get("percentage") or 0.0), 95.0)
-            
+            logging.getLogger(__name__).info(f"call ingest_json_to_chroma: {metadatas}", extra={})
+
             n, coll = ingest_json_to_chroma(metadatas, collection_name=COLLECTION_NAME)
             print(f"Inseriti {n} record nella collection '{coll}'.")
             
@@ -280,8 +273,8 @@ def _ingest_urls_job(job_id: str, urls: List[str]):
     finally:
         try:
             job_id_var.reset(job_token)
-        except Exception as e:
-            logger.warning(f"Failed to reset job_id_var: {e}")
+        except Exception:
+            pass  # Errore minore di cleanup
         loop.close()
 
 @app.get("/", include_in_schema=False)
@@ -370,7 +363,7 @@ def get_recipe_by_shortcode(shortcode: str):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Errore recupero ricetta {shortcode}: {e}")
+        error_logger.log_exception("get_recipe", e, {"shortcode": shortcode})
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Errore interno: {str(e)}")
 
 @app.get("/search/")
@@ -404,14 +397,12 @@ def search_recipes(query: str, limit: int = 12, max_time: Optional[int] = None, 
                 images = result.get("images") or []
                 if not result.get("image_url") and isinstance(images, list) and images:
                     result["image_url"] = images[0]
-            except Exception as e:
-                logger.warning(f"Failed to normalize recipe result: {e}")
-        
-        logger.info(f"Ricerca '{query}': {len(results)} risultati trovati")
+            except Exception:
+                pass  # Errore minore di normalizzazione immagini
         return results
         
     except Exception as e:
-        logger.error("Search failed", extra={"query": query, "error": str(e)}, exc_info=True)
+        error_logger.log_exception("search", e, {"query": query[:50]})
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Errore in ricerca semantica")
 
 # -------------------------------
@@ -438,7 +429,7 @@ def embeddings_info():
             "optimization": "BGE-M3 multilingual"
         }
     except Exception as e:
-        logger.error(f"Errore info embeddings: {e}")
+        error_logger.log_exception("embeddings_info", e)
         return {"status": "error", "detail": str(e)}
 
 @app.post("/embeddings/model")
@@ -451,7 +442,7 @@ def change_embedding_model(body: SetModelBody):
         
         # Per ora ritorniamo il modello corrente 
         # Un cambio di modello richiederebbe riavvio dell'applicazione
-        logger.info(f"Richiesta cambio modello da {current_model} a {body.model_name}")
+        # Richiesta cambio modello
         
         return {
             "status": "info", 
@@ -460,7 +451,7 @@ def change_embedding_model(body: SetModelBody):
             "message": "Riavvio applicazione richiesto per cambiare modello"
         }
     except Exception as e:
-        logger.error(f"Errore cambio modello: {e}")
+        error_logger.log_exception("change_model", e, {"requested_model": body.model_name})
         return {"status": "error", "detail": str(e)}
 
 class RecalcBody(BaseModel):
@@ -470,23 +461,44 @@ class RecalcBody(BaseModel):
 @app.post("/embeddings/recalculate")
 def recalc_embeddings(body: RecalcBody):
     """
-    Ricalcola embeddings con nuovo modello (non necessario con ChromaDB)
+    Ricalcola embeddings con nuovo modello
     
-    Con ChromaDB gli embeddings sono calcolati on-the-fly,
-    quindi questa operazione non è necessaria.
     """
     try:
-        stats = recipe_db.get_stats()
+        # Ottieni la lista di tutte le cartelle dentro BASE_FOLDER_RICETTE
+        recipe_folders = []
         
-        return {
-            "status": "info",
-            "message": "ChromaDB calcola embeddings on-the-fly, ricalcolo non necessario",
-            "current_model": EMBEDDING_MODEL,
-            "total_recipes": stats.get("total_recipes", 0),
-            "database_type": "ChromaDB optimized"
-        }
+        # Verifica che la directory esista
+        if not os.path.exists(BASE_FOLDER_RICETTE):
+            return {
+                "status": "error",
+                "detail": f"La directory {BASE_FOLDER_RICETTE} non esiste"
+            }
+        
+        recipe_db = RecipeDatabase()
+         # Elenca tutte le entry nella directory
+        for entry in os.listdir(BASE_FOLDER_RICETTE):
+            entry_path = os.path.join(BASE_FOLDER_RICETTE, entry)
+            # Controlla se è una directory
+            if os.path.isdir(entry_path):
+                recipe_folders.append(entry)
+        
+         # Ordina le cartelle alfabeticamente
+        recipe_folders.sort()
+        for recipe_folder in recipe_folders:
+            json_file = os.path.join(recipe_folder, f"metadata_{recipe_folder}.json")
+            if not os.path.isfile(json_file):
+                error_logger.logger.log(f"no recipe med.js found in folder: {recipe_folder}")
+                continue
+            else:
+             with open(json_file, 'r', encoding='utf-8') as f:
+                recipe_data = json.load(f)
+                
+             recipe_db.add_recipe(recipe_data)
+        
+        
     except Exception as e:
-        logger.error(f"Errore info ricalcolo: {e}")
+        error_logger.log_exception("recalc_info", e)
         return {"status": "error", "detail": str(e)}
     
 # -------------------------------
@@ -513,18 +525,13 @@ def health_check():
             }
         }
     except Exception as e:
-        logger.error(f"Errore health check: {e}")
+        error_logger.log_exception("health_check", e)
         return {
             "status": "degraded",
             "error": str(e),
             "system": "Smart Recipe API"
         }
-
-# -------------------------------
-# NUOVI ENDPOINTS OTTIMIZZATI
-# -------------------------------
-
-
+        
 @app.get("/{full_path:path}", include_in_schema=False)
 async def spa_fallback(full_path: str):
     file_path = os.path.join(DIST_DIR, full_path)

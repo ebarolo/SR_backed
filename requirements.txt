@@ -34,8 +34,8 @@ matplotlib==3.10.5
 scipy==1.16.1
 
 # RAG
-transformers==4.55.3
+transformers==4.55.4
 torch>=2.8.0
 sentence-transformers>=5.1.0
-FlagEmbedding>=1.2.8
+FlagEmbedding>=1.3.5
 

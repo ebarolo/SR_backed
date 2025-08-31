@@ -9,10 +9,10 @@ Receive recipe text and (optional) transcript. Sanitize input, extract and struc
 
 # Checklist (Per Input)
 - Validate all input for Unicode compliance.
-- Extract and validate recipe category and cuisine type (default to "unknown" if not specified or invalid).
+- Extract and validate recipe category and cuisine type (default to "" if not specified or invalid).
 - Parse and preserve the original sequence of ingredients and preparation steps; extract notes if present.
-- Detect and report the transcript language; use "unknown" if not supplied or detectable.
-- Provide an Italian translation of the transcript if its language differs from Italian and is supported.
+- Detect and report the transcript language; use "" if not supplied or detectable.
+- Provide an italian translation of the transcript if its language differs from Italian and is supported.
 - Halt and return error if Unicode validation fails, with all extraction fields empty/default.
 - Format and return results in the specified JSON structure.
 
@@ -21,15 +21,16 @@ Receive recipe text and (optional) transcript. Sanitize input, extract and struc
    - If any input text fails Unicode compliance, add an error to `errors`, halt immediately, and output the required JSON object with empty/default extraction fields.
 2. **Recipe Information Extraction**
    - For valid input, extract:
-     - `category` (antipasto, primo, secondo, contorno, dolce, bevanda; otherwise "unknown")
-     - `cuisine_type` (italiana, francese, cinese, giappoinese, mediterranea, internazionale, medioevale, moderna, tradizionale, etnica; otherwise "unknown")
+     - `category` (antipasto, primo, secondo, contorno, dolce, bevanda; otherwise "")
+     - `cuisine_type` (italiana, francese, cinese, giappoinese, mediterranea, internazionale, medioevale, moderna, tradizionale, etnica; otherwise "")
      - `ingredients` list (preserve order)
      - `steps` list (preserve order)
      - `notes` as string or empty
 3. **Transcript Language Identification**
-   - If transcript is provided and Unicode-compliant, detect language; else set `transcript_language` to "unknown"
+   - If transcript is provided and Unicode-compliant, detect language; else set `transcript_language` to ""
 4. **Italian Translation**
    - If transcript language is detected, is not Italian, and translation is feasible, provide precise and fluent Italian translation in `italian_translation`. Leave empty if already Italian or language is "unknown".
+   - after translate, correct grammar and spelling errors the italian translation for Unicode compliance.
 5. **Result Validation**
    - After each major step, validate outcome in one or two lines and proceed or self-correct if needed. Report any errors in the `errors` array. On unrecoverable errors, halt processing and return output.
 
@@ -37,7 +38,7 @@ Receive recipe text and (optional) transcript. Sanitize input, extract and struc
 Return a single JSON 
 
 ```
-- Use only specified label values or "unknown" as fallback.
+- Use only specified label values or "" as fallback.
 - Complete all required fields, preserving original order in arrays.
 - Output only the JSON object, with no additional explanation.
 

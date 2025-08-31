@@ -1,0 +1,114 @@
+{
+    "$jsonSchema": {
+      "bsonType": "object",
+      "required": [
+        "category",
+        "chef_advise",
+        "cooking_time",
+        "cuisine_type",
+        "description",
+        "diet",
+        "ingredients",
+        "language",
+        "nutritional_info",
+        "preparation_time",
+        "recipe_step",
+        "ricetta_audio",
+        "ricetta_caption",
+        "shortcode",
+        "tags",
+        "technique",
+        "title"
+      ],
+      "properties": {
+        "category": {
+          "bsonType": "array",
+          "items": {
+            "bsonType": "string"
+          }
+        },
+        "chef_advise": {
+          "bsonType": "string"
+        },
+        "cooking_time": {
+          "bsonType": "int"
+        },
+        "cuisine_type": {
+          "bsonType": "string"
+        },
+        "description": {
+          "bsonType": "string"
+        },
+        "diet": {
+          "bsonType": "string"
+        },
+        "ingredients": {
+          "bsonType": "array",
+          "items": {
+            "bsonType": "object",
+            "properties": {
+              "name": {
+                "bsonType": "string"
+              },
+              "qt": {
+                "bsonType": "double"
+              },
+              "um": {
+                "bsonType": "string"
+              }
+            },
+            "required": [
+              "name",
+              "qt",
+              "um"
+            ]
+          }
+        },
+        "language": {
+          "bsonType": "string"
+        },
+        "nutritional_info": {
+          "bsonType": "array",
+          "items": {
+            "bsonType": "string"
+          }
+        },
+        "preparation_time": {
+          "bsonType": "int"
+        },
+        "recipe_step": {
+          "bsonType": "array",
+          "items": {
+            "bsonType": "string"
+          }
+        },
+        "ricetta_audio": {
+          "bsonType": "string"
+        },
+        "ricetta_caption": {
+          "bsonType": "string"
+        },
+        "shortcode": {
+          "bsonType": "string"
+        },
+        "tags": {
+          "bsonType": "array",
+          "items": {
+            "bsonType": "string"
+          }
+        },
+        "technique": {
+          "bsonType": "string"
+        },
+        "title": {
+          "bsonType": "string"
+        },
+        "images": {
+          "bsonType": "array",
+          "items": {
+            "bsonType": "string"
+          }
+        }
+      }
+    }
+  }

@@ -1,25 +1,15 @@
-"""
-ChromaDB integration for recipe search and storage.
-
-Implementazione del sistema di database vettoriale per la ricerca semantica delle ricette.
-"""
-import logging
 from typing import List, Dict, Any, Optional
 import uuid
+import chromadb
 
-try:
-    import chromadb
-    from chromadb.config import Settings
-    CHROMADB_AVAILABLE = True
-except ImportError:
-    chromadb = None
-    CHROMADB_AVAILABLE = False
+from config import CHROMA_LOCAL_PATH, USE_LOCAL_CHROMA, COLLECTION_NAME, CHROMADB_AVAILABLE
+from logging_config import get_error_logger, clear_error_chain
+from utility import nfkc, lemmatize_it, remove_stopwords_spacy
 
-from config import CHROMA_LOCAL_PATH, USE_LOCAL_CHROMA, COLLECTION_NAME
-from DB.embedding import recipe_embedder
+from DB.embedding import RecipeEmbedder
 from models import RecipeDBSchema
-
-logger = logging.getLogger(__name__)
+import logging
+error_logger = get_error_logger(__name__)
 
 class RecipeDatabase:
     """Gestione database ChromaDB per ricette"""
@@ -27,78 +17,111 @@ class RecipeDatabase:
     def __init__(self):
         self.client = None
         self.collection = None
+        self.embedder = None
         self.initialize_database()
     
     def initialize_database(self):
         """Inizializza la connessione a ChromaDB"""
         if not CHROMADB_AVAILABLE:
-            logger.warning("ChromaDB non disponibile - funzionalità limitata")
             return
             
+        clear_error_chain()  # Nuova operazione
         try:
             if USE_LOCAL_CHROMA and CHROMA_LOCAL_PATH:
                 self.client = chromadb.PersistentClient(path=CHROMA_LOCAL_PATH)
             else:
                 self.client = chromadb.Client()
-                
+                 
             # Crea o ottiene la collection default
             self.collection = self.client.get_or_create_collection(
                 name=COLLECTION_NAME,
-                metadata={"description": "Recipe collection con embeddings"}
+                embedding_function=None,
+                metadata={"description": "Recipe collection con embeddings"},
+                configuration={"hnsw": {"space": "cosine"}}
             )
-            logger.info("ChromaDB inizializzato con successo")
+            self.embedder = RecipeEmbedder()
             
         except Exception as e:
-            logger.error(f"Errore inizializzazione ChromaDB: {e}")
+            error_logger.log_exception("initialize_database", e, {
+                "chroma_path": CHROMA_LOCAL_PATH if USE_LOCAL_CHROMA else "memory",
+                "collection_name": COLLECTION_NAME
+            })
             self.client = None
             self.collection = None
     
     def add_recipe(self, recipe_data: RecipeDBSchema) -> bool:
         """Aggiunge una ricetta al database"""
         if not self.collection:
-            logger.warning("ChromaDB non disponibile")
             return False
             
-        try:
-            # Genera embedding per la ricetta
-            embedding = recipe_embedder.encode_recipe(recipe_data)
+        try:           
+            logging.getLogger(__name__).info(f"Adding recipe metadata: {recipe_data}", extra={})
+
+            #ingr_raw = [nfkc(ingredient.name) for ingredient in recipe_data.ingredients]
+            #ingr_s = [remove_stopwords_spacy(ingr_) for ingr_ in ingr_raw]
+            ingr_lem = []
+            for ingredient in recipe_data.ingredients:
+             i_n = nfkc(ingredient.name)
+             i_s = remove_stopwords_spacy(i_n)
+             i_lem = lemmatize_it(i_s)
+             ingr_lem.append(i_s)
+             #logging.getLogger(__name__).info(f"i_n: {i_n} | i_s: {i_s} | i_lem: {i_lem}", extra={})
             
-            # Prepara metadati
-            metadata = {
-                "title": recipe_data.title,
-                "shortcode": recipe_data.shortcode,
-                "category": ",".join(recipe_data.category) if recipe_data.category else "",
-                "cuisine_type": recipe_data.cuisine_type or "",
-                "cooking_time": recipe_data.cooking_time or 0,
-                "preparation_time": recipe_data.preparation_time or 0
-            }
+             #logging.getLogger(__name__).info(f"ingr_lem: {ingr_lem}", extra={})
+
+            cats     = [nfkc(x) for x in recipe_data.category]
             
             # Crea testo per il documento
-            document_text = recipe_embedder.create_recipe_text(recipe_data)
-            
+            document_text = (f"Titolo: {recipe_data.title}\n"
+                             f"Descrizione: {recipe_data.description}\n"
+                             f"Ingredienti: {'; '.join(ingr_lem)}\n"
+                             f"Categoria: {'; '.join(cats)}\n"
+            )
+            logging.getLogger(__name__).info(f"document_text: {document_text}", extra={})
+
+            # Genera embedding per la ricetta
+            embedding = self.embedder.generate_embedding_sync(document_text)
+
+            # Converti RecipeDBSchema in dict per ChromaDB
+            md = {
+                "cuisine_type": recipe_data.cuisine_type or "",
+                "diet": recipe_data.diet or "",
+                "category": ', '.join(cats) or "",
+                "ingredients": ', '.join(ingr_lem) or "",
+                "language": recipe_data.language or "",
+                "technique": recipe_data.technique or "",
+                "shortcode": recipe_data.shortcode or "",
+                "cooking_time": recipe_data.cooking_time or 0,
+                "preparation_time": recipe_data.preparation_time or 0
+                }
             # Aggiungi al database
-            self.collection.add(
+            resp = self.collection.upsert(
                 embeddings=[embedding],
                 documents=[document_text],
-                metadatas=[metadata],
+                metadatas=[md],
                 ids=[recipe_data.shortcode]
             )
+            
+            logging.getLogger(__name__).info(f"upsert: {resp}", extra={})
+
             return True
             
         except Exception as e:
-            logger.error(f"Errore aggiunta ricetta: {e}")
+            error_logger.log_exception("add_recipe", e, {
+                "shortcode": recipe_data.shortcode,
+                "title": recipe_data.title
+            })
             return False
     
     def search(self, query: str, limit: int = 10, filters: Optional[Dict] = None) -> List[Dict[str, Any]]:
         """Ricerca semantica nel database"""
         if not self.collection:
-            logger.warning("ChromaDB non disponibile")
             return []
             
         try:
             # Genera embedding per la query
-            query_embedding = recipe_embedder.encode_query(query)
-            
+            query_embedding = self.embedder.generate_embedding_sync(query)
+
             # Costruisci filtri Where
             where_clause = {}
             if filters:
@@ -134,13 +157,16 @@ class RecipeDatabase:
             return formatted_results
             
         except Exception as e:
-            logger.error(f"Errore ricerca: {e}")
+            error_logger.log_exception("search", e, {
+                "query": query[:50],  # Primi 50 caratteri
+                "limit": limit,
+                "filters": filters
+            })
             return []
     
     def get_by_shortcode(self, shortcode: str) -> Optional[Dict[str, Any]]:
         """Recupera ricetta per shortcode"""
         if not self.collection:
-            logger.warning("ChromaDB non disponibile")
             return None
             
         try:
@@ -159,7 +185,7 @@ class RecipeDatabase:
             return None
             
         except Exception as e:
-            logger.error(f"Errore recupero ricetta {shortcode}: {e}")
+            error_logger.log_exception("get_by_shortcode", e, {"shortcode": shortcode})
             return None
     
     def get_stats(self) -> Dict[str, Any]:
@@ -179,7 +205,7 @@ class RecipeDatabase:
                 "status": "active"
             }
         except Exception as e:
-            logger.error(f"Errore statistiche: {e}")
+            error_logger.log_exception("get_stats", e)
             return {
                 "total_recipes": 0,
                 "collection_name": "error",
@@ -198,11 +224,12 @@ def ingest_json_to_chroma(metadatas: List[RecipeDBSchema], collection_name: str 
         tuple: (numero_ricette_inserite, nome_collection)
     """
     if not recipe_db.collection:
-        logger.warning("ChromaDB non disponibile per ingest")
         return 0, "unavailable"
     
     success_count = 0
     for metadata in metadatas:
+        logging.getLogger(__name__).info(f"Ingesting recipe: {metadata.shortcode}", extra={})
+
         if recipe_db.add_recipe(metadata):
             success_count += 1
     

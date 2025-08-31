@@ -1,9 +1,14 @@
 import os
 import instaloader
+import logging
 from typing import Dict, Any
 
-from utility import sanitize_folder_name, logger
+from utility import sanitize_folder_name
+from logging_config import get_error_logger, clear_error_chain
 from config import ISTA_USERNAME, ISTA_PASSWORD, BASE_FOLDER_RICETTE
+
+# Initialize error logger
+error_logger = get_error_logger(__name__)
 
 def get_instaloader():
     L = instaloader.Instaloader(
@@ -24,22 +29,21 @@ def get_instaloader():
     # Try to login if credentials are available
     if ISTA_USERNAME and ISTA_PASSWORD:
         try:
-            logger.info(f"Attempting to login with username: {ISTA_USERNAME}")
+            logging.getLogger(__name__).info(f"Attempting to login with username: {ISTA_USERNAME}")
             L.login(ISTA_USERNAME, ISTA_PASSWORD)
-            logger.info("Login successful")
+            logging.getLogger(__name__).info("Login successful")
         except Exception as login_error:
-            logger.error(f"Login failed: {str(login_error)}")
-            logger.warning(
-                "Proceeding without authentication - some operations may be rate limited"
-            )
+            error_logger.log_exception("instagram_login", login_error, {"username": ISTA_USERNAME})
+            error_logger.log_error("instagram_login_warning", "Proceeding without authentication - some operations may be rate limited", {"username": ISTA_USERNAME})
     else:
-        logger.info(
-            "No Instagram credentials available, proceeding without authentication"
-        )
+        logging.getLogger(__name__).info("No Instagram credentials available, proceeding without authentication")
 
     return L
 
 async def scarica_contenuto_reel(url: str) -> Dict[str, Any]:
+    # Clear error chain at start of new operation
+    clear_error_chain()
+    
     result = []
     try:
         L = get_instaloader()
@@ -51,7 +55,7 @@ async def scarica_contenuto_reel(url: str) -> Dict[str, Any]:
         # - https://www.instagram.com/tv/ABC123/
         # - https://instagram.com/p/ABC123/
 
-        logger.info(f"Processing URL: {url}")
+        logging.getLogger(__name__).info(f"Processing URL: {url}")
 
         # Clean URL by removing query parameters and trailing slashes
         clean_url = url.split("?")[0].rstrip("/")
@@ -69,7 +73,7 @@ async def scarica_contenuto_reel(url: str) -> Dict[str, Any]:
         if not shortcode:
             raise ValueError(f"Could not extract shortcode from URL: {url}")
 
-        logger.info(f"Extracted shortcode: {shortcode}")
+        logging.getLogger(__name__).info(f"Extracted shortcode: {shortcode}")
         # Create a folder named after the shortcode inside static/mediaRicette
         shortcode_folder = os.path.join(
             BASE_FOLDER_RICETTE, shortcode
@@ -77,9 +81,7 @@ async def scarica_contenuto_reel(url: str) -> Dict[str, Any]:
         
         # Check if the folder already exists and contains files
         if os.path.exists(shortcode_folder) and os.listdir(shortcode_folder):
-            logger.warning(
-                f"Folder {shortcode_folder} already exists and contains files"
-            )
+            error_logger.log_error("content_already_exists", f"Folder {shortcode_folder} already exists and contains files", {"shortcode": shortcode, "url": url})
 
             raise ValueError(f"Content for shortcode {shortcode} already downloaded")
 
@@ -90,18 +92,18 @@ async def scarica_contenuto_reel(url: str) -> Dict[str, Any]:
             # Set the dirname_pattern to the shortcode folder for this download
             L.dirname_pattern = downloadFolder
 
-            logger.info(f"Created folder for download: {downloadFolder}")
+            logging.getLogger(__name__).info(f"Created folder for download: {downloadFolder}")
             try:
                 post = instaloader.Post.from_shortcode(L.context, shortcode)
             except instaloader.exceptions.InstaloaderException as e:
-                logger.error(f"Error fetching post with shortcode {shortcode}: {str(e)}")
+                error_logger.log_exception("instaloader_fetch_post", e, {"shortcode": shortcode, "url": url})
                 
                 return [{ # Manteniamo la struttura a lista come nel caso di successo
                     "error": f"Errore durante il recupero del post con shortcode {shortcode}: {str(e)}",
                     "shortcode": shortcode
                 }]
             except Exception as e: # Cattura generica per altri possibili errori non di Instaloader
-                logger.error(f"Unexpected error fetching post with shortcode {shortcode}: {str(e)}")
+                error_logger.log_exception("unexpected_fetch_post", e, {"shortcode": shortcode, "url": url})
                 return [{
                     "error": f"Errore inaspettato durante il recupero del post con shortcode {shortcode}: {str(e)}",
                     "shortcode": shortcode,
@@ -121,7 +123,7 @@ async def scarica_contenuto_reel(url: str) -> Dict[str, Any]:
                     except Exception as e:
                         post_attributes[attr] = f"Error accessing attribute: {str(e)}"
 
-            logger.info(f"Post attributes: {post_attributes}")
+            logging.getLogger(__name__).info(f"Post attributes extracted", extra={"shortcode": shortcode, "attributes_count": len(post_attributes)})
             
             # Download the post
             L.download_post(post, downloadFolder)
@@ -136,15 +138,18 @@ async def scarica_contenuto_reel(url: str) -> Dict[str, Any]:
             return result
 
     except instaloader.exceptions.InstaloaderException as e:
-        logger.error(f"Errore scarica_contenuto_reel: {str(e)}")
+        error_logger.log_exception("scarica_contenuto_reel", e, {"url": url})
         raise ValueError(f"Errore scarica_contenuto_reel: {str(e)}")
 
 async def scarica_contenuti_account(username: str):
+    # Clear error chain at start of new operation
+    clear_error_chain()
+    
     result = []
     try:
         L = get_instaloader()
         # Scarica i post dell'account
-        logger.info(f"Attempting to fetch profile: {username}")
+        logging.getLogger(__name__).info(f"Attempting to fetch profile: {username}")
         profile = instaloader.Profile.from_username(L.context, username)
 
         account_name = sanitize_folder_name(profile.username)
@@ -152,7 +157,7 @@ async def scarica_contenuti_account(username: str):
         os.makedirs(folder_path, exist_ok=True)
 
         post_count = 0
-        logger.info(f"Starting to fetch posts for profile: {username}")
+        logging.getLogger(__name__).info(f"Starting to fetch posts for profile: {username}")
         downloadFolder = os.path.join(folder_path, "media_original")
         for post in profile.get_posts():
             if post.is_video:
@@ -171,12 +176,12 @@ async def scarica_contenuti_account(username: str):
                 }
 
                 result.append(res)
-                logger.info(f"Downloaded post {post_count} for {username}")
+                logging.getLogger(__name__).info(f"Downloaded post {post_count} for {username}")
 
-        logger.info(f"Completed fetching {post_count} posts for profile: {username}")
+        logging.getLogger(__name__).info(f"Completed fetching {post_count} posts for profile: {username}")
         return result
     except instaloader.exceptions.InstaloaderException as e:
-        logger.error(f"Errore specifico di scarica_contenuti_account: {str(e)}")
+        error_logger.log_exception("scarica_contenuti_account", e, {"username": username})
         result.append(
             {"error": str(e), "titolo": "", "percorso_video": "", "caption": ""}
         )

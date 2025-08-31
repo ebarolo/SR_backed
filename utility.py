@@ -1,16 +1,21 @@
 import re
 import os
-import logging
 import traceback
 import asyncio
 from functools import wraps
 from transformers import AutoTokenizer
+import spacy
+import unicodedata
 
 from config import BASE_FOLDER_RICETTE, EMBEDDING_MODEL
 
-logger = logging.getLogger(__name__)
+from logging_config import get_error_logger
+
+error_logger = get_error_logger(__name__)
 
 _tokenizer_cache = {}
+
+nlp_it = spacy.load("it_core_news_lg") 
 
 # Sanificazione iniziale del testo
 def sanitize_text(text):
@@ -28,9 +33,22 @@ def sanitize_folder_name(folder_name: str) -> str:
     # Sostituisce i caratteri non validi con un carattere di sottolineatura
     return re.sub(r'[<>:"/\\|?*]', '_', folder_name)
 
+def nfkc(s: str) -> str:
+    s = unicodedata.normalize("NFKC", s)
+    s = s.casefold().strip()
+    s = re.sub(r"\s+", " ", s)
+    return s
 
-
-
+def remove_stopwords_spacy(text: str) -> str:
+    """Rimuove le stop words italiane usando Spacy"""
+    doc = nlp_it(text)
+    # Filtra token che non sono stop words, punteggiatura o spazi
+    tokens = [token.text for token in doc if not token.is_stop and not token.is_punct and not token.is_space]
+    return " ".join(tokens)
+    
+def lemmatize_it(token: str):
+    doc = nlp_it(token)
+    return [t.lemma_.casefold() for t in doc]
 
 def get_error_context():
     """Get the current file, line number and function name where the error occurred"""
@@ -48,13 +66,11 @@ def timeout(seconds):
                 return await asyncio.wait_for(func(*args, **kwargs), timeout=seconds)
             except asyncio.TimeoutError:
                 message = f"Timeout dopo {seconds} secondi nella funzione {func.__name__}"
-                logger.error(message)
+                error_logger.log_error("timeout", message, {"function": func.__name__, "timeout": seconds})
                 raise TimeoutError(message)
         return wrapper
     return decorator
  
-
-
 def _get_embedding_tokenizer_and_max(model_name: str):
     cached = _tokenizer_cache.get(model_name)
     if cached:
@@ -71,7 +87,7 @@ def _get_embedding_tokenizer_and_max(model_name: str):
         return tok, int(max_len)
     except Exception as e:
         # In caso di errore, fallback conservativo
-        logger.error(f"Impossibile inizializzare tokenizer per modello '{model_name}': {str(e)}", exc_info=True)
+        error_logger.log_exception("tokenizer_init", e, {"model_name": model_name})
         return None, 512
 
 def ensure_text_within_token_limit(text: str) -> str:
@@ -90,11 +106,13 @@ def ensure_text_within_token_limit(text: str) -> str:
             return text
         truncated_ids = input_ids[:effective_max]
         truncated_text = tok.decode(truncated_ids, skip_special_tokens=True, clean_up_tokenization_spaces=True)
-        logger.warning(
-            f"Testo per embedding eccede il limite di {max_len} token del modello '{model_name}'. "
-            f"Troncato a {effective_max} token effettivi. Lunghezza originale: {len(input_ids)}"
-        )
+        
+        # Log del troncamento per debug
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Testo troncato per limiti token - Original: {len(input_ids)} tokens, Truncated: {effective_max} tokens, Model: {model_name}")
+        
         return truncated_text
     except Exception as e:
-        logger.error(f"Errore nel controllo/troncamento dei token per embedding: {str(e)}", exc_info=True)
+        error_logger.log_exception("token_check", e, {"model_name": model_name})
         return text

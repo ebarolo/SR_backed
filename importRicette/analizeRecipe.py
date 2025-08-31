@@ -5,10 +5,14 @@ import asyncio
 import re
 import json
 import requests
+import logging
 
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from utility import get_error_context, timeout, logger
+from utility import get_error_context, timeout
+from logging_config import get_error_logger
+
+error_logger = get_error_logger(__name__)
 
 from config import (
     openAIclient,
@@ -48,12 +52,12 @@ def read_prompt_files(file_name: str, **kwargs) -> str:
 
         return prompt_text
 
-    except FileNotFoundError:
-        logger.error(f"File di prompt non trovato: {file_path}")
+    except FileNotFoundError as e:
+        error_logger.log_exception("prompt_file_not_found", e, {"file_path": file_path})
         # Rilanciare l'eccezione è spesso meglio che restituire None
         raise
     except Exception as e:
-        logger.error(f"Errore durante la lettura del file di prompt {file_path}: {str(e)}")
+        error_logger.log_exception("prompt_file_read", e, {"file_path": file_path})
         raise
 
 def encode_image(image_path):
@@ -65,7 +69,7 @@ def encode_image(image_path):
         with open(image_path, "rb") as image_file:
             return base64.b64encode(image_file.read()).decode("utf-8")
     except Exception as e:
-        logger.error(f"Errore durante la codifica dell'immagine {image_path}: {str(e)}")
+        error_logger.log_exception("image_encoding", e, {"image_path": image_path})
         raise
 
 
@@ -99,7 +103,7 @@ async def analyze_recipe_frames(base64Frames):
         #logger.info(result.choices[0])
         return result.choices[0].message.content
     except Exception as e:
-        logger.error(f"Errore durante l'analisi dei fotogrammi: {str(e)}")
+        error_logger.log_exception("recipe_frames_analysis", e, {"frames_count": len(base64Frames)})
         raise
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
@@ -154,22 +158,26 @@ async def extract_recipe_info( recipe_audio_text: str, recipe_caption_text: str,
                 "verbosity": "medium"
             },
             reasoning={
-                "effort": "low",
+                "effort": "medium",
                 "summary": "auto"
             },
             tools=[],
             store=True
         )
         
-        logger.info(f" OpenAIresponse: {OpenAIresponse}")
+        # Log successful OpenAI response (info level - using standard logger)
+        #logging.getLogger(__name__).info(f"OpenAI response received successfully", extra={"has_error": OpenAIresponse.error is not None})
+        
         if OpenAIresponse.error is None:
             # 1) Prova proprietà comoda se presente
             output_text = getattr(OpenAIresponse, "output_text", None)
             if output_text:
                 try:
                     return json.loads(output_text)
-                except Exception:
-                    logger.warning("Failed to parse output_text as JSON")
+                except Exception as parse_error:
+                    # Aumentato limite per debug - mantieni primi 500 caratteri + lunghezza totale
+                    text_preview = str(output_text)[:500] + (f"... [troncato, lunghezza totale: {len(str(output_text))}]" if len(str(output_text)) > 500 else "")
+                    error_logger.log_error("json_parse_output_text", "Failed to parse output_text as JSON", {"output_text": text_preview})
 
             # 2) Estrai il primo messaggio con content non vuoto e prendi il testo
             output_items = getattr(OpenAIresponse, "output", []) or []
@@ -203,7 +211,18 @@ async def extract_recipe_info( recipe_audio_text: str, recipe_caption_text: str,
             raise ValueError("OpenAIresponse error: " + str(OpenAIresponse.error))
 
     except Exception as e:
-        logger.error(f"OpenAIresponse error: {str(e)}")
+        # Log più dettagliato per debug del troncamento
+        audio_preview = recipe_audio_text[:200] + f"... [tot: {len(recipe_audio_text)} chars]" if recipe_audio_text and len(recipe_audio_text) > 200 else recipe_audio_text or ""
+        caption_preview = recipe_caption_text[:200] + f"... [tot: {len(recipe_caption_text)} chars]" if recipe_caption_text and len(recipe_caption_text) > 200 else recipe_caption_text or ""
+        
+        error_logger.log_exception("extract_recipe_info", e, {
+            "audio_text_length": len(recipe_audio_text) if recipe_audio_text else 0,
+            "caption_text_length": len(recipe_caption_text) if recipe_caption_text else 0,
+            "ingredients_count": len(ingredients) if isinstance(ingredients, list) else 0,
+            "actions_count": len(actions) if isinstance(actions, list) else 0,
+            "audio_preview": audio_preview,
+            "caption_preview": caption_preview
+        })
         raise e
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
@@ -222,19 +241,22 @@ async def whisper_speech_recognition(audio_file_path: str, language: str) -> str
                 model=OPENAI_TRANSCRIBE_MODEL,
                 file=audio_file,
             )
-            logger.info(f"transcription: {transcription}")
+            # Log successful transcription (info level) con anteprima del testo
+            import logging
+            text_preview = transcription.text[:200] + (f"... [continua per altri {len(transcription.text)-200} caratteri]" if len(transcription.text) > 200 else "") if transcription.text else ""
+            logging.getLogger(__name__).info(f"Speech recognition completed successfully", extra={
+                "audio_file": audio_file_path,
+                "file_size_kb": file_size_kb,
+                "language": language,
+                "transcription_length": len(transcription.text) if transcription.text else 0,
+                "transcription_preview": text_preview
+            })
         return transcription.text
     except FileNotFoundError as e:
-        error_context = get_error_context()
-        logger.error(
-            f"Errore: Il file audio '{audio_file_path}' non è stato trovato. - {error_context}"
-        )
+        error_logger.log_exception("whisper_file_not_found", e, {"audio_file_path": audio_file_path, "language": language})
         raise e
     except Exception as e:
-        error_context = get_error_context()
-        logger.error(
-            f"Errore durante il riconoscimento vocale: {str(e)} - {error_context}"
-        )
+        error_logger.log_exception("whisper_speech_recognition", e, {"audio_file_path": audio_file_path, "language": language})
         raise e
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
@@ -350,15 +372,21 @@ async def generateRecipeImages(ricetta: dict, shortcode: str):
                 with open(out_path, "wb") as f:
                     f.write(image_bytes)
                 saved_paths.append(out_path)
-                logger.info(f"Immagine salvata: {out_path}")
+                # Log successful image save (info level)
+                import logging
+                logging.getLogger(__name__).info(f"Image saved successfully", extra={
+                    "output_path": out_path,
+                    "image_type": img["type"],
+                    "image_index": idx+1
+                })
 
             all_saved_paths.extend(saved_paths)
         except Exception as e:
-            logger.error(f"Errore durante il salvataggio delle immagini: {str(e)}")
+            error_logger.log_exception("image_save", e, {"shortcode": shortcode, "image_type": img["type"]})
             raise
 
      except Exception as e:
-        logger.error(f"OpenAIresponse error: {str(e)}")
+        error_logger.log_exception("generate_recipe_images", e, {"shortcode": shortcode, "recipe_title": ricetta.get("title", "")})
         raise e
 
     return all_saved_paths

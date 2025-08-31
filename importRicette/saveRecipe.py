@@ -4,22 +4,31 @@ import subprocess
 import asyncio
 import multiprocessing as mp
 import yt_dlp
+import uuid
+import logging
 
 from typing import Dict, Any, Optional, Callable
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from models import RecipeDBSchema
 
-from utility import sanitize_text, sanitize_filename, get_error_context, logger 
+from utility import sanitize_text, sanitize_filename, get_error_context
+from logging_config import get_error_logger, request_id_var, clear_error_chain 
 from importRicette.analizeRecipe import extract_recipe_info, whisper_speech_recognition, generateRecipeImages
 from importRicette.instaloader import scarica_contenuto_reel, scarica_contenuti_account
 
 from config import BASE_FOLDER_RICETTE
 
+# Initialize error logger
+error_logger = get_error_logger(__name__)
+
 mp.set_start_method("spawn", force=True)
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
 async def yt_dlp_video(url: str) -> Dict[str, Any]:
+    # Clear error chain at start of new operation
+    clear_error_chain()
+    
     opzioni = {
         "format": "bestvideo+bestaudio/best",
         "outtmpl": os.path.join(BASE_FOLDER_RICETTE, "%(title)s.%(ext)s"),
@@ -34,21 +43,16 @@ async def yt_dlp_video(url: str) -> Dict[str, Any]:
             video_filename = ydl.prepare_filename(info)
         return {"video_title": video_title, "video_filename": video_filename}
     except yt_dlp.utils.DownloadError as e:
-        error_context = get_error_context()
-        logger.error(f"Errore nel download del video {url}: {e} - {error_context}", exc_info=True)
+        error_logger.log_exception("yt_dlp_download", e, {"url": url})
         raise
     except KeyError as ke:
-        error_context = get_error_context()
         if "config" in str(ke):
-            logger.error(
-                f"Errore di configurazione durante l'estrazione: {ke} - {error_context}"
-            )
+            error_logger.log_exception("yt_dlp_config", ke, {"url": url, "key_error": str(ke)})
+        else:
+            error_logger.log_exception("yt_dlp_key_error", ke, {"url": url})
         raise
     except Exception as e:
-        error_context = get_error_context()
-        logger.error(
-            f"Errore imprevisto durante il download del video {url}: {e} - {error_context}", exc_info=True
-        )
+        error_logger.log_exception("yt_dlp_unexpected", e, {"url": url})
         raise
 
 @retry(stop=stop_after_attempt(1), wait=wait_exponential(multiplier=1, min=4, max=10))
@@ -58,6 +62,12 @@ async def process_video(recipe: str, progress_cb: Optional[Callable[[Dict[str, A
     - username Instagram (no scheme http/https) → scarica tutti i reel video dell'account
     - URL: se Instagram → usa instaloader; per altri domini prova yt-dlp per scaricare e creare struttura coerente
     """
+    # Clear error chain at start of new operation
+    clear_error_chain()
+    
+    # Set context variables for tracking
+    operation_id = str(uuid.uuid4())[:8]
+    request_id_var.set(f"process_video_{operation_id}")
 
     urlPattern = r'^(ftp|http|https):\/\/[^ \"]+$'
 
@@ -95,7 +105,7 @@ async def process_video(recipe: str, progress_cb: Optional[Callable[[Dict[str, A
                 if os.path.abspath(src) != os.path.abspath(dst):
                     os.replace(src, dst)
             except Exception as e:
-                logger.warning(f"Failed to move downloaded file: {e}")
+                error_logger.log_error("file_move", f"Failed to move downloaded file: {e}", {"src": src, "dst": dst})
             dws = [{
                 "error": "",
                 "shortcode": shortcode,
@@ -141,15 +151,24 @@ async def process_video(recipe: str, progress_cb: Optional[Callable[[Dict[str, A
                 )
                 _emit_progress("extract_audio", 50.0)
             except subprocess.CalledProcessError as e:
-                logger.error(f"ffmpeg command failed with exit code {e.returncode}")
-                logger.error(f"ffmpeg stdout: {e.stdout}")
-                logger.error(f"ffmpeg stderr: {e.stderr}")
-                logger.error(f"Command was: {e.cmd}")
+                extra_info = {
+                    "shortcode": shortcode,
+                    "return_code": e.returncode,
+                    "stdout": e.stdout,
+                    "stderr": e.stderr,
+                    "command": str(e.cmd)
+                }
+                error_logger.log_exception("ffmpeg_audio_extraction", e, extra_info)
                 _emit_progress("error", 25.0, message=str(e))
                 raise RuntimeError(f"Errore durante l'estrazione dell'audio per shortcode '{shortcode}': {e.stderr}") from e
 
             ricetta_audio = await whisper_speech_recognition(audio_path, "it")
             _emit_progress("stt", 85.0)
+            
+            # Log per verificare che il testo non sia troncato
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Ricetta audio length: {len(ricetta_audio) if ricetta_audio else 0}, Caption length: {len(captionSanit) if captionSanit else 0}")
 
             # Estrai informazioni dalla ricetta
             ricetta = await extract_recipe_info(ricetta_audio, captionSanit, [], [])
@@ -157,7 +176,7 @@ async def process_video(recipe: str, progress_cb: Optional[Callable[[Dict[str, A
             if ricetta:
                 titolo_estratto = ricetta.get('title', 'N/A') if isinstance(ricetta, dict) else getattr(ricetta, 'title', 'N/A')
             else:
-                logger.warning(f"Nessuna informazione ricetta estratta per shortcode '{shortcode}' dal testo analizzato.")
+                error_logger.log_error("recipe_extraction", f"Nessuna informazione ricetta estratta per shortcode '{shortcode}' dal testo analizzato.", {"shortcode": shortcode})
             
             # Normalizza la ricetta in un dict per uso successivo
             ricetta_dict = ricetta if isinstance(ricetta, dict) else (ricetta.model_dump() if ricetta else {})
@@ -191,19 +210,20 @@ async def process_video(recipe: str, progress_cb: Optional[Callable[[Dict[str, A
                 if not ricetta_dict.get("image_url"):
                     ricetta_dict["image_url"] = images_recipe[0]
 
-            logger.info(f"process_video completato per shortcode '{shortcode}'. Titolo: '{ricetta_dict.get('title', 'N/A')}'")
+            # Successfully completed processing - using standard logger for info level
+            logging.getLogger(__name__).info(f"process_video completato per shortcode '{shortcode}'. Titolo: '{ricetta_dict.get('title', 'N/A')}'", extra={"shortcode": shortcode, "title": ricetta_dict.get('title', 'N/A')})
             return RecipeDBSchema(**ricetta_dict)
         except Exception as e:
-            logger.error(f"Errore durante process_video per shortcode '{shortcode}': {e}", exc_info=True)
+            error_logger.log_exception("process_video", e, {"shortcode": shortcode})
             _emit_progress("error", 50.0, message=str(e))
             raise # Rilancia l'eccezione per interrompere l'elaborazione
     
 
     if not dws:
-        logger.warning("Nessun dato video fornito a process_video.")
+        error_logger.log_error("process_video_no_data", "Nessun dato video fornito a process_video.", {"recipe_input": recipe})
         return None # O sollevare un errore se un risultato è sempre atteso
     else:
         # Questo caso (dws non vuoto, ma nessun return/raise nel loop) dovrebbe essere raro
         # se ogni iterazione del loop gestisce tutti i percorsi (successo con return, fallimento con raise).
-        logger.error("process_video ha completato il loop senza restituire o sollevare un errore per nessun elemento.")
+        error_logger.log_error("process_video_logic_error", "process_video ha completato il loop senza restituire o sollevare un errore per nessun elemento.", {"dws_count": len(dws), "recipe_input": recipe})
         return None # O sollevare un errore indicando un problema logico
