@@ -214,7 +214,7 @@ async def extract_recipe_info( recipe_audio_text: str, recipe_caption_text: str,
         # Log più dettagliato per debug del troncamento
         audio_preview = recipe_audio_text[:200] + f"... [tot: {len(recipe_audio_text)} chars]" if recipe_audio_text and len(recipe_audio_text) > 200 else recipe_audio_text or ""
         caption_preview = recipe_caption_text[:200] + f"... [tot: {len(recipe_caption_text)} chars]" if recipe_caption_text and len(recipe_caption_text) > 200 else recipe_caption_text or ""
-        
+        '''
         error_logger.log_exception("extract_recipe_info", e, {
             "audio_text_length": len(recipe_audio_text) if recipe_audio_text else 0,
             "caption_text_length": len(recipe_caption_text) if recipe_caption_text else 0,
@@ -223,6 +223,7 @@ async def extract_recipe_info( recipe_audio_text: str, recipe_caption_text: str,
             "audio_preview": audio_preview,
             "caption_preview": caption_preview
         })
+        '''
         raise e
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
@@ -291,12 +292,13 @@ async def generateRecipeImages(ricetta: dict, shortcode: str):
         steps_text = str(steps)
         
     tipologiaImmagin = []
-    '''
+    
     tipologiaImmagin = [{
         "type": "copertina",
         "testo":  " ".join([p for p in [title, description] if p])
     }]
     
+    '''
     tipologiaImmagin.append({
         "type": "stepricetta",
         "testo": " ".join([p for p in [title, steps_text] if p])

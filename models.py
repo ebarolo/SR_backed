@@ -53,6 +53,10 @@ recipe_schema ={
   "schema": {
     "type": "object",
     "properties": {
+      "numer_person": {
+        "type": "integer",
+        "description": "Number of people the recipe is for."
+      },
       "category": {
         "type": "array",
         "description": "List of categories the recipe belongs to.",
@@ -147,6 +151,7 @@ recipe_schema ={
     },
     "required": [
       "category",
+      "numer_person",
       "chef_advise",
       "cooking_time",
       "cuisine_type",

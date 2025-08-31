@@ -23,14 +23,15 @@ Receive recipe text and (optional) transcript. Sanitize input, extract and struc
    - For valid input, extract:
      - `category` (antipasto, primo, secondo, contorno, dolce, bevanda; otherwise "")
      - `cuisine_type` (italiana, francese, cinese, giappoinese, mediterranea, internazionale, medioevale, moderna, tradizionale, etnica; otherwise "")
-     - `ingredients` list (preserve order)
+     - `ingredients` list (preserve order, if no quantity and unit of measure, estimate the quantity for 2 people)
      - `steps` list (preserve order)
      - `notes` as string or empty
+     - `description` just an overview of the recipe, no story or other text.
 3. **Transcript Language Identification**
    - If transcript is provided and Unicode-compliant, detect language; else set `transcript_language` to ""
 4. **Italian Translation**
    - If transcript language is detected, is not Italian, and translation is feasible, provide precise and fluent Italian translation in `italian_translation`. Leave empty if already Italian or language is "unknown".
-   - after translate, correct grammar and spelling errors the italian translation for Unicode compliance.
+   - review the text, correct grammar and spelling errors and check it for Unicode compliance.
 5. **Result Validation**
    - After each major step, validate outcome in one or two lines and proceed or self-correct if needed. Report any errors in the `errors` array. On unrecoverable errors, halt processing and return output.
 
