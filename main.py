@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, status
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import BackgroundTasks, Request
 
@@ -365,6 +365,169 @@ def get_recipe_by_shortcode(shortcode: str):
     except Exception as e:
         error_logger.log_exception("get_recipe", e, {"shortcode": shortcode})
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Errore interno: {str(e)}")
+
+@app.get("/embeddings/preview3d")
+def embeddings_preview3d(limit: int = 1000, with_meta: bool = True):
+    """
+    Restituisce una proiezione 3D (PCA) degli embeddings per visualizzazione browser.
+
+    - Usa ChromaDB per leggere `ids`, `embeddings` e opzionalmente `documents`/`metadatas`.
+    - Proiezione PCA 3D implementata con NumPy (SVD).
+    """
+    try:
+        # Verifica disponibilità collection
+        if not getattr(recipe_db, "collection", None):
+            raise HTTPException(status_code=503, detail="ChromaDB non disponibile")
+
+        # Import locale per non vincolare l'avvio se numpy manca
+        try:
+            import numpy as np  # type: ignore
+        except Exception:
+            raise HTTPException(status_code=500, detail="NumPy non installato: impossibile calcolare PCA 3D")
+
+        # Limita numero di elementi per performance
+        n_total = recipe_db.collection.count()
+        n_limit = max(1, min(int(limit or 1000), n_total))
+
+        # Nota: ChromaDB include non supporta "ids"; gli ids sono sempre inclusi.
+        include_fields = ["embeddings"]
+        if with_meta:
+            include_fields.extend(["documents", "metadatas"])  # opzionale
+
+        results = recipe_db.collection.get(include=include_fields, limit=n_limit, offset=0)
+
+        embeddings = results.get("embeddings")
+        if embeddings is None:
+            embeddings = []
+        ids = results.get("ids")
+        if ids is None:
+            ids = []
+        documents = results.get("documents")
+        if documents is None:
+            documents = []
+        metadatas = results.get("metadatas")
+        if metadatas is None:
+            metadatas = []
+
+        if len(embeddings) == 0 or len(ids) == 0:
+            return {"status": "ok", "n": 0, "points": []}
+
+        # Costruisci matrice e PCA 3D
+        X = np.asarray(embeddings, dtype=float)
+        # Validazione forma dati
+        if X.size == 0 or X.ndim != 2:
+            return {"status": "ok", "n": 0, "points": []}
+        # Allinea lunghezze con ids (difese su inconsistenze)
+        n = min(len(ids), X.shape[0])
+        if n == 0:
+            return {"status": "ok", "n": 0, "points": []}
+        X = X[:n]
+        ids = ids[:n]
+        if documents:
+            documents = documents[:n]
+        if metadatas:
+            metadatas = metadatas[:n]
+        # Centering
+        Xc = X - X.mean(axis=0, keepdims=True)
+        # SVD
+        U, S, Vt = np.linalg.svd(Xc, full_matrices=False)
+        # Proiezione sui primi 3 componenti
+        comps = Vt[:3].T if Vt.shape[0] >= 3 else Vt.T  # gestione dimensioni < 3
+        coords = Xc @ comps
+
+        # Prepara etichette
+        labels = []
+        if documents:
+            for doc in documents:
+                # Estrai titolo se presente nel documento strutturato
+                label = None
+                try:
+                    first_line = (doc.split("\n", 1)[0] or "").strip()
+                    if first_line.lower().startswith("titolo:"):
+                        label = first_line.split(":", 1)[1].strip()
+                except Exception:
+                    label = None
+                labels.append(label)
+        else:
+            labels = [None] * len(ids)
+
+        # Costruisci risposta compatta
+        points = []
+        for i, rid in enumerate(ids):
+            x = float(coords[i, 0]) if coords.shape[1] >= 1 else 0.0
+            y = float(coords[i, 1]) if coords.shape[1] >= 2 else 0.0
+            z = float(coords[i, 2]) if coords.shape[1] >= 3 else 0.0
+            pt = {"id": rid, "x": x, "y": y, "z": z}
+            if with_meta:
+                if labels:
+                    pt["label"] = labels[i]
+                if metadatas:
+                    pt["meta"] = metadatas[i]
+            points.append(pt)
+
+        return {"status": "ok", "n": len(points), "points": points}
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_logger.log_exception("embeddings_preview3d", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/embeddings/3d", response_class=HTMLResponse)
+def embeddings_3d_page():
+    """
+    Pagina HTML semplice che visualizza gli embeddings 3D via Plotly.
+    """
+    html_path = os.path.join(BASE_DIR, "static", "embeddings_3d.html")
+    if os.path.isfile(html_path):
+        return FileResponse(html_path)
+    # Fallback inline se il file non esiste
+    html = """
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset=\"utf-8\" />
+        <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
+        <title>Embeddings 3D Preview</title>
+        <script src=\"https://cdn.plot.ly/plotly-2.30.0.min.js\"></script>
+        <style>
+          html, body { height: 100%; margin: 0; }
+          #plot { width: 100%; height: 100%; }
+        </style>
+      </head>
+      <body>
+        <div id=\"plot\"></div>
+        <script>
+        async function loadAndPlot(){
+          const res = await fetch('/embeddings/preview3d?limit=1000&with_meta=1');
+          const data = await res.json();
+          if(data.status !== 'ok' || !data.points || !data.points.length){
+            document.getElementById('plot').innerHTML = 'Nessun dato disponibile';
+            return;
+          }
+          const xs = data.points.map(p => p.x);
+          const ys = data.points.map(p => p.y);
+          const zs = data.points.map(p => p.z);
+          const texts = data.points.map(p => (p.label || p.id));
+          const trace = {
+            type: 'scatter3d',
+            mode: 'markers',
+            x: xs, y: ys, z: zs,
+            text: texts,
+            marker: { size: 3, opacity: 0.8 }
+          };
+          const layout = {
+            title: 'Embeddings (PCA 3D)',
+            scene: {xaxis:{title:'PC1'}, yaxis:{title:'PC2'}, zaxis:{title:'PC3'}},
+            margin: {l:0, r:0, t:40, b:0}
+          };
+          Plotly.newPlot('plot', [trace], layout, {responsive: true});
+        }
+        loadAndPlot();
+        </script>
+      </body>
+    </html>
+    """
+    return HTMLResponse(content=html)
 
 @app.get("/search/")
 def search_recipes(query: str, limit: int = 12, max_time: Optional[int] = None, difficulty: Optional[str] = None, diet: Optional[str] = None, cuisine: Optional[str] = None):

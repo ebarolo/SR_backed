@@ -1,12 +1,3 @@
-
-"""
-Modulo per la visualizzazione degli embedding space con t-SNE.
-
-NOTA: Questo modulo è disabilitato per problemi di dipendenze.
-Per riattivarlo, installare: pip install matplotlib scikit-learn
-e completare l'implementazione della funzione visualize_space_query.
-"""
-
 # import numpy as np
 # from sklearn.manifold import TSNE
 # import matplotlib.pyplot as plt

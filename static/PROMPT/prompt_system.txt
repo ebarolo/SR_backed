@@ -26,6 +26,8 @@ Receive recipe text and (optional) transcript. Sanitize input, extract and struc
      - `ingredients` list (preserve order, if no quantity and unit of measure, estimate the quantity for 2 people)
      - `steps` list (preserve order)
      - `notes` as string or empty
+     - `numer_person` as integer
+     - `diet` as string (vegano, vegetarian, gluten-free, mediterranea; otherwise "")
      - `description` just an overview of the recipe, no story or other text.
 3. **Transcript Language Identification**
    - If transcript is provided and Unicode-compliant, detect language; else set `transcript_language` to ""

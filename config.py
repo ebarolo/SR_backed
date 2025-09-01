@@ -32,6 +32,7 @@ openAIclient = OpenAI(api_key=OPENAI_API_KEY)
 # modell EMBEDDING_MODEL da usare
 EMBEDDING_MODEL = "BAAI/bge-m3"
 FLAGEMBEDDING_AVAILABLE = True
+NO_IMAGE = True
 
 # Percorso file NPZ che contiene embeddings e metadati
 EMBEDDINGS_NPZ_PATH = os.getenv(

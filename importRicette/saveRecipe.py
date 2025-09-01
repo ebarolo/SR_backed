@@ -17,7 +17,7 @@ from logging_config import get_error_logger, request_id_var, clear_error_chain
 from importRicette.analizeRecipe import extract_recipe_info, whisper_speech_recognition, generateRecipeImages
 from importRicette.instaloader import scarica_contenuto_reel, scarica_contenuti_account
 
-from config import BASE_FOLDER_RICETTE
+from config import BASE_FOLDER_RICETTE, NO_IMAGE
 
 # Initialize error logger
 error_logger = get_error_logger(__name__)
@@ -56,7 +56,7 @@ async def yt_dlp_video(url: str) -> Dict[str, Any]:
         raise
 
 @retry(stop=stop_after_attempt(1), wait=wait_exponential(multiplier=1, min=4, max=10))
-async def process_video(recipe: str, progress_cb: Optional[Callable[[Dict[str, Any]], None]] = None):
+async def process_video(recipeUrl: str, progress_cb: Optional[Callable[[Dict[str, Any]], None]] = None):
     """
     Accetta un input che può essere:
     - username Instagram (no scheme http/https) → scarica tutti i reel video dell'account
@@ -83,17 +83,17 @@ async def process_video(recipe: str, progress_cb: Optional[Callable[[Dict[str, A
             # Non interrompere il flusso in caso di errore nella callback
             pass
 
-    if not re.match(urlPattern, recipe):
-        dws = await scarica_contenuti_account(recipe)
+    if not re.match(urlPattern, recipeUrl):
+        dws = await scarica_contenuti_account(recipeUrl)
         _emit_progress("download", 25.0)
     else:
-        url_lower = recipe.lower()
-        if any(host in url_lower for host in ["instagram.com", "instagr.am"]):
-            dws = await scarica_contenuto_reel(recipe)
+        url_lower = recipeUrl.lower()
+        if any(host in url_lower for host in ["instagram.com"]):
+            dws = await scarica_contenuto_reel(recipeUrl)
             _emit_progress("download", 25.0)
         else:
             # usa yt-dlp per scaricare il singolo video in una cartella stile shortcode generico
-            info = await yt_dlp_video(recipe)
+            info = await yt_dlp_video(recipeUrl)
             # crea struttura compatibile
             shortcode = sanitize_filename(info["video_title"]) or "video"
             downloadFolder = os.path.join(BASE_FOLDER_RICETTE, shortcode, "media_original")
@@ -110,12 +110,12 @@ async def process_video(recipe: str, progress_cb: Optional[Callable[[Dict[str, A
                 "error": "",
                 "shortcode": shortcode,
                 "caption": "",
-                "url_video": recipe,
+                "url_video": recipeUrl,
             }]
             _emit_progress("download", 25.0)
 
     for dw in dws:
-        print(f"dw: {dw}")
+        #print(f"dw: {dw}")
         shortcode = dw.get("shortcode", "SHORTCODE_NON_TROVATO") # Default per logging
         try:
             #logger.info(f"Inizio elaborazione per shortcode: {shortcode}")
@@ -129,6 +129,7 @@ async def process_video(recipe: str, progress_cb: Optional[Callable[[Dict[str, A
             video_files = [
                 f for f in os.listdir(video_folder_post) if f.endswith(".mp4")
             ]
+            
             if not video_files:
                 raise FileNotFoundError(
                     f"Nessun file video .mp4 trovato in {video_folder_post} per shortcode '{shortcode}'. File presenti: {os.listdir(video_folder_post) if os.path.exists(video_folder_post) else 'cartella non esistente'}"
@@ -180,9 +181,11 @@ async def process_video(recipe: str, progress_cb: Optional[Callable[[Dict[str, A
             
             # Normalizza la ricetta in un dict per uso successivo
             ricetta_dict = ricetta if isinstance(ricetta, dict) else (ricetta.model_dump() if ricetta else {})
-
-            images_recipe = await generateRecipeImages(ricetta_dict, shortcode)
-            #images_recipe = []
+            if not NO_IMAGE:
+                images_recipe = await generateRecipeImages(ricetta_dict, shortcode)
+            else:
+                images_recipe = []
+            
             if images_recipe:
                 ricetta_dict["images"] = images_recipe
                 if not ricetta_dict.get("image_url"):
@@ -220,10 +223,10 @@ async def process_video(recipe: str, progress_cb: Optional[Callable[[Dict[str, A
     
 
     if not dws:
-        error_logger.log_error("process_video_no_data", "Nessun dato video fornito a process_video.", {"recipe_input": recipe})
+        error_logger.log_error("process_video_no_data", "Nessun dato video fornito a process_video.", {"recipe_input": recipeUrl})
         return None # O sollevare un errore se un risultato è sempre atteso
     else:
         # Questo caso (dws non vuoto, ma nessun return/raise nel loop) dovrebbe essere raro
         # se ogni iterazione del loop gestisce tutti i percorsi (successo con return, fallimento con raise).
-        error_logger.log_error("process_video_logic_error", "process_video ha completato il loop senza restituire o sollevare un errore per nessun elemento.", {"dws_count": len(dws), "recipe_input": recipe})
+        error_logger.log_error("process_video_logic_error", "process_video ha completato il loop senza restituire o sollevare un errore per nessun elemento.", {"dws_count": len(dws), "recipe_input": recipeUrl})
         return None # O sollevare un errore indicando un problema logico

@@ -136,17 +136,17 @@ class RecipeDatabase:
             results = self.collection.query(
                 query_embeddings=[query_embedding],
                 n_results=limit,
-                where=where_clause if where_clause else None
+                where=where_clause if where_clause else None,
+                include=["documents", "distances", "metadatas"]
             )
             
             # Formatta risultati
             formatted_results = []
             for i in range(len(results["ids"][0])):
                 result = {
-                    "_id": results["ids"][0][i],
                     "shortcode": results["ids"][0][i],
-                    "score": 1.0 - results["distances"][0][i],  # Converti distanza in score
-                    "title": results["metadatas"][0][i].get("title", ""),
+                    "distances": results["distances"][0][i],
+                    "title": results["documents"][0][i],
                     "category": results["metadatas"][0][i].get("category", "").split(",") if results["metadatas"][0][i].get("category") else [],
                     "cuisine_type": results["metadatas"][0][i].get("cuisine_type", ""),
                     "cooking_time": results["metadatas"][0][i].get("cooking_time", 0),
