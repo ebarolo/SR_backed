@@ -14,15 +14,23 @@
   </head>
   <body>
     <div id="toolbar">
-      Limite: <input id="limit" type="number" value="1000" min="10" max="10000" step="10" />
-      <button id="reload">Ricarica</button>
+      <form id="controls" onsubmit="return false;" style="display:flex; gap:8px; align-items:center;">
+        <label>Limite:
+          <input id="limit" type="number" value="1000" min="10" max="10000" step="10" />
+        </label>
+        <button id="reload" type="button">Ricarica</button>
+        <span style="border-left:1px solid #ccc; height:18px; margin:0 6px;"></span>
+        <label>Query:
+          <input id="query" type="text" placeholder="es. pasta al pomodoro" size="28" />
+        </label>
+        <button id="plotQuery" type="button">Visualizza query</button>
+      </form>
     </div>
     <div id="plot"></div>
     <script>
     async function loadAndPlot(limit){
       const res = await fetch(`/embeddings/preview3d?limit=${encodeURIComponent(limit)}&with_meta=1`);
       const data = await res.json();
-      console.log(data);
       if(data.status !== 'ok' || !data.points || !data.points.length){
         document.getElementById('plot').innerHTML = 'Nessun dato disponibile';
         return;
@@ -34,6 +42,7 @@
       const trace = {
         type: 'scatter3d',
         mode: 'markers',
+        name: 'dataset',
         x: xs, y: ys, z: zs,
         text: texts,
         marker: { size: 3, opacity: 0.85 }
@@ -45,12 +54,57 @@
       };
       Plotly.newPlot('plot', [trace], layout, {responsive: true});
     }
+    async function loadWithQuery(limit, query){
+      const res = await fetch(`/embeddings/preview3d_with_query?q=${encodeURIComponent(query)}&limit=${encodeURIComponent(limit)}&with_meta=1`);
+      const data = await res.json();
+      if(data.status !== 'ok' || !data.points || !data.points.length){
+        document.getElementById('plot').innerHTML = 'Nessun dato disponibile';
+        return;
+      }
+      const xs = data.points.map(p => p.x);
+      const ys = data.points.map(p => p.y);
+      const zs = data.points.map(p => p.z);
+      const texts = data.points.map(p => (p.label || p.id));
+      const traceDataset = {
+        type: 'scatter3d',
+        mode: 'markers',
+        name: 'dataset',
+        x: xs, y: ys, z: zs,
+        text: texts,
+        marker: { size: 3, opacity: 0.8 }
+      };
+      const qp = data.query_point;
+      const traceQuery = qp ? {
+        type: 'scatter3d',
+        mode: 'markers+text',
+        name: 'query',
+        x: [qp.x], y: [qp.y], z: [qp.z],
+        text: [qp.label],
+        textposition: 'top center',
+        marker: { size: 6, color: 'red', opacity: 1 }
+      } : null;
+      const layout = {
+        title: `Embeddings (PCA 3D) — ${data.n} punti + query`,
+        scene: {xaxis:{title:'PC1'}, yaxis:{title:'PC2'}, zaxis:{title:'PC3'}},
+        margin: {l:0, r:0, t:40, b:0}
+      };
+      const traces = traceQuery ? [traceDataset, traceQuery] : [traceDataset];
+      Plotly.newPlot('plot', traces, layout, {responsive: true});
+    }
     document.getElementById('reload').addEventListener('click', () => {
       const limit = parseInt(document.getElementById('limit').value || '1000', 10);
       loadAndPlot(limit);
+    });
+    document.getElementById('plotQuery').addEventListener('click', () => {
+      const limit = parseInt(document.getElementById('limit').value || '1000', 10);
+      const q = (document.getElementById('query').value || '').trim();
+      if(!q){
+        loadAndPlot(limit);
+      } else {
+        loadWithQuery(limit, q);
+      }
     });
     loadAndPlot(1000);
     </script>
   </body>
   </html>
-

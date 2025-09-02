@@ -14,7 +14,9 @@ import json
 from pydantic import BaseModel, HttpUrl, validator
 from typing import List, Optional
 
-from models import RecipeDBSchema, JobStatus
+from models import RecipeDBSchema, JobStatus, Ingredient
+from typing import List
+from DB.langchain import get_langchain_recipe_db
 
 
 from time import perf_counter
@@ -196,9 +198,9 @@ def _ingest_urls_job(job_id: str, urls: List[str]):
                 if not recipe_data:
                     failed += 1
                     if 0 <= idx0 < len(progress.get("urls", [])):
-                        progress["urls"][idx0].update({"status": "failed", "stage": "error"})
-                    progress["failed"] = failed
-                    progress["percentage"] = _recalc_job_percentage()
+                     progress["urls"][idx0].update({"status": "failed", "stage": "error"})
+                     progress["failed"] = failed
+                     progress["percentage"] = _recalc_job_percentage()
                     raise Exception("Recipe data is empty")
                 
                 try:
@@ -232,10 +234,13 @@ def _ingest_urls_job(job_id: str, urls: List[str]):
             
             progress["stage"] = "indexing"
             progress["percentage"] = max(float(progress.get("percentage") or 0.0), 95.0)
-            logging.getLogger(__name__).info(f"call ingest_json_to_chroma: {metadatas}", extra={})
+            logging.getLogger(__name__).info(f"call get_langchain_recipe_db", extra={})
 
-            n, coll = ingest_json_to_chroma(metadatas, collection_name=COLLECTION_NAME)
-            print(f"Inseriti {n} record nella collection '{coll}'.")
+            #n, coll = ingest_json_to_chroma(metadatas, collection_name=COLLECTION_NAME)
+            db = get_langchain_recipe_db()
+            success_count, errors = db.add_recipes_batch(metadatas)
+
+            print(f"Inseriti {success_count} record nella collection.")
             
         # Completa job
         job_entry["result"] = {
@@ -529,6 +534,124 @@ def embeddings_3d_page():
     """
     return HTMLResponse(content=html)
 
+@app.get("/embeddings/preview3d_with_query")
+def embeddings_preview3d_with_query(q: str, limit: int = 1000, with_meta: bool = True):
+    """
+    Come `preview3d`, ma aggiunge il punto della query proiettato negli stessi assi PCA.
+    """
+    try:
+        if not getattr(recipe_db, "collection", None):
+            raise HTTPException(status_code=503, detail="ChromaDB non disponibile")
+
+        try:
+            import numpy as np  # type: ignore
+        except Exception:
+            raise HTTPException(status_code=500, detail="NumPy non installato: impossibile calcolare PCA 3D")
+
+        n_total = recipe_db.collection.count()
+        n_limit = max(1, min(int(limit or 1000), n_total))
+
+        include_fields = ["embeddings"]
+        if with_meta:
+            include_fields.extend(["documents", "metadatas"])  # opzionale
+
+        results = recipe_db.collection.get(include=include_fields, limit=n_limit, offset=0)
+
+        embeddings = results.get("embeddings")
+        if embeddings is None:
+            embeddings = []
+        ids = results.get("ids")
+        if ids is None:
+            ids = []
+        documents = results.get("documents")
+        if documents is None:
+            documents = []
+        metadatas = results.get("metadatas")
+        if metadatas is None:
+            metadatas = []
+
+        X = np.asarray(embeddings, dtype=float)
+        if X.size == 0 or X.ndim != 2:
+            return {"status": "ok", "n": 0, "points": [], "query_point": None}
+
+        n = min(len(ids), X.shape[0])
+        if n == 0:
+            return {"status": "ok", "n": 0, "points": [], "query_point": None}
+        X = X[:n]
+        ids = ids[:n]
+        if documents:
+            documents = documents[:n]
+        if metadatas:
+            metadatas = metadatas[:n]
+
+        # PCA su dataset
+        Xmean = X.mean(axis=0, keepdims=True)
+        Xc = X - Xmean
+        U, S, Vt = np.linalg.svd(Xc, full_matrices=False)
+        comps = Vt[:3].T if Vt.shape[0] >= 3 else Vt.T
+        coords = Xc @ comps
+
+        # Embedding della query e proiezione negli stessi assi
+        if not getattr(recipe_db, "embedder", None):
+            raise HTTPException(status_code=500, detail="Embedder non inizializzato")
+        q_vec = recipe_db.embedder.generate_embedding_sync(q)
+        qv = np.asarray(q_vec, dtype=float)
+        if qv.ndim == 1:
+            qv = qv.reshape(1, -1)
+        # Match dimensioni: se la dimensione del modello differisce, taglia/riempie a zero
+        d = X.shape[1]
+        if qv.shape[1] != d:
+            if qv.shape[1] > d:
+                qv = qv[:, :d]
+            else:
+                pad = np.zeros((1, d - qv.shape[1]), dtype=float)
+                qv = np.concatenate([qv, pad], axis=1)
+        q_centered = qv - Xmean
+        q_coords = (q_centered @ comps)[0]
+
+        # Etichette
+        labels = []
+        if documents:
+            for doc in documents:
+                label = None
+                try:
+                    first_line = (doc.split("\n", 1)[0] or "").strip()
+                    if first_line.lower().startswith("titolo:"):
+                        label = first_line.split(":", 1)[1].strip()
+                except Exception:
+                    label = None
+                labels.append(label)
+        else:
+            labels = [None] * len(ids)
+
+        points = []
+        for i, rid in enumerate(ids):
+            x = float(coords[i, 0]) if coords.shape[1] >= 1 else 0.0
+            y = float(coords[i, 1]) if coords.shape[1] >= 2 else 0.0
+            z = float(coords[i, 2]) if coords.shape[1] >= 3 else 0.0
+            pt = {"id": rid, "x": x, "y": y, "z": z}
+            if with_meta:
+                if labels:
+                    pt["label"] = labels[i]
+                if metadatas:
+                    pt["meta"] = metadatas[i]
+            points.append(pt)
+
+        query_point = {
+            "id": "__query__",
+            "label": q,
+            "x": float(q_coords[0]) if q_coords.shape[0] >= 1 else 0.0,
+            "y": float(q_coords[1]) if q_coords.shape[0] >= 2 else 0.0,
+            "z": float(q_coords[2]) if q_coords.shape[0] >= 3 else 0.0,
+        }
+
+        return {"status": "ok", "n": len(points), "points": points, "query_point": query_point}
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_logger.log_exception("embeddings_preview3d_with_query", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/search/")
 def search_recipes(query: str, limit: int = 12, max_time: Optional[int] = None, difficulty: Optional[str] = None, diet: Optional[str] = None, cuisine: Optional[str] = None):
     """
@@ -572,51 +695,6 @@ def search_recipes(query: str, limit: int = 12, max_time: Optional[int] = None, 
 # Endpoints amministrativi: gestione modello e ricalcolo embeddings
 # -------------------------------
 
-class SetModelBody(BaseModel):
-    model_name: str
-
-@app.get("/embeddings/info")
-def embeddings_info():
-    """
-    Ritorna informazioni sul sistema di embedding ottimizzato
-    """
-    try:
-        stats = recipe_db.get_stats()
-        
-        return {
-            "status": "ok",
-            "embedding_model": EMBEDDING_MODEL,
-            "total_recipes": stats.get("total_recipes", 0),
-            "collection_name": stats.get("collection_name", ""),
-            "database_type": "ChromaDB",
-            "optimization": "BGE-M3 multilingual"
-        }
-    except Exception as e:
-        error_logger.log_exception("embeddings_info", e)
-        return {"status": "error", "detail": str(e)}
-
-@app.post("/embeddings/model")
-def change_embedding_model(body: SetModelBody):
-    """
-    Cambia il modello di embedding (riavvio richiesto per applicare)
-    """
-    try:
-        current_model = EMBEDDING_MODEL
-        
-        # Per ora ritorniamo il modello corrente 
-        # Un cambio di modello richiederebbe riavvio dell'applicazione
-        # Richiesta cambio modello
-        
-        return {
-            "status": "info", 
-            "current_model": current_model,
-            "requested_model": body.model_name,
-            "message": "Riavvio applicazione richiesto per cambiare modello"
-        }
-    except Exception as e:
-        error_logger.log_exception("change_model", e, {"requested_model": body.model_name})
-        return {"status": "error", "detail": str(e)}
-
 class RecalcBody(BaseModel):
     model_name: Optional[str] = None
     out_path: Optional[str] = None
@@ -638,7 +716,8 @@ def recalc_embeddings(body: RecalcBody):
                 "detail": f"La directory {BASE_FOLDER_RICETTE} non esiste"
             }
         
-        recipe_db = RecipeDatabase()
+        #recipe_db = RecipeDatabase()
+        db = get_langchain_recipe_db()
          # Elenca tutte le entry nella directory
         for entry in os.listdir(BASE_FOLDER_RICETTE):
             entry_path = os.path.join(BASE_FOLDER_RICETTE, entry)
@@ -649,19 +728,44 @@ def recalc_embeddings(body: RecalcBody):
          # Ordina le cartelle alfabeticamente
         recipe_folders.sort()
         for recipe_folder in recipe_folders:
-            json_file = os.path.join(recipe_folder, f"metadata_{recipe_folder}.json")
+
+            #json_file = os.path.join(recipe_folder,"media_original", "metadata_{recipe_folder}.json")
+            json_file = os.path.join(BASE_FOLDER_RICETTE, recipe_folder, "media_original", f"metadata_{recipe_folder}.json")
+            logging.getLogger(__name__).info(f" {json_file}")
+
             if not os.path.isfile(json_file):
-                error_logger.logger.log(f"no recipe med.js found in folder: {recipe_folder}")
+                error_logger.logger.warning(f"no recipe metadata json found in folder: {recipe_folder}")
+                # Elimina la cartella se il file json non esiste
+                try:
+                    import shutil
+                    shutil.rmtree(recipe_folder)
+                    logging.getLogger(__name__).warning(f"Cartella eliminata: {recipe_folder} (mancava il metadata json)")
+                except Exception as ex:
+                    logging.getLogger(__name__).error(f"Errore nell'eliminazione della cartella {recipe_folder}: {ex}")
                 continue
             else:
              with open(json_file, 'r', encoding='utf-8') as f:
-                recipe_data = json.load(f)
+                recipe_data_dict = json.load(f)
                 
-             recipe_db.add_recipe(recipe_data)
-        
-        
+             # Converti dizionario in oggetto RecipeDBSchema
+             try:
+                recipe_data = RecipeDBSchema(**recipe_data_dict)
+             except Exception as e:
+                error_logger.log_exception("convert_recipe_data", e, {"shortcode": recipe_data_dict.get("shortcode", "unknown")})
+                continue
+                
+             #recipe_db.add_recipe(recipe_data)
+             logging.getLogger(__name__).info(f"recipe_data: {recipe_data}")
+
+             success = db.add_recipe(recipe_data)
+
+             if success:
+                 logging.getLogger(__name__).info(f"Ricetta {recipe_data.shortcode} inserita con successo nella collection.")
+             else:
+                 logging.getLogger(__name__).error(f"Errore nell'inserimento della ricetta {recipe_data.shortcode}")
+
     except Exception as e:
-        error_logger.log_exception("recalc_info", e)
+        error_logger.log_exception("recalc_info", e,{})
         return {"status": "error", "detail": str(e)}
     
 # -------------------------------

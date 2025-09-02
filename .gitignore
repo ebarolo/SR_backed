@@ -146,3 +146,9 @@ static/original-54012cf1601abf362fdb6e2386bcdcbe.webp
 static/original-9ce019a1dcdfcb9b1704be10bbc5d437.webp
 static/.DS_Store
 *.sqlite3
+*.sqlite3
+/chroma_db
+*.bin
+/chroma_db
+chroma_db/chroma.sqlite3
+chroma_db/d05ef533-cb0e-4629-b1dc-70eb39b95617/link_lists.bin
