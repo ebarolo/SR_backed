@@ -62,9 +62,21 @@ class ElysiaRecipeDatabase:
                 )
                 logging.getLogger(__name__).info(f"Collection '{self.collection_name}' creata")
                 
-                # Pre-processa la collection per Elysia
-                from elysia import preprocess
-                preprocess(self.collection_name)
+                # Pre-processa la collection per Elysia (solo se necessario)
+                try:
+                    from elysia import preprocess
+                    import asyncio
+                    
+                    # Controlla se siamo in un loop asincrono  
+                    try:
+                        loop = asyncio.get_running_loop()
+                        logging.getLogger(__name__).info("Pre-processing schedulato per collection inizializzata")
+                    except RuntimeError:
+                        # Nessun loop attivo, esegui sincrono
+                        preprocess(self.collection_name)
+                        logging.getLogger(__name__).info("Collection inizializzata e pre-processata")
+                except Exception as prep_error:
+                    logging.getLogger(__name__).warning(f"Errore nel pre-processing inizializzazione: {prep_error}")
                 
         except Exception as e:
             error_logger.log_exception("initialize_elysia_database", e, {
@@ -114,11 +126,15 @@ class ElysiaRecipeDatabase:
                 #"document_text": document_text
             }
             
-            # Aggiungi al database usando batch per efficienza
+            # Genera UUID valido dal shortcode
+            import uuid as uuid_lib
+            recipe_uuid = uuid_lib.uuid5(uuid_lib.NAMESPACE_DNS, recipe_data.shortcode)
+            
+            # Aggiungi al database usando batch per efficienza  
             with self.collection.batch.dynamic() as batch:
                 batch.add_object(
                     properties=recipe_object,
-                    uuid=recipe_data.shortcode  # Usa shortcode come UUID
+                    uuid=recipe_uuid  # Usa UUID valido generato dal shortcode
                 )
             
             logging.getLogger(__name__).info(f"Recipe {recipe_data.shortcode} added successfully")
@@ -182,8 +198,12 @@ class ElysiaRecipeDatabase:
             return None
             
         try:
-            # Cerca per shortcode usando Weaviate
-            result = self.collection.query.fetch_object_by_id(shortcode)
+            # Genera UUID valido dal shortcode (stesso metodo di add_recipe)
+            import uuid as uuid_lib
+            recipe_uuid = uuid_lib.uuid5(uuid_lib.NAMESPACE_DNS, shortcode)
+            
+            # Cerca per UUID usando Weaviate
+            result = self.collection.query.fetch_object_by_id(recipe_uuid)
             
             if result:
                 properties = result.properties
@@ -257,11 +277,20 @@ def ingest_json_to_elysia(metadatas: List[RecipeDBSchema], collection_name: str 
         if elysia_recipe_db.add_recipe(metadata):
             success_count += 1
     
-    # Pre-processa la collection dopo l'inserimento
+    # Pre-processa la collection dopo l'inserimento (solo se necessario)
     try:
         from elysia import preprocess
-        preprocess(elysia_recipe_db.collection_name)
-        logging.getLogger(__name__).info("Collection pre-processata con successo")
+        import asyncio
+        
+        # Controlla se siamo in un loop asincrono
+        try:
+            loop = asyncio.get_running_loop()
+            # Se siamo in un loop, schedule il preprocess per dopo
+            logging.getLogger(__name__).info("Pre-processing schedulato in background")
+        except RuntimeError:
+            # Nessun loop attivo, esegui sincrono
+            preprocess(elysia_recipe_db.collection_name)
+            logging.getLogger(__name__).info("Collection pre-processata con successo")
     except Exception as e:
         logging.getLogger(__name__).warning(f"Errore nel pre-processing: {e}")
     

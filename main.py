@@ -3,6 +3,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import BackgroundTasks, Request
+from contextlib import asynccontextmanager
 
 from config import ( openAIclient, BASE_FOLDER_RICETTE, COLLECTION_NAME)
 
@@ -52,10 +53,18 @@ class VideoURLs(BaseModel):
 setup_logging()
 error_logger = get_error_logger(__name__)
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    app.state.jobs = {}
+    yield
+    # Shutdown (se necessario in futuro)
+    pass
+
 # -------------------------------
 # Inizializzazione FastAPI e Dependency per il DB
 # -------------------------------
-app = FastAPI(title="Smart Recipe", version="0.7")
+app = FastAPI(title="Smart Recipe", version="0.7", lifespan=lifespan)
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -115,11 +124,7 @@ async def add_request_id(request: Request, call_next):
         if token is not None:
             request_id_var.reset(token)
 
-# Startup handler per inizializzazione
-@app.on_event("startup")
-async def on_startup():
-    # Inizializza job store in-memory
-    app.state.jobs = {}
+# Lifespan startup già gestito sopra
 
 def _ingest_urls_job(job_id: str, urls: List[str]):
     total = len(urls)
@@ -319,9 +324,8 @@ async def enqueue_ingest(videos: VideoURLs, background_tasks: BackgroundTasks):
 
 @app.get("/ingest/status")
 def jobs_status():
-    jobs_dict = app.state.jobs
-    if not jobs_dict:
-        raise HTTPException(status_code=404, detail="nessun jobs non trovato")
+    """Restituisce lo status di tutti i job"""
+    jobs_dict = getattr(app.state, 'jobs', {})
     out = []
     for jid, job in jobs_dict.items():
         progress = job.get("progress") or {}
