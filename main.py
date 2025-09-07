@@ -16,18 +16,18 @@ from typing import List, Optional
 
 from models import RecipeDBSchema, JobStatus, Ingredient
 from typing import List
-from DB.langchain import get_langchain_recipe_db
+#from DB.langchain import get_langchain_recipe_db
 
 
 from time import perf_counter
 from importRicette.saveRecipe import process_video
-from DB.chromaDB import RecipeDatabase
+from DB.elysia import ElysiaRecipeDatabase
 import logging
 from logging_config import setup_logging, get_error_logger, clear_error_chain
 from logging_config import request_id_var, job_id_var
 import asyncio as _asyncio
 
-from DB.chromaDB import ingest_json_to_chroma, search_recipes_chroma, get_recipe_by_shortcode_chroma, recipe_db
+from DB.elysia import ingest_json_to_elysia, search_recipes_elysia, get_recipe_by_shortcode_elysia, elysia_recipe_db
 
 from config import EMBEDDING_MODEL
 
@@ -237,8 +237,9 @@ def _ingest_urls_job(job_id: str, urls: List[str]):
             logging.getLogger(__name__).info(f"call get_langchain_recipe_db", extra={})
 
             #n, coll = ingest_json_to_chroma(metadatas, collection_name=COLLECTION_NAME)
-            db = get_langchain_recipe_db()
-            success_count, errors = db.add_recipes_batch(metadatas)
+            #db = get_langchain_recipe_db()
+            #success_count, errors = db.add_recipes_batch(metadatas)
+            success_count, errors = ingest_json_to_elysia(metadatas, collection_name=COLLECTION_NAME)
 
             print(f"Inseriti {success_count} record nella collection.")
             
@@ -347,10 +348,10 @@ def get_recipe_by_shortcode(shortcode: str):
     """
     Ritorna i metadati completi della ricetta identificata dallo shortcode.
     
-    Usa il sistema ChromaDB ottimizzato con BGE-M3.
+    Usa il sistema Elysia/Weaviate per la ricerca semantica.
     """
     try:
-        recipe_data = get_recipe_by_shortcode_chroma(shortcode)
+        recipe_data = get_recipe_by_shortcode_elysia(shortcode)
         
         if not recipe_data:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ricetta non trovata")
@@ -380,9 +381,9 @@ def embeddings_preview3d(limit: int = 1000, with_meta: bool = True):
     - Proiezione PCA 3D implementata con NumPy (SVD).
     """
     try:
-        # Verifica disponibilità collection
-        if not getattr(recipe_db, "collection", None):
-            raise HTTPException(status_code=503, detail="ChromaDB non disponibile")
+        # Verifica disponibilità collection 
+        if not getattr(elysia_recipe_db, "collection", None):
+            raise HTTPException(status_code=503, detail="Elysia/Weaviate non disponibile")
 
         # Import locale per non vincolare l'avvio se numpy manca
         try:
@@ -390,16 +391,9 @@ def embeddings_preview3d(limit: int = 1000, with_meta: bool = True):
         except Exception:
             raise HTTPException(status_code=500, detail="NumPy non installato: impossibile calcolare PCA 3D")
 
-        # Limita numero di elementi per performance
-        n_total = recipe_db.collection.count()
-        n_limit = max(1, min(int(limit or 1000), n_total))
-
-        # Nota: ChromaDB include non supporta "ids"; gli ids sono sempre inclusi.
-        include_fields = ["embeddings"]
-        if with_meta:
-            include_fields.extend(["documents", "metadatas"])  # opzionale
-
-        results = recipe_db.collection.get(include=include_fields, limit=n_limit, offset=0)
+        # Funzionalità embeddings 3D temporaneamente non supportata con Elysia
+        # TODO: Implementare visualizzazione embeddings con Weaviate
+        return {"status": "ok", "n": 0, "points": [], "message": "Embeddings 3D view non supportata con Elysia"}
 
         embeddings = results.get("embeddings")
         if embeddings is None:
@@ -540,22 +534,17 @@ def embeddings_preview3d_with_query(q: str, limit: int = 1000, with_meta: bool =
     Come `preview3d`, ma aggiunge il punto della query proiettato negli stessi assi PCA.
     """
     try:
-        if not getattr(recipe_db, "collection", None):
-            raise HTTPException(status_code=503, detail="ChromaDB non disponibile")
+        if not getattr(elysia_recipe_db, "collection", None):
+            raise HTTPException(status_code=503, detail="Elysia/Weaviate non disponibile")
 
         try:
             import numpy as np  # type: ignore
         except Exception:
             raise HTTPException(status_code=500, detail="NumPy non installato: impossibile calcolare PCA 3D")
 
-        n_total = recipe_db.collection.count()
-        n_limit = max(1, min(int(limit or 1000), n_total))
-
-        include_fields = ["embeddings"]
-        if with_meta:
-            include_fields.extend(["documents", "metadatas"])  # opzionale
-
-        results = recipe_db.collection.get(include=include_fields, limit=n_limit, offset=0)
+        # Funzionalità embeddings 3D con query temporaneamente non supportata con Elysia
+        # TODO: Implementare con Weaviate
+        return {"status": "ok", "n": 0, "points": [], "query_point": None, "message": "Embeddings 3D view con query non supportata con Elysia"}
 
         embeddings = results.get("embeddings")
         if embeddings is None:
@@ -591,10 +580,9 @@ def embeddings_preview3d_with_query(q: str, limit: int = 1000, with_meta: bool =
         comps = Vt[:3].T if Vt.shape[0] >= 3 else Vt.T
         coords = Xc @ comps
 
-        # Embedding della query e proiezione negli stessi assi
-        if not getattr(recipe_db, "embedder", None):
-            raise HTTPException(status_code=500, detail="Embedder non inizializzato")
-        q_vec = recipe_db.embedder.generate_embedding_sync(q)
+        # Embedding della query non supportato direttamente con Elysia
+        # La gestione degli embeddings è interna a Weaviate
+        return {"status": "ok", "n": 0, "points": [], "query_point": None, "message": "Embeddings query non supportata con Elysia"}
         qv = np.asarray(q_vec, dtype=float)
         if qv.ndim == 1:
             qv = qv.reshape(1, -1)
@@ -655,7 +643,7 @@ def embeddings_preview3d_with_query(q: str, limit: int = 1000, with_meta: bool =
 @app.get("/search/")
 def search_recipes(query: str, limit: int = 12, max_time: Optional[int] = None, difficulty: Optional[str] = None, diet: Optional[str] = None, cuisine: Optional[str] = None):
     """
-    Ricerca semantica ottimizzata con ChromaDB e BGE-M3.
+    Ricerca semantica con Elysia/Weaviate.
     
     Supporta filtri avanzati per tempo, difficoltà, dieta e cucina.
     """
@@ -671,8 +659,8 @@ def search_recipes(query: str, limit: int = 12, max_time: Optional[int] = None, 
         if cuisine:
             filters["cuisine"] = cuisine
         
-        # Usa il sistema ChromaDB ottimizzato
-        results = search_recipes_chroma(query, limit, filters)
+        # Usa il sistema Elysia/Weaviate
+        results = search_recipes_elysia(query, limit, filters)
         
         # Normalizza campi per frontend
         for result in results:
@@ -717,7 +705,7 @@ def recalc_embeddings(body: RecalcBody):
             }
         
         #recipe_db = RecipeDatabase()
-        db = get_langchain_recipe_db()
+        #db = get_langchain_recipe_db()
          # Elenca tutte le entry nella directory
         for entry in os.listdir(BASE_FOLDER_RICETTE):
             entry_path = os.path.join(BASE_FOLDER_RICETTE, entry)
@@ -757,7 +745,8 @@ def recalc_embeddings(body: RecalcBody):
              #recipe_db.add_recipe(recipe_data)
              logging.getLogger(__name__).info(f"recipe_data: {recipe_data}")
 
-             success = db.add_recipe(recipe_data)
+             #success = db.add_recipe(recipe_data_dict)
+             success = ingest_json_to_elysia(recipe_data_dict, collection_name=COLLECTION_NAME)
 
              if success:
                  logging.getLogger(__name__).info(f"Ricetta {recipe_data.shortcode} inserita con successo nella collection.")
@@ -777,7 +766,7 @@ def health_check():
     Check di salute esteso con info sul sistema ottimizzato
     """
     try:
-        stats = recipe_db.get_stats()
+        stats = elysia_recipe_db.get_stats()
         
         return {
             "status": "ok",
@@ -785,10 +774,10 @@ def health_check():
             "version": "0.7 - Ottimizzato",
             "embedding_model": EMBEDDING_MODEL,
             "database": {
-                "type": "ChromaDB",
+                "type": stats.get("database_type", "Elysia/Weaviate"),
                 "total_recipes": stats.get("total_recipes", 0),
                 "collection": stats.get("collection_name", ""),
-                "optimization": "BGE-M3 multilingual"
+                "optimization": "Elysia AI with Weaviate"
             }
         }
     except Exception as e:

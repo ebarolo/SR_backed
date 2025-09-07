@@ -44,9 +44,20 @@ EMBEDDINGS_NPZ_PATH = os.getenv(
 # Configurazione ChromaDB
 # -------------------------------
 # Forza l'uso della versione locale di ChromaDB invece di Chroma Cloud
-USE_LOCAL_CHROMA = os.getenv("USE_LOCAL_CHROMA", "true").lower() in ("true", "1", "yes")
-CHROMADB_AVAILABLE = True
+USE_LOCAL_CHROMA = os.getenv("USE_LOCAL_CHROMA", "flase").lower() in ("true", "1", "yes")
+CHROMADB_AVAILABLE = False
 
 # Percorso per il database ChromaDB locale (se None, usa in-memory)
 CHROMA_LOCAL_PATH = os.getenv("CHROMA_LOCAL_PATH", os.path.join(os.getcwd(), "chroma_db"))
-COLLECTION_NAME = "smartRecipe"
+COLLECTION_NAME = "SmartRecipe"
+
+# -------------------------------
+# Configurazione Weaviate/Elysia 
+# -------------------------------
+# URL del cluster Weaviate (es. https://your-cluster.weaviate.network)
+WCD_URL = os.getenv("WCD_URL", "http://localhost:8080")
+WCD_API_KEY = os.getenv("WCD_API_KEY")
+
+# Configurazione Elysia
+ELYSIA_AVAILABLE = True
+ELYSIA_COLLECTION_NAME = os.getenv("ELYSIA_COLLECTION_NAME", "SmartRecipeCollection")

@@ -8,7 +8,7 @@ uvicorn[standard]==0.35.0
 pydantic==2.11.7
 
 # AI/LLM
-openai>=1.100.2
+openai>=1.106.1
 tenacity==9.1.2
 
 # NLP (opzionale, per fallback)
@@ -33,14 +33,25 @@ instaloader==4.14.2
 matplotlib==3.10.5
 scipy==1.16.1
 
+# gRPC compatibility fixes
+grpcio-status==1.64.1
+
 # RAG
 transformers==4.55.4
 torch>=2.8.0
 sentence-transformers>=5.1.0
 FlagEmbedding>=1.3.5
 
-# ChromaDB
+# ChromaDB (mantenuto per compatibilità durante la transizione)
 chromadb>=1.0.20
+
+# Elysia e Weaviate - Versioni compatibili TESTATE
+# Fix per compatibilità gRPC/Protobuf - versioni che funzionano insieme
+grpcio==1.64.1
+grpcio-tools==1.64.1
+protobuf==5.26.1
+elysia-ai==0.2.5
+weaviate-client==4.16.9
 
 # Langchain
 langchain>=0.3.27

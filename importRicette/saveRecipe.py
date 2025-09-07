@@ -119,7 +119,7 @@ async def process_video(recipeUrl: str, progress_cb: Optional[Callable[[Dict[str
         shortcode = dw.get("shortcode", "SHORTCODE_NON_TROVATO") # Default per logging
         try:
             #logger.info(f"Inizio elaborazione per shortcode: {shortcode}")
-           
+            ricetta_audio = ""
             captionSanit = sanitize_text(dw.get("caption", "caption NON_TROVATO")) # Default per logging
 
             video_folder_post = os.path.join(BASE_FOLDER_RICETTE, shortcode, "media_original")
@@ -130,19 +130,16 @@ async def process_video(recipeUrl: str, progress_cb: Optional[Callable[[Dict[str
                 f for f in os.listdir(video_folder_post) if f.endswith(".mp4")
             ]
             
-            if not video_files:
-                raise FileNotFoundError(
-                    f"Nessun file video .mp4 trovato in {video_folder_post} per shortcode '{shortcode}'. File presenti: {os.listdir(video_folder_post) if os.path.exists(video_folder_post) else 'cartella non esistente'}"
-                )
-
-            video_path = os.path.join(
+            if video_files:
+    
+             video_path = os.path.join(
                 video_folder_post, video_files[0]
-            )  # Percorso completo al file video
+             )  # Percorso completo al file video
 
-            audio_filename = f"{os.path.splitext(shortcode)[0]}.mp3"
-            audio_path = os.path.join(video_folder_post, audio_filename)
+             audio_filename = f"{os.path.splitext(shortcode)[0]}.mp3"
+             audio_path = os.path.join(video_folder_post, audio_filename)
 
-            try:
+             try:
                 process = await asyncio.to_thread(
                     subprocess.run,
                     ["ffmpeg", "-i", video_path, "-q:a", "0", "-map", "a", audio_path],
@@ -151,7 +148,7 @@ async def process_video(recipeUrl: str, progress_cb: Optional[Callable[[Dict[str
                     text=True,
                 )
                 _emit_progress("extract_audio", 50.0)
-            except subprocess.CalledProcessError as e:
+             except subprocess.CalledProcessError as e:
                 extra_info = {
                     "shortcode": shortcode,
                     "return_code": e.returncode,
@@ -163,64 +160,61 @@ async def process_video(recipeUrl: str, progress_cb: Optional[Callable[[Dict[str
                 _emit_progress("error", 25.0, message=str(e))
                 raise RuntimeError(f"Errore durante l'estrazione dell'audio per shortcode '{shortcode}': {e.stderr}") from e
 
-            ricetta_audio = await whisper_speech_recognition(audio_path, "it")
-            _emit_progress("stt", 85.0)
+             ricetta_audio = await whisper_speech_recognition(audio_path, "it")
+             _emit_progress("stt", 85.0)
             
-            # Log per verificare che il testo non sia troncato
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.info(f"Ricetta audio length: {len(ricetta_audio) if ricetta_audio else 0}, Caption length: {len(captionSanit) if captionSanit else 0}")
+             # Log per verificare che il testo non sia troncato
+             logger = logging.getLogger(__name__)
+             logger.info(f"Ricetta audio length: {len(ricetta_audio) if ricetta_audio else 0}, Caption length: {len(captionSanit) if captionSanit else 0}")
 
             # Estrai informazioni dalla ricetta
             ricetta = await extract_recipe_info(ricetta_audio, captionSanit, [], [])
             _emit_progress("parse_recipe", 100.0)
-            if ricetta:
-                titolo_estratto = ricetta.get('title', 'N/A') if isinstance(ricetta, dict) else getattr(ricetta, 'title', 'N/A')
-            else:
-                error_logger.log_error("recipe_extraction", f"Nessuna informazione ricetta estratta per shortcode '{shortcode}' dal testo analizzato.", {"shortcode": shortcode})
-            
-            # Normalizza la ricetta in un dict per uso successivo
-            ricetta_dict = ricetta if isinstance(ricetta, dict) else (ricetta.model_dump() if ricetta else {})
-            if not NO_IMAGE:
+            if ricetta:              
+                       
+             # Normalizza la ricetta in un dict per uso successivo
+             ricetta_dict = ricetta if isinstance(ricetta, dict) else (ricetta.model_dump() if ricetta else {})
+             if not NO_IMAGE:
                 images_recipe = await generateRecipeImages(ricetta_dict, shortcode)
-            else:
+             else:
                 images_recipe = []
             
-            if images_recipe:
+             if images_recipe:
+                ricetta_dict["images"] = images_recipe
+                if not ricetta_dict.get("image_url"):
+                    ricetta_dict["image_url"] = images_recipe[0]            
+
+             # Keep ingredients and recipe_step as lists
+             ricetta_dict["ingredients"] = ricetta_dict.get("ingredients", [])
+             ricetta_dict["recipe_step"] = ricetta_dict.get("recipe_step", [])
+
+             # Keep category, tags, and nutritional_info as lists
+             ricetta_dict["category"] = ricetta_dict.get("category", [])
+             ricetta_dict["tags"] = ricetta_dict.get("tags", [])
+             ricetta_dict["nutritional_info"] = ricetta_dict.get("nutritional_info", [])
+
+             # Add required fields
+             ricetta_dict["ricetta_audio"] = ricetta_audio
+             ricetta_dict["ricetta_caption"] = captionSanit
+             ricetta_dict["shortcode"] = shortcode
+             
+             # Persist generated images into metadata for frontend retrieval
+             if images_recipe:
                 ricetta_dict["images"] = images_recipe
                 if not ricetta_dict.get("image_url"):
                     ricetta_dict["image_url"] = images_recipe[0]
 
-            # Convert the RecipeAIResponse object to a RecipeDBSchema object
-            
-
-            # Keep ingredients and recipe_step as lists
-            ricetta_dict["ingredients"] = ricetta_dict.get("ingredients", [])
-            ricetta_dict["recipe_step"] = ricetta_dict.get("recipe_step", [])
-
-            # Keep category, tags, and nutritional_info as lists
-            ricetta_dict["category"] = ricetta_dict.get("category", [])
-            ricetta_dict["tags"] = ricetta_dict.get("tags", [])
-            ricetta_dict["nutritional_info"] = ricetta_dict.get("nutritional_info", [])
-
-            # Add required fields
-            ricetta_dict["ricetta_audio"] = ricetta_audio
-            ricetta_dict["ricetta_caption"] = captionSanit
-            ricetta_dict["shortcode"] = shortcode
-            # Persist generated images into metadata for frontend retrieval
-            if images_recipe:
-                ricetta_dict["images"] = images_recipe
-                if not ricetta_dict.get("image_url"):
-                    ricetta_dict["image_url"] = images_recipe[0]
-
-            # Successfully completed processing - using standard logger for info level
-            logging.getLogger(__name__).info(f"process_video completato per shortcode '{shortcode}'. Titolo: '{ricetta_dict.get('title', 'N/A')}'", extra={"shortcode": shortcode, "title": ricetta_dict.get('title', 'N/A')})
-            return RecipeDBSchema(**ricetta_dict)
+             # Successfully completed processing - using standard logger for info level
+             logging.getLogger(__name__).info(f"process_video completato per shortcode '{shortcode}'. Titolo: '{ricetta_dict.get('title', 'N/A')}'", extra={"shortcode": shortcode, "title": ricetta_dict.get('title', 'N/A')})
+             return RecipeDBSchema(**ricetta_dict)
+            else:
+             error_logger.log_error("recipe_extraction", f"Nessuna informazione ricetta estratta per shortcode '{shortcode}' dal testo analizzato.", {"shortcode": shortcode})
+             return None
         except Exception as e:
             error_logger.log_exception("process_video", e, {"shortcode": shortcode})
             _emit_progress("error", 50.0, message=str(e))
             raise # Rilancia l'eccezione per interrompere l'elaborazione
-    
+            
 
     if not dws:
         error_logger.log_error("process_video_no_data", "Nessun dato video fornito a process_video.", {"recipe_input": recipeUrl})

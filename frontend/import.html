@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Import Ricette - Smart Recipe</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Configurazione Tailwind ispirata a Samsung One UI 7 e Material Design 3
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        border: "hsl(214.3 31.8% 91.4%)",
+                        input: "hsl(214.3 31.8% 91.4%)",
+                        ring: "hsl(222.2 84% 4.9%)",
+                        background: "hsl(0 0% 100%)",
+                        foreground: "hsl(222.2 84% 4.9%)",
+                        primary: {
+                            DEFAULT: "hsl(222.2 47.4% 11.2%)",
+                            foreground: "hsl(210 40% 98%)",
+                        },
+                        secondary: {
+                            DEFAULT: "hsl(210 40% 96%)",
+                            foreground: "hsl(222.2 84% 4.9%)",
+                        },
+                        destructive: {
+                            DEFAULT: "hsl(0 84.2% 60.2%)",
+                            foreground: "hsl(210 40% 98%)",
+                        },
+                        muted: {
+                            DEFAULT: "hsl(210 40% 96%)",
+                            foreground: "hsl(215.4 16.3% 46.9%)",
+                        },
+                        accent: {
+                            DEFAULT: "hsl(210 40% 96%)",
+                            foreground: "hsl(222.2 84% 4.9%)",
+                        },
+                        success: {
+                            DEFAULT: "hsl(142.1 76.2% 36.3%)",
+                            foreground: "hsl(210 40% 98%)",
+                        },
+                        warning: {
+                            DEFAULT: "hsl(47.9 95.8% 53.1%)",
+                            foreground: "hsl(222.2 84% 4.9%)",
+                        },
+                        // Palette One UI 7 & Material Design 3
+                        oneui: {
+                            blue: "hsl(217 91% 60%)",
+                            lightblue: "hsl(217 91% 85%)",
+                            darkblue: "hsl(217 91% 35%)",
+                            surface: "hsl(0 0% 98%)",
+                            surfaceVariant: "hsl(220 14% 96%)",
+                            onSurface: "hsl(220 9% 15%)",
+                            onSurfaceVariant: "hsl(220 7% 40%)",
+                        },
+                        material: {
+                            primary: "hsl(255 45% 48%)",
+                            onPrimary: "hsl(0 0% 100%)",
+                            primaryContainer: "hsl(255 100% 95%)",
+                            onPrimaryContainer: "hsl(255 100% 10%)",
+                            surface: "hsl(0 0% 99%)",
+                            surfaceContainer: "hsl(0 0% 96%)",
+                            surfaceContainerHigh: "hsl(0 0% 92%)",
+                        }
+                    },
+                    fontFamily: {
+                        'oneui': ['-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
+                        'material': ['Roboto', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+                    },
+                    fontSize: {
+                        'step-title': ['1.125rem', { lineHeight: '1.5', fontWeight: '600' }],
+                        'step-description': ['0.875rem', { lineHeight: '1.4', fontWeight: '500' }],
+                        'url-text': ['0.75rem', { lineHeight: '1.3', fontWeight: '400' }],
+                    },
+                    borderRadius: {
+                        'oneui': '1.5rem',
+                        'material': '1rem',
+                        lg: "var(--radius)",
+                        md: "calc(var(--radius) - 2px)",
+                        sm: "calc(var(--radius) - 4px)",
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root {
+            --radius: 0.5rem;
+        }
+        
+        /* One UI 7 & Material Design 3 Enhanced Animations */
+        .animate-spin {
+            animation: spin 1s linear infinite;
+        }
+        
+        .animate-pulse-soft {
+            animation: pulse-soft 2s ease-in-out infinite;
+        }
+        
+        .animate-slide-in {
+            animation: slide-in 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+        }
+        
+        .animate-scale-in {
+            animation: scale-in 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+        
+        /* Step Status Animations */
+        .step-running {
+            background: linear-gradient(-45deg, hsl(217 91% 90%), hsl(217 91% 95%), hsl(217 91% 90%), hsl(217 91% 95%));
+            background-size: 400% 400%;
+            animation: gradient-move 3s ease infinite;
+        }
+        
+        .step-completed {
+            background: linear-gradient(135deg, hsl(142.1 76.2% 85%), hsl(142.1 76.2% 90%));
+            animation: success-pulse 0.6s ease-out;
+        }
+        
+        .step-failed {
+            background: linear-gradient(135deg, hsl(0 84.2% 85%), hsl(0 84.2% 90%));
+            animation: error-shake 0.5s ease-out;
+        }
+        
+        /* Progress Bar Enhanced */
+        .progress-bar {
+            background: linear-gradient(90deg, hsl(142.1 76.2% 36.3%) var(--progress), hsl(210 40% 96%) var(--progress));
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .progress-bar::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            animation: shimmer 2s infinite;
+        }
+        
+        /* Typography Enhancement - Samsung Sharp inspired */
+        .step-title-enhanced {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'SF Pro Display', Roboto, sans-serif;
+            font-weight: 700;
+            font-size: 1.25rem;
+            line-height: 1.3;
+            letter-spacing: -0.01em;
+            background: linear-gradient(135deg, hsl(217 91% 35%), hsl(217 91% 60%));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .url-title-enhanced {
+            font-family: 'SF Mono', 'Monaco', 'Cascadia Code', 'Roboto Mono', monospace;
+            font-weight: 500;
+            font-size: 0.8rem;
+            line-height: 1.4;
+            color: hsl(220 7% 40%);
+            background: hsl(220 14% 98%);
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.75rem;
+            border: 1px solid hsl(220 14% 90%);
+        }
+        
+        /* Enhanced Cards with Material Design 3 elevation */
+        .card-elevated {
+            box-shadow: 
+                0 1px 3px 0 rgba(0, 0, 0, 0.1),
+                0 1px 2px 0 rgba(0, 0, 0, 0.06),
+                0 0 0 1px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+        
+        .card-elevated:hover {
+            box-shadow: 
+                0 10px 25px -3px rgba(0, 0, 0, 0.1),
+                0 4px 6px -2px rgba(0, 0, 0, 0.05),
+                0 0 0 1px rgba(0, 0, 0, 0.05);
+            transform: translateY(-2px);
+        }
+        
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        @keyframes pulse-soft {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        @keyframes slide-in {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        @keyframes scale-in {
+            from {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+        
+        @keyframes gradient-move {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        @keyframes success-pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); }
+        }
+        
+        @keyframes error-shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-2px); }
+            75% { transform: translateX(2px); }
+        }
+        
+        @keyframes shimmer {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
+    </style>
+</head>
+<body class="bg-background text-foreground min-h-screen">
+    <!-- Header -->
+    <header class="border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
+        <div class="container mx-auto px-4 py-4 flex items-center justify-between">
+            <div class="flex items-center space-x-4">
+                <div class="h-8 w-8 rounded-md bg-primary flex items-center justify-center text-primary-foreground font-bold">
+                    SR
+                </div>
+                <div>
+                    <h1 class="text-xl font-semibold">Import Ricette</h1>
+                    <p class="text-sm text-muted-foreground">Carica ricette da URL social media</p>
+                </div>
+            </div>
+            <nav class="flex items-center space-x-2">
+                <button onclick="location.href='index.html'" class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2">
+                    Cerca Ricette
+                </button>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 py-8 max-w-4xl">
+        <!-- Form Import -->
+        <div class="rounded-lg border bg-card text-card-foreground shadow-sm mb-8">
+            <div class="p-6">
+                <h2 class="text-2xl font-semibold leading-none tracking-tight mb-4">Aggiungi Nuove Ricette</h2>
+                <p class="text-sm text-muted-foreground mb-6">
+                    Inserisci gli URL delle ricette da importare. Supportiamo YouTube, Instagram, Facebook e TikTok.
+                </p>
+                
+                <form id="importForm" class="space-y-4">
+                    <div class="space-y-2">
+                        <label for="urlInput" class="text-sm font-medium leading-none">URL Ricette</label>
+                        <textarea 
+                            id="urlInput" 
+                            placeholder="Inserisci gli URL uno per riga o separati da virgole, o incolla direttamente dal tuo clipboard..."
+                            class="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-y"
+                            rows="6"></textarea>
+                        <p class="text-xs text-muted-foreground">
+                            Esempi: https://youtube.com/watch?v=..., https://instagram.com/p/..., https://facebook.com/...
+                        </p>
+                    </div>
+                    
+                    <div class="flex items-center space-x-2">
+                        <button 
+                            type="submit" 
+                            id="submitBtn"
+                            class="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                            </svg>
+                            Avvia Import
+                        </button>
+                        
+                        <button 
+                            type="button" 
+                            id="clearBtn"
+                            class="inline-flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">
+                            Cancella
+                        </button>
+                        
+                        <button 
+                            type="button" 
+                            id="pasteBtn"
+                            class="inline-flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                            </svg>
+                            Incolla
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Jobs attivi -->
+        <div class="rounded-lg border bg-card text-card-foreground shadow-sm mb-8">
+            <div class="p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-xl font-semibold leading-none tracking-tight">Job di Import</h2>
+                    <button 
+                        id="refreshBtn"
+                        class="inline-flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-3 text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        </svg>
+                        Aggiorna
+                    </button>
+                </div>
+                
+                <div id="jobsList" class="space-y-4">
+                    <div class="text-center py-8 text-muted-foreground">
+                        <svg class="w-12 h-12 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        <p>Nessun job di import in corso</p>
+                        <p class="text-xs mt-1">I job appariranno qui quando avvii un import</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="rounded-lg border bg-card text-card-foreground shadow-sm">
+                <div class="p-6">
+                    <div class="flex items-center">
+                        <svg class="w-4 h-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <div class="ml-2">
+                            <p class="text-sm font-medium leading-none">Completati</p>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="text-2xl font-bold" id="completedCount">0</div>
+                        <p class="text-xs text-muted-foreground">Job completati oggi</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="rounded-lg border bg-card text-card-foreground shadow-sm">
+                <div class="p-6">
+                    <div class="flex items-center">
+                        <svg class="w-4 h-4 text-muted-foreground animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        </svg>
+                        <div class="ml-2">
+                            <p class="text-sm font-medium leading-none">In Corso</p>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="text-2xl font-bold" id="runningCount">0</div>
+                        <p class="text-xs text-muted-foreground">Job attualmente attivi</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="rounded-lg border bg-card text-card-foreground shadow-sm">
+                <div class="p-6">
+                    <div class="flex items-center">
+                        <svg class="w-4 h-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <div class="ml-2">
+                            <p class="text-sm font-medium leading-none">In Coda</p>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="text-2xl font-bold" id="queuedCount">0</div>
+                        <p class="text-xs text-muted-foreground">Job in attesa</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="import.js"></script>
+</body>
+</html>
