@@ -22,7 +22,8 @@ class ImportManager {
             jobsList: document.getElementById('jobsList'),
             completedCount: document.getElementById('completedCount'),
             runningCount: document.getElementById('runningCount'),
-            queuedCount: document.getElementById('queuedCount')
+            queuedCount: document.getElementById('queuedCount'),
+            databaseCount: document.getElementById('databaseCount')
         };
     }
 
@@ -160,6 +161,12 @@ class ImportManager {
             const jobs = await response.json();
             this.renderJobs(jobs);
             this.updateJobStats(jobs);
+            
+            // Aggiorna le stats del database se ci sono job completati
+            const hasCompleted = jobs.some(job => job.status === 'completed');
+            if (hasCompleted) {
+                this.loadDatabaseStats();
+            }
         } catch (error) {
             console.error('Errore nel caricamento dei job:', error);
             this.showNotification('Errore nel caricamento dei job', 'destructive');
@@ -170,6 +177,51 @@ class ImportManager {
 
     async loadInitialJobs() {
         await this.loadJobs();
+        await this.loadDatabaseStats();
+    }
+    
+    async loadDatabaseStats() {
+        try {
+            // Prova a caricare le stats del database
+            const response = await fetch(`${this.apiBaseUrl}/stats/database`);
+            
+            if (response.ok) {
+                const stats = await response.json();
+                this.updateDatabaseStats(stats);
+            } else {
+                // Se l'endpoint non è disponibile, prova attraverso le collection info
+                try {
+                    const collectionResponse = await fetch(`${this.apiBaseUrl}/collection/info`);
+                    if (collectionResponse.ok) {
+                        const info = await collectionResponse.json();
+                        const count = info.count || info.total_documents || 0;
+                        this.updateDatabaseStats({ total_recipes: count });
+                    }
+                } catch (collectionError) {
+                    console.log('Endpoint collection info non disponibile:', collectionError.message);
+                }
+            }
+        } catch (error) {
+            console.log('Stats database non disponibili:', error.message);
+            // Non è un errore critico, mostra 0
+            this.updateDatabaseStats({ total_recipes: 0 });
+        }
+    }
+    
+    updateDatabaseStats(stats) {
+        const { total_recipes = 0 } = stats;
+        this.elements.databaseCount.textContent = total_recipes;
+        
+        // Aggiorna anche il colore dell'icona del database in base al numero di ricette
+        const dbCard = this.elements.databaseCount.closest('.card-elevated');
+        if (dbCard) {
+            const icon = dbCard.querySelector('svg');
+            if (total_recipes > 0) {
+                icon.classList.add('animate-pulse-soft');
+            } else {
+                icon.classList.remove('animate-pulse-soft');
+            }
+        }
     }
 
     renderEmptyState() {
@@ -197,12 +249,24 @@ class ImportManager {
                             <span>Estrazione audio</span>
                         </div>
                         <div class="flex items-center space-x-2">
+                            <span>🎤</span>
+                            <span>Riconoscimento vocale</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
                             <span>🧠</span>
-                            <span>Analisi AI</span>
+                            <span>Analisi ricetta</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <span>🤖</span>
+                            <span>Vettorizzazione AI</span>
                         </div>
                         <div class="flex items-center space-x-2">
                             <span>💾</span>
-                            <span>Salvataggio</span>
+                            <span>Ingest database</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <span>📊</span>
+                            <span>Indicizzazione</span>
                         </div>
                     </div>
                 </div>
@@ -284,7 +348,11 @@ class ImportManager {
                 'extract_audio': { name: 'Estrazione Audio', icon: '🎵', desc: 'Conversione traccia audio' },
                 'stt': { name: 'Riconoscimento Vocale', icon: '🎤', desc: 'Trascrizione audio in testo' },
                 'parse_recipe': { name: 'Analisi Ricetta', icon: '🧠', desc: 'Estrazione ingredienti e procedimento' },
-                'indexing': { name: 'Indicizzazione', icon: '📊', desc: 'Salvataggio nel database' },
+                'embedding': { name: 'Vettorizzazione', icon: '🔢', desc: 'Creazione embeddings semantici' },
+                'vectorizing': { name: 'Embedding AI', icon: '🤖', desc: 'Elaborazione con modelli linguistici' },
+                'ingesting': { name: 'Ingest Database', icon: '💾', desc: 'Caricamento nel database vettoriale' },
+                'indexing': { name: 'Indicizzazione', icon: '📊', desc: 'Creazione indici di ricerca' },
+                'persisting': { name: 'Salvataggio', icon: '🗃️', desc: 'Persistenza dati finale' },
                 'done': { name: 'Completato', icon: '✅', desc: 'Elaborazione terminata' },
                 'error': { name: 'Errore', icon: '❌', desc: 'Problema durante elaborazione' }
             };
@@ -665,10 +733,50 @@ class ImportManager {
     }
 }
 
+// Funzione per gestire il collapsible
+function toggleCollapse(sectionId) {
+    const section = document.getElementById(sectionId);
+    const icon = document.getElementById(sectionId + 'Icon');
+    
+    if (!section || !icon) return;
+    
+    const isCollapsed = section.classList.contains('collapsed');
+    
+    if (isCollapsed) {
+        // Espandi
+        section.classList.remove('collapsed');
+        icon.classList.remove('rotated');
+        
+        // Animazione smooth
+        setTimeout(() => {
+            section.style.maxHeight = section.scrollHeight + 'px';
+        }, 10);
+    } else {
+        // Comprimi  
+        section.style.maxHeight = section.scrollHeight + 'px';
+        
+        setTimeout(() => {
+            section.classList.add('collapsed');
+            icon.classList.add('rotated');
+        }, 10);
+    }
+}
+
+// Funzione per inizializzare lo stato dei collapsible
+function initializeCollapsibleState() {
+    // Il pannello principale inizia espanso
+    const importPanel = document.getElementById('importPanel');
+    
+    if (importPanel) {
+        importPanel.style.maxHeight = importPanel.scrollHeight + 'px';
+    }
+}
+
 // Inizializza l'import manager quando il DOM è caricato
 let importManager;
 document.addEventListener('DOMContentLoaded', () => {
     importManager = new ImportManager();
+    initializeCollapsibleState();
 });
 
 // Gestione cleanup quando la pagina viene chiusa

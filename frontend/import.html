@@ -237,6 +237,63 @@
             0% { left: -100%; }
             100% { left: 100%; }
         }
+        
+        /* Collapsible Component Styles */
+        .collapsible-content {
+            max-height: 1000px;
+            overflow: hidden;
+            transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            opacity: 1;
+        }
+        
+        .collapsible-content.collapsed {
+            max-height: 0;
+            opacity: 0;
+            padding-top: 0;
+            padding-bottom: 0;
+        }
+        
+        .collapsible-header {
+            transition: all 0.2s ease-in-out;
+        }
+        
+        .collapsible-header:hover {
+            background-color: hsl(210 40% 98%);
+        }
+        
+        .collapsible-icon.rotated {
+            transform: rotate(-180deg);
+        }
+        
+        /* Enhanced responsive styles */
+        @media (max-width: 768px) {
+            .container {
+                padding-left: 1rem;
+                padding-right: 1rem;
+            }
+            
+            .card-elevated {
+                margin-left: -0.5rem;
+                margin-right: -0.5rem;
+                border-radius: 0.75rem;
+            }
+            
+            .step-title-enhanced {
+                font-size: 1.1rem;
+            }
+        }
+        
+        @media (max-width: 640px) {
+            .grid {
+                gap: 0.75rem;
+            }
+            
+            .card-elevated {
+                box-shadow: 
+                    0 1px 3px 0 rgba(0, 0, 0, 0.1),
+                    0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            }
+        }
     </style>
 </head>
 <body class="bg-background text-foreground min-h-screen">
@@ -260,136 +317,187 @@
         </div>
     </header>
 
-    <main class="container mx-auto px-4 py-8 max-w-4xl">
-        <!-- Form Import -->
-        <div class="rounded-lg border bg-card text-card-foreground shadow-sm mb-8">
-            <div class="p-6">
-                <h2 class="text-2xl font-semibold leading-none tracking-tight mb-4">Aggiungi Nuove Ricette</h2>
-                <p class="text-sm text-muted-foreground mb-6">
-                    Inserisci gli URL delle ricette da importare. Supportiamo YouTube, Instagram, Facebook e TikTok.
-                </p>
-                
-                <form id="importForm" class="space-y-4">
-                    <div class="space-y-2">
-                        <label for="urlInput" class="text-sm font-medium leading-none">URL Ricette</label>
-                        <textarea 
-                            id="urlInput" 
-                            placeholder="Inserisci gli URL uno per riga o separati da virgole, o incolla direttamente dal tuo clipboard..."
-                            class="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-y"
-                            rows="6"></textarea>
-                        <p class="text-xs text-muted-foreground">
-                            Esempi: https://youtube.com/watch?v=..., https://instagram.com/p/..., https://facebook.com/...
-                        </p>
+    <main class="container mx-auto px-4 py-8 max-w-full">
+        <!-- Import Management Panel -->
+        <div class="rounded-lg border bg-card text-card-foreground shadow-sm mb-8 card-elevated w-full">
+            <div class="p-6 border-b border-border collapsible-header" onclick="toggleCollapse('importPanel')">
+                <div class="flex items-center justify-between cursor-pointer">
+                    <div class="flex items-center space-x-3">
+                        <div class="h-12 w-12 rounded-full bg-gradient-to-br from-oneui-blue to-material-primary flex items-center justify-center shadow-lg">
+                            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                            </svg>
+                        </div>
+                        <div>
+                            <h2 class="step-title-enhanced">Gestione Import Ricette</h2>
+                            <p class="text-sm text-muted-foreground">
+                                Importa e monitora il processo delle ricette dai social media
+                            </p>
+                        </div>
                     </div>
-                    
                     <div class="flex items-center space-x-2">
-                        <button 
-                            type="submit" 
-                            id="submitBtn"
-                            class="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">
-                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
-                            </svg>
-                            Avvia Import
-                        </button>
-                        
-                        <button 
-                            type="button" 
-                            id="clearBtn"
-                            class="inline-flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">
-                            Cancella
-                        </button>
-                        
-                        <button 
-                            type="button" 
-                            id="pasteBtn"
-                            class="inline-flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">
-                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
-                            </svg>
-                            Incolla
-                        </button>
+                        <div class="hidden sm:flex items-center space-x-2">
+                            <div class="text-xs bg-oneui-lightblue text-oneui-darkblue px-2 py-1 rounded-full font-medium">
+                                2 Sezioni
+                            </div>
+                            <span class="text-xs text-muted-foreground">Click per espandere/comprimere</span>
+                        </div>
+                        <svg id="importPanelIcon" class="w-5 h-5 text-muted-foreground transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
                     </div>
-                </form>
-            </div>
-        </div>
-
-        <!-- Jobs attivi -->
-        <div class="rounded-lg border bg-card text-card-foreground shadow-sm mb-8">
-            <div class="p-6">
-                <div class="flex items-center justify-between mb-4">
-                    <h2 class="text-xl font-semibold leading-none tracking-tight">Job di Import</h2>
-                    <button 
-                        id="refreshBtn"
-                        class="inline-flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-3 text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                        </svg>
-                        Aggiorna
-                    </button>
                 </div>
-                
-                <div id="jobsList" class="space-y-4">
-                    <div class="text-center py-8 text-muted-foreground">
-                        <svg class="w-12 h-12 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                        </svg>
-                        <p>Nessun job di import in corso</p>
-                        <p class="text-xs mt-1">I job appariranno qui quando avvii un import</p>
+            </div>
+            
+            <div id="importPanel" class="collapsible-content">
+                <div class="p-0">
+                    <!-- Aggiungi Ricette Section -->
+                    <div class="p-6 border-b border-border">
+                        <div class="flex items-center space-x-3 mb-4">
+                            <div class="h-8 w-8 rounded-full bg-oneui-blue flex items-center justify-center">
+                                <span class="text-white text-sm font-bold">1</span>
+                            </div>
+                            <h3 class="text-lg font-semibold text-oneui-darkblue">Aggiungi Nuove Ricette</h3>
+                        </div>
+                        <p class="text-sm text-muted-foreground mb-6">
+                            Supportiamo YouTube, Instagram, Facebook e TikTok.
+                        </p>
+                        
+                        <form id="importForm" class="space-y-4">
+                            <div class="space-y-2">
+                                <label for="urlInput" class="text-sm font-medium leading-none">URL Ricette</label>
+                                <textarea 
+                                    id="urlInput" 
+                                    placeholder="Inserisci gli URL uno per riga o separati da virgole, o incolla direttamente dal tuo clipboard..."
+                                    class="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-y"
+                                    rows="6"></textarea>
+                                <p class="text-xs text-muted-foreground">
+                                    Esempi: https://youtube.com/watch?v=..., https://instagram.com/p/..., https://facebook.com/...
+                                </p>
+                            </div>
+                            
+                            <div class="flex items-center space-x-2">
+                                <button 
+                                    type="submit" 
+                                    id="submitBtn"
+                                    class="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">
+                                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                                    </svg>
+                                    Avvia Import
+                                </button>
+                                
+                                <button 
+                                    type="button" 
+                                    id="clearBtn"
+                                    class="inline-flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">
+                                    Cancella
+                                </button>
+                                
+                                <button 
+                                    type="button" 
+                                    id="pasteBtn"
+                                    class="inline-flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">
+                                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                                    </svg>
+                                    Incolla
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Jobs Monitoring Section -->
+                    <div class="p-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="flex items-center space-x-3">
+                                <div class="h-8 w-8 rounded-full bg-material-primary flex items-center justify-center">
+                                    <span class="text-white text-sm font-bold">2</span>
+                                </div>
+                                <h3 class="text-lg font-semibold text-material-primary">Monitoraggio Job</h3>
+                            </div>
+                            <button 
+                                id="refreshBtn"
+                                class="inline-flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-3 text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">
+                                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                                </svg>
+                                <span class="hidden sm:inline">Aggiorna</span>
+                            </button>
+                        </div>
+                        
+                        <div id="jobsList" class="space-y-4">
+                            <div class="text-center py-8 text-muted-foreground">
+                                <svg class="w-12 h-12 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                </svg>
+                                <p>Nessun job di import in corso</p>
+                                <p class="text-xs mt-1">I job appariranno qui quando avvii un import</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
         <!-- Stats -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div class="rounded-lg border bg-card text-card-foreground shadow-sm">
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 w-full">
+            <div class="rounded-lg border bg-card text-card-foreground shadow-sm card-elevated">
                 <div class="p-6">
-                    <div class="flex items-center">
-                        <svg class="w-4 h-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div class="flex items-center justify-between mb-2">
+                        <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                         </svg>
-                        <div class="ml-2">
-                            <p class="text-sm font-medium leading-none">Completati</p>
-                        </div>
+                        <p class="text-sm font-medium text-green-700">Completati</p>
                     </div>
                     <div>
-                        <div class="text-2xl font-bold" id="completedCount">0</div>
-                        <p class="text-xs text-muted-foreground">Job completati oggi</p>
+                        <div class="text-2xl font-bold text-green-800" id="completedCount">0</div>
+                        <p class="text-xs text-green-600">Job completati oggi</p>
                     </div>
                 </div>
             </div>
             
-            <div class="rounded-lg border bg-card text-card-foreground shadow-sm">
+            <div class="rounded-lg border bg-card text-card-foreground shadow-sm card-elevated">
                 <div class="p-6">
-                    <div class="flex items-center">
-                        <svg class="w-4 h-4 text-muted-foreground animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div class="flex items-center justify-between mb-2">
+                        <svg class="w-5 h-5 text-oneui-blue animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
                         </svg>
-                        <div class="ml-2">
-                            <p class="text-sm font-medium leading-none">In Corso</p>
-                        </div>
+                        <p class="text-sm font-medium text-oneui-darkblue">In Corso</p>
                     </div>
                     <div>
-                        <div class="text-2xl font-bold" id="runningCount">0</div>
-                        <p class="text-xs text-muted-foreground">Job attualmente attivi</p>
+                        <div class="text-2xl font-bold text-oneui-darkblue" id="runningCount">0</div>
+                        <p class="text-xs text-oneui-blue">Job attualmente attivi</p>
                     </div>
                 </div>
             </div>
             
-            <div class="rounded-lg border bg-card text-card-foreground shadow-sm">
+            <div class="rounded-lg border bg-card text-card-foreground shadow-sm card-elevated">
                 <div class="p-6">
-                    <div class="flex items-center">
-                        <svg class="w-4 h-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div class="flex items-center justify-between mb-2">
+                        <svg class="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                         </svg>
-                        <div class="ml-2">
-                            <p class="text-sm font-medium leading-none">In Coda</p>
-                        </div>
+                        <p class="text-sm font-medium text-yellow-700">In Coda</p>
                     </div>
                     <div>
-                        <div class="text-2xl font-bold" id="queuedCount">0</div>
-                        <p class="text-xs text-muted-foreground">Job in attesa</p>
+                        <div class="text-2xl font-bold text-yellow-800" id="queuedCount">0</div>
+                        <p class="text-xs text-yellow-600">Job in attesa</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="rounded-lg border bg-card text-card-foreground shadow-sm card-elevated">
+                <div class="p-6">
+                    <div class="flex items-center justify-between mb-2">
+                        <svg class="w-5 h-5 text-material-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path>
+                        </svg>
+                        <p class="text-sm font-medium text-material-primary">Database</p>
+                    </div>
+                    <div>
+                        <div class="text-2xl font-bold text-material-primary" id="databaseCount">0</div>
+                        <p class="text-xs text-material-primary">Ricette nel DB</p>
                     </div>
                 </div>
             </div>

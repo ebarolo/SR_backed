@@ -11,7 +11,7 @@ import os
 import uvicorn
 import json
 
-from pydantic import BaseModel, HttpUrl, validator
+from pydantic import BaseModel, HttpUrl, field_validator
 from typing import List, Optional
 
 from models import RecipeDBSchema, JobStatus, Ingredient
@@ -21,13 +21,13 @@ from typing import List
 
 from time import perf_counter
 from importRicette.saveRecipe import process_video
-from DB.elysia import ElysiaRecipeDatabase
+from RAG.elysia import ElysiaRecipeDatabase
+from RAG.elysia import ingest_json_to_elysia, search_recipes_elysia, get_recipe_by_shortcode_elysia, elysia_recipe_db
+
 import logging
 from logging_config import setup_logging, get_error_logger, clear_error_chain
 from logging_config import request_id_var, job_id_var
 import asyncio as _asyncio
-
-from DB.elysia import ingest_json_to_elysia, search_recipes_elysia, get_recipe_by_shortcode_elysia, elysia_recipe_db
 
 from config import EMBEDDING_MODEL
 
@@ -41,7 +41,7 @@ DIST_DIR = os.path.join(BASE_DIR, "frontend")
 class VideoURLs(BaseModel):
     urls: List[HttpUrl]
 
-    @validator('urls')
+    @field_validator('urls')
     def validate_urls(cls, vs):
         allowed_domains = ['youtube.com', 'youtu.be', 'instagram.com', 'facebook.com', 'tiktok.com']
         for v in vs:
@@ -746,10 +746,10 @@ def recalc_embeddings(body: RecalcBody):
              logging.getLogger(__name__).info(f"recipe_data: {recipe_data}")
 
              #success = db.add_recipe(recipe_data_dict)
-             success = ingest_json_to_elysia(recipe_data_dict, collection_name=COLLECTION_NAME)
+             success_count, collection_name = ingest_json_to_elysia([recipe_data], collection_name=COLLECTION_NAME)
 
-             if success:
-                 logging.getLogger(__name__).info(f"Ricetta {recipe_data.shortcode} inserita con successo nella collection.")
+             if success_count > 0:
+                 logging.getLogger(__name__).info(f"Ricetta {recipe_data.shortcode} inserita con successo nella collection {collection_name}.")
              else:
                  logging.getLogger(__name__).error(f"Errore nell'inserimento della ricetta {recipe_data.shortcode}")
 

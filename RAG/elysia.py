@@ -43,15 +43,18 @@ class ElysiaRecipeDatabase:
                 openai_api_key=OPENAI_API_KEY
             )
             
-            # Connetti al client Weaviate
-            self.client = ClientManager().connect_to_client()
+             # Connetti al client Weaviate
+            client_manager = ClientManager()
+            with client_manager.connect_to_client() as clientk: 
             
-            # Crea o ottieni la collection
-            try:
+             self.client = clientk
+            
+             # Crea o ottieni la collection
+             try:
                 # Tenta di ottenere la collection esistente
                 self.collection = self.client.collections.get(self.collection_name)
                 logging.getLogger(__name__).info(f"Collection '{self.collection_name}' già esistente")
-            except Exception:
+             except Exception:
                 # Crea nuova collection se non esiste
                 self.collection = self.client.collections.create(
                     name=self.collection_name,

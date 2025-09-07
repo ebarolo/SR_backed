@@ -44,7 +44,7 @@ EMBEDDINGS_NPZ_PATH = os.getenv(
 # Configurazione ChromaDB
 # -------------------------------
 # Forza l'uso della versione locale di ChromaDB invece di Chroma Cloud
-USE_LOCAL_CHROMA = os.getenv("USE_LOCAL_CHROMA", "flase").lower() in ("true", "1", "yes")
+USE_LOCAL_CHROMA = os.getenv("USE_LOCAL_CHROMA", "false").lower() in ("true", "1", "yes")
 CHROMADB_AVAILABLE = False
 
 # Percorso per il database ChromaDB locale (se None, usa in-memory)
@@ -60,4 +60,4 @@ WCD_API_KEY = os.getenv("WCD_API_KEY")
 
 # Configurazione Elysia
 ELYSIA_AVAILABLE = True
-ELYSIA_COLLECTION_NAME = os.getenv("ELYSIA_COLLECTION_NAME", "SmartRecipeCollection")
+ELYSIA_COLLECTION_NAME = os.getenv("ELYSIA_COLLECTION_NAME", "Recipes")

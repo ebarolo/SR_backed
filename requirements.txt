@@ -47,9 +47,9 @@ chromadb>=1.0.20
 
 # Elysia e Weaviate - Versioni compatibili TESTATE
 # Fix per compatibilità gRPC/Protobuf - versioni che funzionano insieme
-grpcio==1.64.1
-grpcio-tools==1.64.1
-protobuf==5.26.1
+grpcio==1.74.0
+grpcio-tools==1.74.0
+protobuf==6.32.0
 elysia-ai==0.2.5
 weaviate-client==4.16.9
 
