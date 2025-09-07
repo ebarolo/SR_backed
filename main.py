@@ -700,6 +700,8 @@ def recalc_embeddings(body: RecalcBody):
     try:
         # Ottieni la lista di tutte le cartelle dentro BASE_FOLDER_RICETTE
         recipe_folders = []
+        recipes_processed = 0
+        recipes_failed = 0
         
         # Verifica che la directory esista
         if not os.path.exists(BASE_FOLDER_RICETTE):
@@ -754,8 +756,19 @@ def recalc_embeddings(body: RecalcBody):
 
              if success_count > 0:
                  logging.getLogger(__name__).info(f"Ricetta {recipe_data.shortcode} inserita con successo nella collection {collection_name}.")
+                 recipes_processed += 1
              else:
                  logging.getLogger(__name__).error(f"Errore nell'inserimento della ricetta {recipe_data.shortcode}")
+                 recipes_failed += 1
+        
+        # Restituisci il risultato del ricalcolo
+        return {
+            "status": "success",
+            "recipes_processed": recipes_processed,
+            "recipes_failed": recipes_failed,
+            "total_recipes": len(recipe_folders),
+            "message": f"Ricalcolo embeddings completato: {recipes_processed} ricette aggiornate con successo"
+        }
 
     except Exception as e:
         error_logger.log_exception("recalc_info", e,{})

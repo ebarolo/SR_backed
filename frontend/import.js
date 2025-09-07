@@ -225,7 +225,9 @@ class ImportManager {
     }
 
     renderEmptyState() {
-        this.elements.jobsList.innerHTML = `
+        const jobsListContent = document.getElementById('jobsListContent');
+        if (jobsListContent) {
+            jobsListContent.innerHTML = `
             <div class="text-center py-12 animate-scale-in">
                 <div class="mb-6">
                     <div class="w-20 h-20 mx-auto bg-gradient-to-br from-oneui-lightblue to-oneui-blue rounded-oneui flex items-center justify-center shadow-lg">
@@ -272,6 +274,7 @@ class ImportManager {
                 </div>
             </div>
         `;
+        }
     }
 
     renderJobs(jobs) {
@@ -286,7 +289,10 @@ class ImportManager {
             return statusOrder[a.status] - statusOrder[b.status];
         });
 
-        this.elements.jobsList.innerHTML = sortedJobs.map(job => this.renderJob(job)).join('');
+        const jobsListContent = document.getElementById('jobsListContent');
+        if (jobsListContent) {
+            jobsListContent.innerHTML = sortedJobs.map(job => this.renderJob(job)).join('');
+        }
     }
 
     renderJob(job) {
@@ -670,6 +676,127 @@ class ImportManager {
         }
     }
 
+    async handleRecalculateEmbeddings() {
+        const confirmResult = confirm(
+            '⚠️ Attenzione\n\n' +
+            'Il ricalcolo degli embedding aggiornerà tutti i vettori semantici nel database.\n\n' +
+            'Questa operazione può richiedere diversi minuti.\n\n' +
+            'Vuoi procedere?'
+        );
+
+        if (!confirmResult) {
+            return;
+        }
+
+        const recalcBtn = document.getElementById('recalculateBtn');
+        const recalcStatus = document.getElementById('recalculateStatus');
+        const recalcProgress = document.getElementById('recalculateProgress');
+        const recalcProgressBar = document.getElementById('recalcProgressBar');
+        const recalcProgressPercent = document.getElementById('recalcProgressPercent');
+        const recalcProgressDetails = document.getElementById('recalcProgressDetails');
+
+        try {
+            // Disabilita il pulsante e mostra lo stato
+            recalcBtn.disabled = true;
+            recalcBtn.classList.add('opacity-50');
+            recalcStatus.classList.remove('hidden');
+            recalcProgress.classList.remove('hidden');
+            
+            // Reset progress
+            recalcProgressBar.style.width = '0%';
+            recalcProgressPercent.textContent = '0%';
+            recalcProgressDetails.textContent = 'Avvio ricalcolo embeddings...';
+
+            // Simula progressi iniziali
+            setTimeout(() => {
+                recalcProgressBar.style.width = '10%';
+                recalcProgressPercent.textContent = '10%';
+                recalcProgressDetails.textContent = 'Caricamento ricette dal database...';
+            }, 500);
+
+            // Chiama l'endpoint
+            const response = await fetch(`${this.apiBaseUrl}/embeddings/recalculate`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    model_name: null,  // Usa il modello di default
+                    out_path: null     // Usa il path di default
+                })
+            });
+
+            // Simula progressi durante l'attesa
+            let progress = 10;
+            const progressInterval = setInterval(() => {
+                if (progress < 90) {
+                    progress += Math.random() * 10;
+                    progress = Math.min(progress, 90);
+                    recalcProgressBar.style.width = `${progress}%`;
+                    recalcProgressPercent.textContent = `${Math.round(progress)}%`;
+                    
+                    // Aggiorna i dettagli in base al progresso
+                    if (progress < 30) {
+                        recalcProgressDetails.textContent = 'Estrazione dati ricette...';
+                    } else if (progress < 50) {
+                        recalcProgressDetails.textContent = 'Generazione nuovi embeddings con modello AI...';
+                    } else if (progress < 70) {
+                        recalcProgressDetails.textContent = 'Vettorizzazione contenuti semantici...';
+                    } else {
+                        recalcProgressDetails.textContent = 'Salvataggio nel database vettoriale...';
+                    }
+                }
+            }, 1000);
+
+            if (!response.ok) {
+                clearInterval(progressInterval);
+                const error = await response.json();
+                throw new Error(error.detail || 'Errore durante il ricalcolo degli embeddings');
+            }
+
+            const result = await response.json();
+            clearInterval(progressInterval);
+            
+            // Completa il progresso
+            recalcProgressBar.style.width = '100%';
+            recalcProgressPercent.textContent = '100%';
+            recalcProgressDetails.textContent = 'Ricalcolo completato con successo!';
+            
+            // Mostra notifica di successo
+            this.showNotification(
+                `✅ Ricalcolo embeddings completato!\n` +
+                `${result.recipes_processed || 0} ricette aggiornate`,
+                'success'
+            );
+            
+            // Aggiorna le statistiche del database
+            await this.loadDatabaseStats();
+            
+            // Nascondi il progresso dopo 3 secondi
+            setTimeout(() => {
+                recalcProgress.classList.add('hidden');
+                recalcProgressBar.style.width = '0%';
+                recalcProgressPercent.textContent = '0%';
+            }, 3000);
+            
+        } catch (error) {
+            console.error('Errore durante il ricalcolo degli embeddings:', error);
+            this.showNotification(
+                `❌ Errore: ${error.message}`,
+                'destructive'
+            );
+            
+            // Nascondi il progresso in caso di errore
+            recalcProgress.classList.add('hidden');
+            
+        } finally {
+            // Riabilita il pulsante e nascondi lo stato
+            recalcBtn.disabled = false;
+            recalcBtn.classList.remove('opacity-50');
+            recalcStatus.classList.add('hidden');
+        }
+    }
+
     showNotification(message, type = 'info') {
         // Notifiche migliorate con Material Design 3 styling
         const toast = document.createElement('div');
@@ -769,6 +896,18 @@ function initializeCollapsibleState() {
     
     if (importPanel) {
         importPanel.style.maxHeight = importPanel.scrollHeight + 'px';
+    }
+    
+    // Il pannello jobs inizia espanso
+    const jobsList = document.getElementById('jobsList');
+    if (jobsList) {
+        jobsList.style.maxHeight = jobsList.scrollHeight + 'px';
+    }
+    
+    // Il pannello embedding inizia compresso (ha già la classe collapsed nell'HTML)
+    const embeddingPanel = document.getElementById('embeddingPanel');
+    if (embeddingPanel) {
+        embeddingPanel.style.maxHeight = '0px';
     }
 }
 

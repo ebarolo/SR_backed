@@ -492,16 +492,16 @@
             </div>
             <!-- Jobs Monitoring Section -->
             <div class="p-6 border-b border-border collapsible-header" onclick="toggleCollapse('jobsList')">
-                <div class="p-6">
-                    <div class="flex items-center justify-between mb-4">
-                        <div class="flex items-center space-x-3">
-                            <div class="h-8 w-8 rounded-full bg-material-primary flex items-center justify-center">
-                                <span class="text-white text-sm font-bold">2</span>
-                            </div>
-                            <h3 class="text-lg font-semibold text-material-primary">
-                                Monitoraggio Job
-                            </h3>
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                        <div class="h-8 w-8 rounded-full bg-material-primary flex items-center justify-center">
+                            <span class="text-white text-sm font-bold">2</span>
                         </div>
+                        <h3 class="text-lg font-semibold text-material-primary">
+                            Monitoraggio Job
+                        </h3>
+                    </div>
+                    <div class="flex items-center space-x-2">
                         <button id="refreshBtn"
                             class="inline-flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-3 text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">
                             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -511,22 +511,129 @@
                             </svg>
                             <span class="hidden sm:inline">Aggiorna</span>
                         </button>
+                        <svg id="jobsListIcon"
+                            class="w-5 h-5 text-muted-foreground transition-transform duration-200 collapsible-icon" fill="none"
+                            stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7">
+                            </path>
+                        </svg>
                     </div>
                 </div>
             </div>
 
-            <div id="jobsList" class="space-y-4">
-                <div class="text-center py-8 text-muted-foreground">
-                    <svg class="w-12 h-12 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor"
-                        viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+            <div id="jobsList" class="collapsible-content p-6">
+                <div class="space-y-4" id="jobsListContent">
+                    <div class="text-center py-8 text-muted-foreground">
+                        <svg class="w-12 h-12 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+                            </path>
+                        </svg>
+                        <p>Nessun job di import in corso</p>
+                        <p class="text-xs mt-1">
+                            I job appariranno qui quando avvii un import
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Recalculate Embeddings Section -->
+            <div class="p-6 border-b border-border collapsible-header" onclick="toggleCollapse('embeddingPanel')">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                        <div class="h-8 w-8 rounded-full bg-gradient-to-br from-material-primary to-oneui-blue flex items-center justify-center">
+                            <span class="text-white text-sm font-bold">3</span>
+                        </div>
+                        <h3 class="text-lg font-semibold bg-gradient-to-r from-material-primary to-oneui-blue bg-clip-text text-transparent">
+                            Gestione Embedding
+                        </h3>
+                    </div>
+                    <svg id="embeddingPanelIcon"
+                        class="w-5 h-5 text-muted-foreground transition-transform duration-200 collapsible-icon rotated" fill="none"
+                        stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7">
                         </path>
                     </svg>
-                    <p>Nessun job di import in corso</p>
-                    <p class="text-xs mt-1">
-                        I job appariranno qui quando avvii un import
-                    </p>
+                </div>
+            </div>
+            
+            <div id="embeddingPanel" class="collapsible-content collapsed">
+                <div class="p-6">
+                    <div class="flex items-center space-x-3 mb-4">
+                        <div class="h-8 w-8 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center">
+                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                                </path>
+                            </svg>
+                        </div>
+                        <div>
+                            <h4 class="text-md font-semibold text-oneui-darkblue">
+                                Ricalcolo Vettori Semantici
+                            </h4>
+                            <p class="text-xs text-muted-foreground">
+                                Aggiorna gli embedding delle ricette con il modello AI più recente
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-material-surfaceContainer p-4 rounded-material mb-4">
+                        <div class="flex items-start space-x-3">
+                            <div class="mt-1">
+                                <svg class="w-5 h-5 text-warning-DEFAULT" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+                                </svg>
+                            </div>
+                            <div class="flex-1">
+                                <h5 class="text-sm font-medium text-foreground mb-1">Informazioni Importanti</h5>
+                                <ul class="text-xs text-muted-foreground space-y-1">
+                                    <li>• Il ricalcolo aggiornerà tutti i vettori semantici nel database</li>
+                                    <li>• L'operazione può richiedere diversi minuti in base al numero di ricette</li>
+                                    <li>• Durante il processo, la ricerca potrebbe essere temporaneamente degradata</li>
+                                    <li>• Modello attuale: <code class="bg-oneui-surface px-1 py-0.5 rounded text-oneui-darkblue font-mono">BAAI/bge-m3</code></li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center space-x-3">
+                        <button id="recalculateBtn" onclick="importManager.handleRecalculateEmbeddings()"
+                            class="inline-flex items-center justify-center rounded-md bg-gradient-to-r from-material-primary to-oneui-blue text-white hover:from-material-primary/90 hover:to-oneui-blue/90 h-10 px-4 py-2 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 shadow-lg hover:shadow-xl">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                                </path>
+                            </svg>
+                            Avvia Ricalcolo
+                        </button>
+                        
+                        <div id="recalculateStatus" class="hidden">
+                            <div class="flex items-center space-x-2">
+                                <svg class="w-5 h-5 text-oneui-blue animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                                    </path>
+                                </svg>
+                                <span class="text-sm text-oneui-darkblue font-medium">Ricalcolo in corso...</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="recalculateProgress" class="hidden mt-4">
+                        <div class="p-4 bg-gradient-to-r from-oneui-lightblue/20 to-material-primaryContainer/20 rounded-material border border-oneui-blue/20">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-sm font-medium text-oneui-darkblue">Progresso Ricalcolo</span>
+                                <span id="recalcProgressPercent" class="text-sm font-bold text-material-primary">0%</span>
+                            </div>
+                            <div class="w-full bg-oneui-surface rounded-full h-2 overflow-hidden">
+                                <div id="recalcProgressBar" class="progress-bar h-2 rounded-full transition-all duration-500 ease-out" style="width: 0%"></div>
+                            </div>
+                            <div id="recalcProgressDetails" class="mt-2 text-xs text-muted-foreground">
+                                Inizializzazione...
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
