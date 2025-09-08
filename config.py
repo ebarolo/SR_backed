@@ -55,7 +55,7 @@ COLLECTION_NAME = "SmartRecipe"
 # Configurazione Weaviate/Elysia 
 # -------------------------------
 # URL del cluster Weaviate (es. https://your-cluster.weaviate.network)
-WCD_URL = os.getenv("WCD_URL", "http://localhost:8080")
+WCD_URL = os.getenv("WCD_URL")
 WCD_API_KEY = os.getenv("WCD_API_KEY")
 
 # Configurazione Elysia

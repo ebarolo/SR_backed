@@ -34,7 +34,7 @@ matplotlib==3.10.5
 scipy==1.16.1
 
 # gRPC compatibility fixes
-grpcio-status==1.64.1
+
 
 # RAG
 transformers==4.55.4
@@ -49,8 +49,9 @@ chromadb>=1.0.20
 # Fix per compatibilità gRPC/Protobuf - versioni che funzionano insieme
 grpcio==1.74.0
 grpcio-tools==1.74.0
+grpcio-status==1.74.0
 protobuf==6.32.0
-elysia-ai==0.2.5
+elysia-ai==0.2.6
 weaviate-client==4.16.9
 
 # Langchain

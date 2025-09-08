@@ -5,11 +5,10 @@ import asyncio
 import re
 import json
 import requests
-import logging
 
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from utility import get_error_context, timeout
+from utility import timeout
 from logging_config import get_error_logger
 
 error_logger = get_error_logger(__name__)

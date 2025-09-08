@@ -3,7 +3,10 @@ class ImportManager {
     constructor() {
         this.activeJobs = new Map();
         this.refreshInterval = null;
+        this.accordionRecalcTimeout = null; // Timeout per il ricalcolo accordion
         this.apiBaseUrl = window.location.origin;
+        this.lastJobsHash = null; // Cache per evitare rerender inutili
+        this.hasActiveJobs = false; // Flag per gestire il refresh intelligente
         
         this.initializeElements();
         this.setupEventListeners();
@@ -151,16 +154,47 @@ class ImportManager {
             if (!response.ok) {
                 if (response.status === 404) {
                     // Nessun job trovato
-                    this.renderEmptyState();
-                    this.updateStats({ completed: 0, running: 0, queued: 0 });
+                    const emptyHash = 'empty';
+                    if (this.lastJobsHash !== emptyHash) {
+                        this.renderEmptyState();
+                        this.updateStats({ completed: 0, running: 0, queued: 0 });
+                        this.lastJobsHash = emptyHash;
+                        this.hasActiveJobs = false;
+                        this.optimizeRefreshInterval();
+                    }
                     return;
                 }
                 throw new Error('Errore nel caricamento dei job');
             }
 
             const jobs = await response.json();
-            this.renderJobs(jobs);
+            
+            // Crea hash dei dati per evitare rerender inutili
+            const jobsHash = JSON.stringify(jobs.map(j => ({
+                id: j.job_id,
+                status: j.status,
+                progress: j.progress_percent,
+                stage: j.progress?.stage
+            })));
+            
+            // Verifica se ci sono job attivi
+            const activeJobs = jobs.filter(j => j.status === 'running' || j.status === 'queued');
+            const hadActiveJobs = this.hasActiveJobs;
+            this.hasActiveJobs = activeJobs.length > 0;
+            
+            // Re-render solo se i dati sono cambiati
+            if (this.lastJobsHash !== jobsHash) {
+                this.renderJobs(jobs);
+                this.lastJobsHash = jobsHash;
+            }
+            
+            // Aggiorna sempre le stats per i contatori in tempo reale
             this.updateJobStats(jobs);
+            
+            // Ottimizza l'intervallo di refresh se il stato è cambiato
+            if (hadActiveJobs !== this.hasActiveJobs) {
+                this.optimizeRefreshInterval();
+            }
             
             // Aggiorna le stats del database se ci sono job completati
             const hasCompleted = jobs.some(job => job.status === 'completed');
@@ -226,8 +260,9 @@ class ImportManager {
 
     renderEmptyState() {
         const jobsListContent = document.getElementById('jobsListContent');
-        if (jobsListContent) {
-            jobsListContent.innerHTML = `
+        if (!jobsListContent) return;
+        
+        const emptyStateHTML = `
             <div class="text-center py-12 animate-scale-in">
                 <div class="mb-6">
                     <div class="w-20 h-20 mx-auto bg-gradient-to-br from-oneui-lightblue to-oneui-blue rounded-oneui flex items-center justify-center shadow-lg">
@@ -238,10 +273,10 @@ class ImportManager {
                 </div>
                 <div class="space-y-2">
                     <h3 class="step-title-enhanced text-xl">🚀 Pronto per l'Import</h3>
-                    <p class="text-oneui-onSurfaceVariant max-w-md mx-auto">I job di importazione appariranno qui quando avvierai il processo. Potrai monitorare ogni step in tempo reale.</p>
+                    <p class="text-oneui-on-surface-variant max-w-md mx-auto">I job di importazione appariranno qui quando avvierai il processo. Potrai monitorare ogni step in tempo reale.</p>
                 </div>
-                <div class="mt-6 p-4 bg-oneui-surfaceVariant rounded-material border border-oneui-surface max-w-sm mx-auto">
-                    <div class="text-xs text-oneui-onSurfaceVariant space-y-1">
+                <div class="mt-6 p-4 bg-oneui-surface-variant rounded-material border border-border max-w-sm mx-auto">
+                    <div class="text-xs text-oneui-on-surface-variant space-y-1">
                         <div class="flex items-center space-x-2">
                             <span>📥</span>
                             <span>Download contenuti</span>
@@ -274,6 +309,11 @@ class ImportManager {
                 </div>
             </div>
         `;
+        
+        // Solo se il contenuto è effettivamente cambiato
+        if (jobsListContent.innerHTML !== emptyStateHTML) {
+            jobsListContent.innerHTML = emptyStateHTML;
+            this.scheduleAccordionRecalculation('jobsList');
         }
     }
 
@@ -291,7 +331,15 @@ class ImportManager {
 
         const jobsListContent = document.getElementById('jobsListContent');
         if (jobsListContent) {
-            jobsListContent.innerHTML = sortedJobs.map(job => this.renderJob(job)).join('');
+            const newContent = sortedJobs.map(job => this.renderJob(job)).join('');
+            
+            // Solo se il contenuto HTML è effettivamente cambiato
+            if (jobsListContent.innerHTML !== newContent) {
+                jobsListContent.innerHTML = newContent;
+                
+                // Ricalcola l'altezza dell'accordion solo dopo un cambio di contenuto reale
+                this.scheduleAccordionRecalculation('jobsList');
+            }
         }
     }
 
@@ -373,7 +421,7 @@ class ImportManager {
                             <div class="step-title-enhanced text-lg">
                                 ${currentStageInfo.icon} ${currentStageInfo.name}
                             </div>
-                            ${currentStageInfo.desc ? `<div class="text-xs text-oneui-onSurfaceVariant bg-oneui-surfaceVariant px-2 py-1 rounded-full">
+                            ${currentStageInfo.desc ? `<div class="text-xs text-oneui-on-surface-variant bg-oneui-surface-variant px-2 py-1 rounded-full">
                                 ${currentStageInfo.desc}
                             </div>` : ''}
                         </div>
@@ -385,7 +433,7 @@ class ImportManager {
                     
                     <!-- Barra di Progresso Avanzata -->
                     <div class="relative">
-                        <div class="w-full bg-material-surfaceContainer rounded-full h-3 overflow-hidden">
+                        <div class="w-full bg-material-surface-container rounded-full h-3 overflow-hidden">
                             <div class="progress-bar h-3 rounded-full transition-all duration-500 ease-out" style="--progress: ${Math.max(0, Math.min(100, progress_percent))}%; width: ${Math.max(0, Math.min(100, progress_percent))}%"></div>
                         </div>
                     </div>
@@ -492,7 +540,7 @@ class ImportManager {
         if (result) {
             const { indexed = 0, total_urls = 0, success = 0, failed = 0 } = result;
             resultSection = `
-                <div class="mt-4 p-4 bg-gradient-to-r from-material-surfaceContainer to-material-surface rounded-material border border-material-surfaceContainerHigh">
+                <div class="mt-4 p-4 bg-gradient-to-r from-material-surface-container to-material-surface rounded-material border border-material-surface-container-high">
                     <div class="flex items-center space-x-2 mb-3">
                         <div class="step-title-enhanced text-base">🎆 Risultato Import</div>
                         <div class="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full font-medium">
@@ -575,7 +623,7 @@ class ImportManager {
         }
 
         return `
-            <div class="card-elevated ${cardClass} rounded-material border bg-background p-5 animate-scale-in">
+            <div class="card card-elevated ${cardClass} p-5 animate-scale-in">
                 <div class="flex items-center justify-between mb-4">
                     <div class="flex items-center space-x-4">
                         <div class="flex items-center space-x-3">
@@ -626,11 +674,39 @@ class ImportManager {
         this.elements.queuedCount.textContent = queued;
     }
 
+    // Gestione intelligente del refresh
+    optimizeRefreshInterval() {
+        this.stopPeriodicRefresh();
+        
+        if (this.hasActiveJobs) {
+            // Refresh più frequente quando ci sono job attivi (1.5 secondi)
+            this.refreshInterval = setInterval(() => {
+                this.loadJobs();
+            }, 1500);
+        } else {
+            // Refresh più lento quando non ci sono job attivi (10 secondi)
+            this.refreshInterval = setInterval(() => {
+                this.loadJobs();
+            }, 10000);
+        }
+    }
+
+    // Scheduling intelligente del ricalcolo accordion
+    scheduleAccordionRecalculation(sectionId) {
+        // Evita chiamate multiple ravvicinate
+        if (this.accordionRecalcTimeout) {
+            clearTimeout(this.accordionRecalcTimeout);
+        }
+        
+        this.accordionRecalcTimeout = setTimeout(() => {
+            recalculateCollapsibleHeight(sectionId);
+            this.accordionRecalcTimeout = null;
+        }, 100);
+    }
+
     startPeriodicRefresh() {
-        // Aggiorna ogni 2 secondi quando ci sono job attivi
-        this.refreshInterval = setInterval(() => {
-            this.loadJobs();
-        }, 2000);
+        // Usa il refresh intelligente invece del refresh fisso
+        this.optimizeRefreshInterval();
     }
 
     stopPeriodicRefresh() {
@@ -638,13 +714,19 @@ class ImportManager {
             clearInterval(this.refreshInterval);
             this.refreshInterval = null;
         }
+        
+        // Pulisci anche il timeout dell'accordion se presente
+        if (this.accordionRecalcTimeout) {
+            clearTimeout(this.accordionRecalcTimeout);
+            this.accordionRecalcTimeout = null;
+        }
     }
 
     setSubmitLoading(loading) {
         const btn = this.elements.submitBtn;
         if (loading) {
             btn.disabled = true;
-            btn.className = 'inline-flex items-center justify-center rounded-material bg-oneui-blue text-white hover:bg-oneui-darkblue h-11 px-6 py-2 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-oneui-blue focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-70 shadow-lg';
+            btn.className = 'btn bg-oneui-blue text-white hover:bg-oneui-darkblue h-11 px-6 shadow-lg opacity-70';
             btn.innerHTML = `
                 <svg class="w-5 h-5 mr-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
@@ -653,7 +735,7 @@ class ImportManager {
             `;
         } else {
             btn.disabled = false;
-            btn.className = 'inline-flex items-center justify-center rounded-material bg-primary text-primary-foreground hover:bg-primary/90 h-11 px-6 py-2 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 shadow-lg hover:shadow-xl';
+            btn.className = 'btn btn-primary h-11 px-6 shadow-lg hover:shadow-xl';
             btn.innerHTML = `
                 <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
@@ -667,11 +749,11 @@ class ImportManager {
         const btn = this.elements.refreshBtn;
         if (loading) {
             btn.disabled = true;
-            btn.className = 'inline-flex items-center justify-center rounded-material border border-input bg-material-surfaceContainer hover:bg-accent hover:text-accent-foreground h-9 px-4 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50';
+            btn.className = 'btn btn-secondary bg-material-surface-container h-9 px-4 opacity-50';
             btn.querySelector('svg').classList.add('animate-spin');
         } else {
             btn.disabled = false;
-            btn.className = 'inline-flex items-center justify-center rounded-material border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-4 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:shadow-md';
+            btn.className = 'btn btn-secondary h-9 px-4 hover:shadow-md';
             btn.querySelector('svg').classList.remove('animate-spin');
         }
     }
@@ -701,6 +783,9 @@ class ImportManager {
             recalcBtn.classList.add('opacity-50');
             recalcStatus.classList.remove('hidden');
             recalcProgress.classList.remove('hidden');
+            
+            // Ricalcola l'altezza dell'accordion dopo aver mostrato il progresso
+            this.scheduleAccordionRecalculation('embeddingPanel');
             
             // Reset progress
             recalcProgressBar.style.width = '0%';
@@ -777,6 +862,9 @@ class ImportManager {
                 recalcProgress.classList.add('hidden');
                 recalcProgressBar.style.width = '0%';
                 recalcProgressPercent.textContent = '0%';
+                
+                // Ricalcola l'altezza dell'accordion dopo aver nascosto il progresso
+                this.scheduleAccordionRecalculation('embeddingPanel');
             }, 3000);
             
         } catch (error) {
@@ -788,6 +876,9 @@ class ImportManager {
             
             // Nascondi il progresso in caso di errore
             recalcProgress.classList.add('hidden');
+            
+            // Ricalcola l'altezza dell'accordion dopo aver nascosto il progresso
+            this.scheduleAccordionRecalculation('embeddingPanel');
             
         } finally {
             // Riabilita il pulsante e nascondi lo stato
@@ -865,27 +956,76 @@ function toggleCollapse(sectionId) {
     const section = document.getElementById(sectionId);
     const icon = document.getElementById(sectionId + 'Icon');
     
-    if (!section || !icon) return;
+    if (!section) return;
+    
+    // Se non c'è icona, continua comunque (per compatibilità)
+    if (!icon) {
+        console.warn(`Icona non trovata per la sezione ${sectionId}`);
+    }
     
     const isCollapsed = section.classList.contains('collapsed');
     
     if (isCollapsed) {
         // Espandi
+        // Prima calcola l'altezza reale del contenuto
+        section.style.maxHeight = 'none';
+        const targetHeight = section.scrollHeight;
+        section.style.maxHeight = '0px';
+        
+        // Rimuovi la classe collapsed e anima verso l'altezza target
         section.classList.remove('collapsed');
-        icon.classList.remove('rotated');
+        if (icon) icon.classList.remove('rotated');
         
-        // Animazione smooth
+        // Force reflow per assicurare che l'animazione funzioni
+        section.offsetHeight;
+        
+        // Anima verso l'altezza corretta
+        section.style.maxHeight = targetHeight + 'px';
+        
+        // Dopo l'animazione, rimuovi la limitazione di altezza
         setTimeout(() => {
-            section.style.maxHeight = section.scrollHeight + 'px';
-        }, 10);
+            if (!section.classList.contains('collapsed')) {
+                section.style.maxHeight = 'none';
+            }
+        }, 400);
     } else {
-        // Comprimi  
+        // Comprimi
+        // Imposta l'altezza corrente prima di comprimere
         section.style.maxHeight = section.scrollHeight + 'px';
+        if (icon) icon.classList.add('rotated');
         
+        // Force reflow
+        section.offsetHeight;
+        
+        // Anima verso 0
         setTimeout(() => {
             section.classList.add('collapsed');
-            icon.classList.add('rotated');
         }, 10);
+    }
+}
+
+// Funzione per ricalcolare l'altezza di un collapsible aperto
+function recalculateCollapsibleHeight(sectionId) {
+    const section = document.getElementById(sectionId);
+    if (!section || section.classList.contains('collapsed')) return;
+    
+    // Temporaneamente rimuovi la limitazione di altezza per ricalcolare
+    const currentMaxHeight = section.style.maxHeight;
+    section.style.maxHeight = 'none';
+    const newHeight = section.scrollHeight;
+    
+    if (currentMaxHeight !== 'none' && currentMaxHeight !== '') {
+        // Se aveva un'altezza limitata, anima verso la nuova altezza
+        section.style.maxHeight = currentMaxHeight;
+        setTimeout(() => {
+            section.style.maxHeight = newHeight + 'px';
+            setTimeout(() => {
+                section.style.maxHeight = 'none';
+            }, 400);
+        }, 10);
+    } else {
+        // Se non aveva limitazioni, mantieni senza limitazioni
+        section.style.maxHeight = 'none';
     }
 }
 
@@ -893,21 +1033,26 @@ function toggleCollapse(sectionId) {
 function initializeCollapsibleState() {
     // Il pannello principale inizia espanso
     const importPanel = document.getElementById('importPanel');
-    
-    if (importPanel) {
-        importPanel.style.maxHeight = importPanel.scrollHeight + 'px';
+    const importPanelIcon = document.getElementById('importPanelIcon');
+    if (importPanel && !importPanel.classList.contains('collapsed')) {
+        importPanel.style.maxHeight = 'none';
+        if (importPanelIcon) importPanelIcon.classList.remove('rotated');
     }
     
     // Il pannello jobs inizia espanso
     const jobsList = document.getElementById('jobsList');
-    if (jobsList) {
-        jobsList.style.maxHeight = jobsList.scrollHeight + 'px';
+    const jobsListIcon = document.getElementById('jobsListIcon');
+    if (jobsList && !jobsList.classList.contains('collapsed')) {
+        jobsList.style.maxHeight = 'none';
+        if (jobsListIcon) jobsListIcon.classList.remove('rotated');
     }
     
     // Il pannello embedding inizia compresso (ha già la classe collapsed nell'HTML)
     const embeddingPanel = document.getElementById('embeddingPanel');
-    if (embeddingPanel) {
+    const embeddingPanelIcon = document.getElementById('embeddingPanelIcon');
+    if (embeddingPanel && embeddingPanel.classList.contains('collapsed')) {
         embeddingPanel.style.maxHeight = '0px';
+        if (embeddingPanelIcon) embeddingPanelIcon.classList.add('rotated');
     }
 }
 

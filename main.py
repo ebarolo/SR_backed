@@ -6,7 +6,7 @@ from fastapi import BackgroundTasks, Request
 from contextlib import asynccontextmanager
 
 from config import ( openAIclient, BASE_FOLDER_RICETTE, COLLECTION_NAME)
-
+from RAG.elysia import ingest_json_to_elysia, search_recipes_elysia, get_recipe_by_shortcode_elysia, elysia_recipe_db
 import uuid
 import os
 import uvicorn
@@ -19,11 +19,8 @@ from models import RecipeDBSchema, JobStatus, Ingredient
 from typing import List
 #from DB.langchain import get_langchain_recipe_db
 
-
 from time import perf_counter
 from importRicette.saveRecipe import process_video
-from RAG.elysia import ElysiaRecipeDatabase
-from RAG.elysia import ingest_json_to_elysia, search_recipes_elysia, get_recipe_by_shortcode_elysia, elysia_recipe_db
 
 import logging
 from logging_config import setup_logging, get_error_logger, clear_error_chain
@@ -32,9 +29,13 @@ import asyncio as _asyncio
 
 from config import EMBEDDING_MODEL
 
-# Directory base e frontend (MVP statico)
+# Directory base e frontend
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DIST_DIR = os.path.join(BASE_DIR, "frontend")
+
+# Setup logging
+setup_logging()
+error_logger = get_error_logger(__name__)
 
 # -------------------------------
 # Schemi Pydantic
@@ -50,8 +51,10 @@ class VideoURLs(BaseModel):
                 raise ValueError(f"URL non supportato: {v}. Dominio deve essere tra: {', '.join(allowed_domains)}")
         return vs
 
-setup_logging()
-error_logger = get_error_logger(__name__)
+class RecalcBody(BaseModel):
+    model_name: Optional[str] = None
+    out_path: Optional[str] = None
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -61,71 +64,7 @@ async def lifespan(app: FastAPI):
     # Shutdown (se necessario in futuro)
     pass
 
-# -------------------------------
-# Inizializzazione FastAPI e Dependency per il DB
-# -------------------------------
-app = FastAPI(title="Smart Recipe", version="0.7", lifespan=lifespan)
-# CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Mount mediaRicette directory explicitly to ensure all dynamic subfolders are accessible
-app.mount("/mediaRicette", StaticFiles(directory=os.path.join(BASE_DIR, "static", "mediaRicette")), name="mediaRicette")
-# Mount static directory to serve HTML, CSS, JS and other assets
-app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static"), html=True), name="static")
-# Mount frontend MVP so it is reachable at /frontend
-app.mount("/frontend", StaticFiles(directory=os.path.join(BASE_DIR, "frontend"), html=True), name="frontend")
-
-
-@app.middleware("http")
-async def add_request_id(request: Request, call_next):
-    token = None
-    start = perf_counter()
-    rid = request.headers.get("X-Request-ID") or str(uuid.uuid4())
-    client = getattr(request, "client", None)
-    client_ip = getattr(client, "host", None) if client else None
-    ua = request.headers.get("user-agent")
-    try:
-        token = request_id_var.set(rid)
-        response = await call_next(request)
-        duration_ms = int((perf_counter() - start) * 1000)
-        response.headers["X-Request-ID"] = rid
-        # Log solo errori e warning per ridurre verbosità
-        if response.status_code >= 400:
-            level = logging.ERROR if response.status_code >= 500 else logging.WARNING
-            error_logger.logger.log(
-                level,
-                f"HTTP {response.status_code} {request.method} {request.url.path}",
-                extra={
-                    "status": response.status_code,
-                    "duration_ms": duration_ms,
-                    "client_ip": client_ip,
-                }
-            )
-        return response
-    except Exception as e:
-        duration_ms = int((perf_counter() - start) * 1000)
-        error_logger.log_exception(
-            f"unhandled_http_exception",
-            e,
-            {
-                "path": request.url.path,
-                "method": request.method,
-                "duration_ms": duration_ms,
-            }
-        )
-        raise
-    finally:
-        if token is not None:
-            request_id_var.reset(token)
-
-# Lifespan startup già gestito sopra
-
+# Job per l'ingest delle ricette
 def _ingest_urls_job(job_id: str, urls: List[str]):
     total = len(urls)
     # Stato iniziale running e progress structure
@@ -239,14 +178,21 @@ def _ingest_urls_job(job_id: str, urls: List[str]):
             
             progress["stage"] = "indexing"
             progress["percentage"] = max(float(progress.get("percentage") or 0.0), 95.0)
-            logging.getLogger(__name__).info(f"call get_langchain_recipe_db", extra={})
+            logging.getLogger(__name__).info(f"call ingest_json_to_elysia", extra={})
 
-            #n, coll = ingest_json_to_chroma(metadatas, collection_name=COLLECTION_NAME)
-            #db = get_langchain_recipe_db()
-            #success_count, errors = db.add_recipes_batch(metadatas)
-            success_count, errors = ingest_json_to_elysia(metadatas, collection_name=COLLECTION_NAME)
-
-            print(f"Inseriti {success_count} record nella collection.")
+            if not elysia_recipe_db.is_available():
+                logging.getLogger(__name__).warning("Database non disponibile, tentativo di reinizializzazione...")
+                if not elysia_recipe_db.retry_initialization():
+                    logging.getLogger(__name__).error("Impossibile inizializzare database")
+                    return False
+ 
+            for metadata in metadatas:
+             if (elysia_recipe_db.add_recipe(metadata)):
+                logging.getLogger(__name__).info(f"ricetta {metadata.shortcode} inserita con successo")
+                success_count += 1
+             else:
+                failed_count += 1
+            
             
         # Completa job
         job_entry["result"] = {
@@ -288,6 +234,68 @@ def _ingest_urls_job(job_id: str, urls: List[str]):
             pass  # Errore minore di cleanup
         loop.close()
 
+# -------------------------------
+# Inizializzazione FastAPI
+# -------------------------------
+app = FastAPI(title="Smart Recipe", version="0.7", lifespan=lifespan)
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Mount mediaRicette directory explicitly to ensure all dynamic subfolders are accessible
+app.mount("/mediaRicette", StaticFiles(directory=os.path.join(BASE_DIR, "static", "mediaRicette")), name="mediaRicette")
+# Mount static directory to serve HTML, CSS, JS and other assets
+app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static"), html=True), name="static")
+# Mount frontend MVP so it is reachable at /frontend
+app.mount("/frontend", StaticFiles(directory=os.path.join(BASE_DIR, "frontend"), html=True), name="frontend")
+
+@app.middleware("http")
+async def add_request_id(request: Request, call_next):
+    token = None
+    start = perf_counter()
+    rid = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+    client = getattr(request, "client", None)
+    client_ip = getattr(client, "host", None) if client else None
+    ua = request.headers.get("user-agent")
+    try:
+        token = request_id_var.set(rid)
+        response = await call_next(request)
+        duration_ms = int((perf_counter() - start) * 1000)
+        response.headers["X-Request-ID"] = rid
+        # Log solo errori e warning per ridurre verbosità
+        if response.status_code >= 400:
+            level = logging.ERROR if response.status_code >= 500 else logging.WARNING
+            error_logger.logger.log(
+                level,
+                f"HTTP {response.status_code} {request.method} {request.url.path}",
+                extra={
+                    "status": response.status_code,
+                    "duration_ms": duration_ms,
+                    "client_ip": client_ip,
+                }
+            )
+        return response
+    except Exception as e:
+        duration_ms = int((perf_counter() - start) * 1000)
+        error_logger.log_exception(
+            f"unhandled_http_exception",
+            e,
+            {
+                "path": request.url.path,
+                "method": request.method,
+                "duration_ms": duration_ms,
+            }
+        )
+        raise
+    finally:
+        if token is not None:
+            request_id_var.reset(token)
+
 @app.get("/", include_in_schema=False)
 async def index():
     dist_index = os.path.join(DIST_DIR, "index.html")
@@ -297,7 +305,6 @@ async def index():
     if os.path.isfile(static_index):
         return FileResponse(static_index)
     return JSONResponse({"detail": "index.html non trovato"}, status_code=404)
-
 
 @app.post("/ingest/recipes", response_model=JobStatus, status_code=status.HTTP_202_ACCEPTED)
 async def enqueue_ingest(videos: VideoURLs, background_tasks: BackgroundTasks):
@@ -684,17 +691,13 @@ def search_recipes(query: str, limit: int = 12, max_time: Optional[int] = None, 
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Errore in ricerca semantica")
 
 # -------------------------------
-# Endpoints amministrativi: gestione modello e ricalcolo embeddings
+# Endpoints amministrativi e reimport collection ricette
 # -------------------------------
-
-class RecalcBody(BaseModel):
-    model_name: Optional[str] = None
-    out_path: Optional[str] = None
 
 @app.post("/embeddings/recalculate")
 def recalc_embeddings(body: RecalcBody):
     """
-    Ricalcola embeddings con nuovo modello
+    reimport collection ricette
     
     """
     try:
@@ -708,11 +711,12 @@ def recalc_embeddings(body: RecalcBody):
             return {
                 "status": "error",
                 "detail": f"La directory {BASE_FOLDER_RICETTE} non esiste"
-            }
+        }
         
         #recipe_db = RecipeDatabase()
         #db = get_langchain_recipe_db()
-         # Elenca tutte le entry nella directory
+        # Elenca tutte le entry nella directory
+        
         for entry in os.listdir(BASE_FOLDER_RICETTE):
             entry_path = os.path.join(BASE_FOLDER_RICETTE, entry)
             # Controlla se è una directory
@@ -804,7 +808,7 @@ def health_check():
             "error": str(e),
             "system": "Smart Recipe API"
         }
-        
+
 @app.get("/{full_path:path}", include_in_schema=False)
 async def spa_fallback(full_path: str):
     file_path = os.path.join(DIST_DIR, full_path)
