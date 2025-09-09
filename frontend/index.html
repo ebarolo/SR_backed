@@ -110,89 +110,18 @@
 
   <script>
     // ===========================
-    // DATI DI ESEMPIO
+    // CONFIGURAZIONE API
     // ===========================
-    const ricette = [
-      {
-        id: 'r1',
-        titolo: 'Pasta al pomodoro veloce',
-        descrizione: 'Un classico italiano in 20 minuti, con salsa di pomodoro, basilico e un tocco di olio EVO.',
-        immagine: 'https://images.unsplash.com/photo-1521389508051-d7ffb5dc8bbf?q=80&w=1600&auto=format&fit=crop',
-        categoria: 'Primo',
-        tempoCottura: 20,
-        tipologia: ['vegetariano'],
-        ingredienti: ['pasta', 'pomodoro', 'basilico', 'olio', 'sale']
-      },
-      {
-        id: 'r2',
-        titolo: 'Cheesecake senza cottura',
-        descrizione: 'Dolce fresco e cremoso con base di biscotti, perfetto per l’estate.',
-        immagine: 'https://images.unsplash.com/photo-1551024709-8f23befc6cf7?q=80&w=1600&auto=format&fit=crop',
-        categoria: 'Dolce',
-        tempoCottura: 0,
-        tipologia: ['vegetariano'],
-        ingredienti: ['biscotti', 'formaggio spalmabile', 'burro', 'zucchero']
-      },
-      {
-        id: 'r3',
-        titolo: 'Pollo al curry',
-        descrizione: 'Secondo piatto profumato con latte di cocco e spezie, pronto in 35 minuti.',
-        immagine: 'https://images.unsplash.com/photo-1589302168068-964664d93dc0?q=80&w=1600&auto=format&fit=crop',
-        categoria: 'Secondo',
-        tempoCottura: 35,
-        tipologia: ['carne'],
-        ingredienti: ['pollo', 'curry', 'latte di cocco', 'cipolla', 'riso']
-      },
-      {
-        id: 'r4',
-        titolo: 'Zuppa di lenticchie vegana',
-        descrizione: 'Calda e nutriente, ricca di proteine vegetali. Perfetta nelle serate fredde.',
-        immagine: 'https://images.unsplash.com/photo-1547592166-23ac45744acd?q=80&w=1600&auto=format&fit=crop',
-        categoria: 'Zuppa',
-        tempoCottura: 40,
-        tipologia: ['vegano'],
-        ingredienti: ['lenticchie', 'carota', 'sedano', 'cipolla', 'pomodoro']
-      },
-      {
-        id: 'r5',
-        titolo: 'Insalata di quinoa senza glutine',
-        descrizione: 'Piatto unico leggero con verdure croccanti, pronto in 15 minuti.',
-        immagine: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?q=80&w=1600&auto=format&fit=crop',
-        categoria: 'Piatto unico',
-        tempoCottura: 15,
-        tipologia: ['senza glutine', 'vegetariano'],
-        ingredienti: ['quinoa', 'cetriolo', 'pomodorini', 'mais', 'olio', 'limone']
-      },
-      {
-        id: 'r6',
-        titolo: 'Branzino al forno',
-        descrizione: 'Pesce delicato al forno con erbe aromatiche, pronto in meno di mezz’ora.',
-        immagine: 'https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=1600&auto=format&fit=crop',
-        categoria: 'Secondo',
-        tempoCottura: 25,
-        tipologia: ['pesce'],
-        ingredienti: ['branzino', 'limone', 'rosmarino', 'olio', 'sale']
-      },
-      {
-        id: 'r7',
-        titolo: 'Tiramisù classico',
-        descrizione: 'Il dessert italiano più amato, con savoiardi e mascarpone.',
-        immagine: 'https://images.unsplash.com/photo-1622790698146-0a8c8d8351b5?q=80&w=1600&auto=format&fit=crop',
-        categoria: 'Dolce',
-        tempoCottura: 30,
-        tipologia: ['vegetariano'],
-        ingredienti: ['savoiardi', 'mascarpone', 'caffè', 'cacao', 'zucchero', 'uova']
-      },
-      {
-        id: 'r8',
-        titolo: 'Pancakes integrali light',
-        descrizione: 'Soffici pancakes per colazione, meno zuccheri e farine integrali.',
-        immagine: 'https://images.unsplash.com/photo-1548865164-96a3467df93b?q=80&w=1600&auto=format&fit=crop',
-        categoria: 'Colazione',
-        tempoCottura: 20,
-        tipologia: ['light', 'vegetariano'],
-        ingredienti: ['farina integrale', 'latte', 'uova', 'lievito', 'miele']
-      },
+    const API_BASE_URL = window.location.origin;
+    const SEARCH_ENDPOINT = '/search/';
+    
+    // Stato dell'applicazione
+    let ricette = [];
+    let isLoading = false;
+    
+    // Dati di fallback per quando l'API non è disponibile
+    const FALLBACK_RICETTE = [
+    
     ];
 
     // ===========================
@@ -289,6 +218,92 @@
     }
 
     // ===========================
+    // API FUNCTIONS
+    // ===========================
+    async function searchRecipes(query, filters = {}) {
+      if (isLoading) return;
+      
+      isLoading = true;
+      showLoadingState();
+      
+      try {
+        const params = new URLSearchParams({
+          query: query,
+          limit: 20,
+          ...filters
+        });
+        
+        const response = await fetch(`${API_BASE_URL}${SEARCH_ENDPOINT}?${params}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        // Converte i dati dell'API nel formato atteso dal frontend
+        const formattedRecipes = data.map(recipe => ({
+          id: recipe.shortcode || recipe.id,
+          titolo: recipe.title || recipe.titolo,
+          descrizione: recipe.description || recipe.descrizione || '',
+          immagine: recipe.image_url || recipe.immagine || '/static/mediaRicette/default.jpg',
+          categoria: recipe.category || recipe.categoria || 'Generale',
+          tempoCottura: recipe.cooking_time || recipe.tempoCottura || 0,
+          tipologia: recipe.dietary_tags || recipe.tipologia || [],
+          ingredienti: recipe.ingredients || recipe.ingredienti || []
+        }));
+        
+        ricette = formattedRecipes;
+        hideLoadingState();
+        return formattedRecipes;
+        
+      } catch (error) {
+        console.error('Errore nella ricerca API:', error);
+        // Fallback ai dati statici in caso di errore
+        ricette = FALLBACK_RICETTE;
+        hideLoadingState();
+        showErrorMessage('Errore di connessione. Mostro ricette di esempio.');
+        return FALLBACK_RICETTE;
+      } finally {
+        isLoading = false;
+      }
+    }
+    
+    function showLoadingState() {
+      const grid = document.getElementById('grid');
+      grid.innerHTML = `
+        <div class="col-span-full flex items-center justify-center py-12">
+          <div class="text-center">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-500 mx-auto"></div>
+            <p class="mt-4 text-neutral-600">Ricerca in corso...</p>
+          </div>
+        </div>
+      `;
+    }
+    
+    function hideLoadingState() {
+      // Il loading state viene sostituito dal render dei risultati
+    }
+    
+    function showErrorMessage(message) {
+      const grid = document.getElementById('grid');
+      grid.innerHTML = `
+        <div class="col-span-full flex items-center justify-center py-12">
+          <div class="text-center">
+            <div class="w-16 h-16 rounded-2xl bg-red-100 flex items-center justify-center text-2xl mx-auto">⚠️</div>
+            <h3 class="mt-4 text-lg font-semibold text-red-800">Errore</h3>
+            <p class="mt-1 text-red-600">${message}</p>
+          </div>
+        </div>
+      `;
+    }
+
+    // ===========================
     // RENDER
     // ===========================
     const grid = document.getElementById('grid');
@@ -367,17 +382,81 @@
         el.onclick = onRemove;
         chips.appendChild(el);
       };
-      if (q.maxMinuti!=null) make(`<${q.maxMinuti} min`, ()=>{ currentFilters.maxMinuti=null; apply(); });
-      q.categorie.forEach(c=> make(c, ()=>{ currentFilters.categorie = q.categorie.filter(x=>x!==c); apply(); }));
-      q.tipologie.forEach(t=> make(t, ()=>{ currentFilters.tipologie = q.tipologie.filter(x=>x!==t); apply(); }));
-      q.include.forEach(k=> make(`include:${k}`, ()=>{ currentFilters.include = q.include.filter(x=>x!==k); apply(); }));
-      q.exclude.forEach(k=> make(`senza:${k}`, ()=>{ currentFilters.exclude = q.exclude.filter(x=>x!==k); apply(); }));
+      if (q.maxMinuti!=null) make(`<${q.maxMinuti} min`, async ()=>{ currentFilters.maxMinuti=null; await apply(); });
+      q.categorie.forEach(c=> make(c, async ()=>{ currentFilters.categorie = q.categorie.filter(x=>x!==c); await apply(); }));
+      q.tipologie.forEach(t=> make(t, async ()=>{ currentFilters.tipologie = q.tipologie.filter(x=>x!==t); await apply(); }));
+      q.include.forEach(k=> make(`include:${k}`, async ()=>{ currentFilters.include = q.include.filter(x=>x!==k); await apply(); }));
+      q.exclude.forEach(k=> make(`senza:${k}`, async ()=>{ currentFilters.exclude = q.exclude.filter(x=>x!==k); await apply(); }));
     }
 
-    function apply() {
+    async function apply() {
       renderChips(currentFilters);
-      const results = ricette.filter(r=>matchRicetta(r,currentFilters));
-      render(results);
+      
+      // Costruisci la query di ricerca combinando tutti i filtri
+      const searchQuery = buildSearchQuery(currentFilters);
+      
+      // Costruisci i filtri per l'API
+      const apiFilters = buildApiFilters(currentFilters);
+      
+      // Esegui la ricerca tramite API
+      const results = await searchRecipes(searchQuery, apiFilters);
+      
+      // Applica filtri locali se necessario (per compatibilità)
+      const filteredResults = results.filter(r => matchRicetta(r, currentFilters));
+      render(filteredResults);
+    }
+    
+    function buildSearchQuery(filters) {
+      const parts = [];
+      
+      // Aggiungi parole di inclusione
+      if (filters.include.length > 0) {
+        parts.push(filters.include.join(' '));
+      }
+      
+      // Aggiungi categorie
+      if (filters.categorie.length > 0) {
+        parts.push(filters.categorie.join(' '));
+      }
+      
+      // Aggiungi tipologie
+      if (filters.tipologie.length > 0) {
+        parts.push(filters.tipologie.join(' '));
+      }
+      
+      // Se non ci sono filtri specifici, usa una query generica
+      if (parts.length === 0) {
+        return 'ricette';
+      }
+      
+      return parts.join(' ');
+    }
+    
+    function buildApiFilters(filters) {
+      const apiFilters = {};
+      
+      // Filtro per tempo massimo
+      if (filters.maxMinuti !== null) {
+        apiFilters.max_time = filters.maxMinuti;
+      }
+      
+      // Filtro per dieta (mappatura tipologie -> diet)
+      const dietMapping = {
+        'vegano': 'vegan',
+        'vegetariano': 'vegetarian',
+        'senza glutine': 'gluten-free',
+        'light': 'light'
+      };
+      
+      const dietFilters = filters.tipologie
+        .map(t => dietMapping[t])
+        .filter(Boolean);
+      
+      if (dietFilters.length > 0) {
+        apiFilters.diet = dietFilters[0]; // L'API accetta una sola dieta
+      }
+      
+      return apiFilters;
     }
 
     function setCardTint(img, skinEl) {
@@ -429,17 +508,17 @@
     // ===========================
     // INTERAZIONE
     // ===========================
-    function searchNow() {
+    async function searchNow() {
       currentFilters = parseQuery(input.value.trim());
-      apply();
+      await apply();
     }
     document.getElementById('btnSearch').addEventListener('click', searchNow);
-    document.getElementById('btnClear').addEventListener('click', ()=>{
+    document.getElementById('btnClear').addEventListener('click', async ()=>{
       input.value = '';
       currentFilters = parseQuery('');
-      apply();
+      await apply();
     });
-    document.getElementById('btnRandom').addEventListener('click', ()=>{
+    document.getElementById('btnRandom').addEventListener('click', async ()=>{
       const samples = [
         'primo veloce <20 con pomodoro',
         'dolce senza cottura con fragole',
@@ -450,15 +529,22 @@
       const s = samples[Math.floor(Math.random()*samples.length)];
       input.value = s;
       currentFilters = parseQuery(s);
-      apply();
+      await apply();
     });
     input.addEventListener('keydown', (e)=>{ if(e.key==='Enter') searchNow(); });
 
     // helper per suggerimenti
     window.preset = (q)=>{ input.value=q; searchNow(); };
 
-    // first render
-    render(ricette);
+    // Inizializzazione: carica ricette all'avvio
+    async function initializeApp() {
+      // Carica ricette iniziali con una query generica
+      await searchRecipes('ricette', {});
+      render(ricette);
+    }
+
+    // Avvia l'applicazione
+    initializeApp();
   </script>
 </body>
 </html>

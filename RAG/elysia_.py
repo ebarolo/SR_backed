@@ -35,27 +35,34 @@ def add_recipes_elysia(recipe_data: RecipeDBSchema):
 
         with client_manager.connect_to_client() as client:
             # Usa un nome valido per la collection (senza trattini)
-            collection_name = "Recipes"
-            if client.collections.exists(collection_name):
-                print(f"Collection '{collection_name}' already exists")
+            
+            if client.collections.exists(ELYSIA_COLLECTION_NAME):
+                print(f"Collection '{ELYSIA_COLLECTION_NAME}' already exists")
                 # Opzionale: elimina la collection esistente per ricrearla
                 # client.collections.delete(collection_name)
             else:
-                client.collections.create(collection_name)
+                client.collections.create(ELYSIA_COLLECTION_NAME)
                 print(f"Collection '{collection_name}' created successfully")
 
-            recipe_collection = client.collections.get(collection_name)
+            recipe_collection = client.collections.get(ELYSIA_COLLECTION_NAME)
 
             for recipe in recipe_data:
                 try:           
                     # Processa ingredienti
-                    ingr_lem = []
-                    for ingredient in recipe_data.ingredients:
+                    ingr_lem = recipe_data.ingredients
+                    cats_lem = []
+                    for index, ingredient in enumerate(recipe_data.ingredients, start=1):
+
                         i_n = nfkc(ingredient.name)
                         i_s = remove_stopwords_spacy(i_n)
-                        ingr_lem.append(i_s)
-                    cats = [nfkc(x) for x in recipe_data.category]
+                        ingr_lem[index].name = i_s
                         
+                    #cats = [nfkc(x) for x in recipe_data.category]
+                    for category in recipe_data.category:
+                      c_n = nfkc(category)
+                      c_s = remove_stopwords_spacy(c_n)
+                      cats_lem.append(i_s)
+
                     # Crea testo per il documento
                     document_text = (f"Titolo: {recipe_data.title}\n"
                                            f"Descrizione: {recipe_data.description}\n"
@@ -67,8 +74,8 @@ def add_recipes_elysia(recipe_data: RecipeDBSchema):
                     recipe_object = {
                             "title": recipe_data.title,
                             "description": recipe_data.description,
-                            "ingredients": '; '.join(ingr_lem),
-                            "category": cats,  # Usa categorie processate, non ingredienti
+                            "ingredients": ingr_lem,
+                            "category": cats_lem,
                             "cuisine_type": recipe_data.cuisine_type or "",
                             "diet": recipe_data.diet or "",
                             "technique": recipe_data.technique or "",
@@ -76,7 +83,11 @@ def add_recipes_elysia(recipe_data: RecipeDBSchema):
                             "shortcode": recipe_data.shortcode,
                             "cooking_time": recipe_data.cooking_time or 0,
                             "preparation_time": recipe_data.preparation_time or 0,
-                            #"document_text": document_text
+                            "chef_advise": recipe_data.chef_advise or "",
+                            "tags": recipe_data.tags or [],
+                            "nutritional_info": recipe_data.nutritional_info or [],
+                            "recipe_step": recipe_data.recipe_step
+                            "images": recipe_data.images or []
                         }
                         
                     # Genera UUID valido dal shortcode

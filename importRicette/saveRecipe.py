@@ -150,9 +150,7 @@ async def process_video(recipeUrl: str, progress_cb: Optional[Callable[[Dict[str
                 images_recipe = []
             
              if images_recipe:
-                ricetta_dict["images"] = images_recipe
-                if not ricetta_dict.get("image_url"):
-                    ricetta_dict["image_url"] = images_recipe[0]            
+                ricetta_dict["images"] = images_recipe            
 
              # Keep ingredients and recipe_step as lists
              ricetta_dict["ingredients"] = ricetta_dict.get("ingredients", [])
