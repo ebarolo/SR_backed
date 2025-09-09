@@ -65,12 +65,6 @@ db.sqlite3-journal
 instance/
 .webassets-cache
 
-# Scrapy stuff:
-.scrapy
-
-# Sphinx documentation
-docs/_build/
-
 # PyBuilder
 .pybuilder/
 target/
@@ -86,9 +80,7 @@ ipython_config.py
 # pdm
 #   Similar to Pipfile.lock, it is generally recommended to include pdm.lock in version control.
 #pdm.lock
-#   pdm stores project-wide configurations in .pdm.toml, but it is recommended to not include it
-#   in version control.
-#   https://pdm.fming.dev/latest/usage/project/#working-with-version-control
+
 .pdm.toml
 .pdm-python
 .pdm-build/
@@ -104,12 +96,6 @@ celerybeat.pid
 *.sage.py
 
 # Environments
-.env
-.venv
-.venv/
-env/
-venv/
-ENV/
 env.bak/
 venv.bak/
 
@@ -119,9 +105,6 @@ venv.bak/
 
 # Rope project settings
 .ropeproject
-
-# mkdocs documentation
-/site
 
 # mypy
 .mypy_cache/
@@ -137,18 +120,16 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
+*.bin
+*.sqlite3
+*.sqlite3
 
 /node_modules
 /static/mediaRicette/
-static/.DS_Store
-static/original-10cb61f4635b477dee48a961af23f72c.webp
-static/original-54012cf1601abf362fdb6e2386bcdcbe.webp
-static/original-9ce019a1dcdfcb9b1704be10bbc5d437.webp
-static/.DS_Store
-*.sqlite3
-*.sqlite3
+/static/.DS_Store
 /chroma_db
-*.bin
-/chroma_db
-chroma_db/chroma.sqlite3
-chroma_db/d05ef533-cb0e-4629-b1dc-70eb39b95617/link_lists.bin
+
+
+
+/.venv
+.env

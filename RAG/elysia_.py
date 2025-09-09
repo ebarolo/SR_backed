@@ -42,7 +42,7 @@ def add_recipes_elysia(recipe_data: RecipeDBSchema):
                 # client.collections.delete(collection_name)
             else:
                 client.collections.create(ELYSIA_COLLECTION_NAME)
-                print(f"Collection '{collection_name}' created successfully")
+                print(f"Collection '{ELYSIA_COLLECTION_NAME}' created successfully")
 
             recipe_collection = client.collections.get(ELYSIA_COLLECTION_NAME)
 
@@ -67,7 +67,7 @@ def add_recipes_elysia(recipe_data: RecipeDBSchema):
                     document_text = (f"Titolo: {recipe_data.title}\n"
                                            f"Descrizione: {recipe_data.description}\n"
                                            f"Ingredienti: {'; '.join(ingr_lem)}\n"
-                                           f"Categoria: {'; '.join(cats)}\n"
+                                           f"Categoria: {'; '.join(cats_lem)}\n"
                         )
 
                     # Prepara i dati per Weaviate
@@ -86,7 +86,7 @@ def add_recipes_elysia(recipe_data: RecipeDBSchema):
                             "chef_advise": recipe_data.chef_advise or "",
                             "tags": recipe_data.tags or [],
                             "nutritional_info": recipe_data.nutritional_info or [],
-                            "recipe_step": recipe_data.recipe_step
+                            "recipe_step": recipe_data.recipe_step,
                             "images": recipe_data.images or []
                         }
                         
@@ -115,7 +115,7 @@ def add_recipes_elysia(recipe_data: RecipeDBSchema):
                     })
             
             # Preprocessa la collection dopo aver inserito tutte le ricette
-            respPreprocess = preprocess(collection_name)
+            respPreprocess = preprocess(ELYSIA_COLLECTION_NAME)
             logging.info(f"✅ Collection pre-processata con successo")
             status = True
     except Exception as e:
