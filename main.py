@@ -6,7 +6,7 @@ from fastapi import BackgroundTasks, Request
 from contextlib import asynccontextmanager
 
 from config import ( openAIclient, BASE_FOLDER_RICETTE, COLLECTION_NAME)
-from RAG.elysia_ import add_recipe_elysia
+from RAG.elysia_ import add_recipes_elysia, search_recipes_elysia
 import uuid
 import os
 import uvicorn
@@ -653,21 +653,9 @@ def search_recipes(query: str, limit: int = 12, max_time: Optional[int] = None, 
             filters["cuisine"] = cuisine
         
         # Usa il sistema Elysia/Weaviate
-        #results = search_recipes_elysia(query, limit, filters)
-        results = []
-        
-        # Normalizza campi per frontend
-        for result in results:
-            try:
-                if "_id" not in result and result.get("shortcode"):
-                    result["_id"] = result.get("shortcode")
-                
-                images = result.get("images") or []
-                if not result.get("image_url") and isinstance(images, list) and images:
-                    result["image_url"] = images[0]
-            except Exception:
-                pass  # Errore minore di normalizzazione immagini
-        return results
+        results, oggetti = search_recipes_elysia(query, limit)
+        logging.info(f"✅ Ricerca semantica con Elysia/Weaviate completata con successo {results} {oggetti}")
+        return oggetti
         
     except Exception as e:
         error_logger.log_exception("search", e, {"query": query[:50]})
