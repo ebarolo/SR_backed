@@ -6,7 +6,7 @@ from fastapi import BackgroundTasks, Request
 from contextlib import asynccontextmanager
 
 from config import ( openAIclient, BASE_FOLDER_RICETTE, COLLECTION_NAME)
-from RAG.elysia import ingest_json_to_elysia, search_recipes_elysia, get_recipe_by_shortcode_elysia, elysia_recipe_db
+from RAG.elysia_ import add_recipe_elysia
 import uuid
 import os
 import uvicorn
@@ -179,15 +179,9 @@ def _ingest_urls_job(job_id: str, urls: List[str]):
             progress["stage"] = "indexing"
             progress["percentage"] = max(float(progress.get("percentage") or 0.0), 95.0)
             logging.getLogger(__name__).info(f"call ingest_json_to_elysia", extra={})
-
-            if not elysia_recipe_db.is_available():
-                logging.getLogger(__name__).warning("Database non disponibile, tentativo di reinizializzazione...")
-                if not elysia_recipe_db.retry_initialization():
-                    logging.getLogger(__name__).error("Impossibile inizializzare database")
-                    return False
  
             for metadata in metadatas:
-             if (elysia_recipe_db.add_recipe(metadata)):
+             if (add_recipe_elysia(metadata)):
                 logging.getLogger(__name__).info(f"ricetta {metadata.shortcode} inserita con successo")
                 success_count += 1
              else:
@@ -362,20 +356,8 @@ def get_recipe_by_shortcode(shortcode: str):
     Usa il sistema Elysia/Weaviate per la ricerca semantica.
     """
     try:
-        recipe_data = get_recipe_by_shortcode_elysia(shortcode)
         
-        if not recipe_data:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ricetta non trovata")
-        
-        # Normalizza campi per frontend
-        if "_id" not in recipe_data:
-            recipe_data["_id"] = recipe_data.get("shortcode")
-        
-        images = recipe_data.get("images") or []
-        if not recipe_data.get("image_url") and isinstance(images, list) and images:
-            recipe_data["image_url"] = images[0]
-        
-        return recipe_data
+        return 
         
     except HTTPException:
         raise
@@ -393,8 +375,8 @@ def embeddings_preview3d(limit: int = 1000, with_meta: bool = True):
     """
     try:
         # Verifica disponibilità collection 
-        if not getattr(elysia_recipe_db, "collection", None):
-            raise HTTPException(status_code=503, detail="Elysia/Weaviate non disponibile")
+        #if not getattr(elysia_recipe_db, "collection", None):
+        #    raise HTTPException(status_code=503, detail="Elysia/Weaviate non disponibile")
 
         # Import locale per non vincolare l'avvio se numpy manca
         try:
@@ -545,8 +527,8 @@ def embeddings_preview3d_with_query(q: str, limit: int = 1000, with_meta: bool =
     Come `preview3d`, ma aggiunge il punto della query proiettato negli stessi assi PCA.
     """
     try:
-        if not getattr(elysia_recipe_db, "collection", None):
-            raise HTTPException(status_code=503, detail="Elysia/Weaviate non disponibile")
+       # if not getattr(elysia_recipe_db, "collection", None):
+        #    raise HTTPException(status_code=503, detail="Elysia/Weaviate non disponibile")
 
         try:
             import numpy as np  # type: ignore
@@ -671,7 +653,8 @@ def search_recipes(query: str, limit: int = 12, max_time: Optional[int] = None, 
             filters["cuisine"] = cuisine
         
         # Usa il sistema Elysia/Weaviate
-        results = search_recipes_elysia(query, limit, filters)
+        #results = search_recipes_elysia(query, limit, filters)
+        results = []
         
         # Normalizza campi per frontend
         for result in results:
@@ -756,10 +739,11 @@ def recalc_embeddings(body: RecalcBody):
              logging.getLogger(__name__).info(f"recipe_data: {recipe_data}")
 
              #success = db.add_recipe(recipe_data_dict)
-             success_count, collection_name = ingest_json_to_elysia([recipe_data], collection_name=COLLECTION_NAME)
+             #success_count, collection_name = ingest_json_to_elysia([recipe_data], collection_name=COLLECTION_NAME)
+             success_count = add_recipe_elysia(recipe_data)
 
              if success_count > 0:
-                 logging.getLogger(__name__).info(f"Ricetta {recipe_data.shortcode} inserita con successo nella collection {collection_name}.")
+                 logging.getLogger(__name__).info(f"Ricetta {recipe_data.shortcode} inserita con successo nella collection.")
                  recipes_processed += 1
              else:
                  logging.getLogger(__name__).error(f"Errore nell'inserimento della ricetta {recipe_data.shortcode}")
@@ -787,8 +771,8 @@ def health_check():
     Check di salute esteso con info sul sistema ottimizzato
     """
     try:
-        stats = elysia_recipe_db.get_stats()
-        
+        #stats = elysia_recipe_db.get_stats()
+        stats = {}
         return {
             "status": "ok",
             "system": "Smart Recipe API",
