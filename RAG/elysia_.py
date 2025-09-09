@@ -81,10 +81,10 @@ def add_recipe_elysia(recipe_data: RecipeDBSchema):
             logging.debug(f"Recipe {recipe_data.shortcode}: esiste già = {exists}")
             
             if exists:   
-                recipe_collection.data.update(recipe_object, recipe_uuid)
+                recipe_collection.data.update(recipe_uuid)
                 logging.info(f"✅ Recipe {recipe_data.shortcode} aggiornata con successo")
             else:
-                recipe_collection.data.insert(recipe_object, recipe_uuid)
+                recipe_collection.data.insert(recipe_object)
                 logging.info(f"✅ Recipe {recipe_data.shortcode} inserita con successo")
             
             return True
