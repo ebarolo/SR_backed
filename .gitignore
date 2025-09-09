@@ -133,3 +133,7 @@ cython_debug/
 
 /.venv
 .env
+/venv
+static/.DS_Store
+static/.DS_Store
+.DS_Store

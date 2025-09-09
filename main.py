@@ -1,33 +1,47 @@
-from fastapi import FastAPI, HTTPException, status
+"""
+Smart Recipe API - Sistema di gestione ricette con ricerca semantica.
+
+Questo modulo implementa il backend FastAPI per Smart Recipe, un sistema
+di gestione ricette che utilizza Weaviate/Elysia per la ricerca semantica
+e OpenAI GPT-5 per l'elaborazione intelligente delle ricette.
+
+Author: Smart Recipe Team
+Version: 0.7
+"""
+
+# Import FastAPI e middleware
+from fastapi import FastAPI, HTTPException, status, BackgroundTasks, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import BackgroundTasks, Request
 from contextlib import asynccontextmanager
 
-from config import ( openAIclient, BASE_FOLDER_RICETTE, COLLECTION_NAME)
-from RAG.elysia_ import add_recipes_elysia, search_recipes_elysia
+# Import standard library
 import uuid
 import os
-import uvicorn
 import json
-
-from pydantic import BaseModel, HttpUrl, field_validator
-from typing import List, Optional
-
-from models import RecipeDBSchema, JobStatus, Ingredient
-from typing import List
-#from DB.langchain import get_langchain_recipe_db
-
-from time import perf_counter
-from importRicette.saveRecipe import process_video
-
 import logging
-from logging_config import setup_logging, get_error_logger, clear_error_chain
-from logging_config import request_id_var, job_id_var
 import asyncio as _asyncio
+from time import perf_counter
 
-from config import EMBEDDING_MODEL
+# Import Pydantic per validazione
+from pydantic import BaseModel, HttpUrl, field_validator
+from typing import List, Optional, Dict, Any
+
+# Import moduli interni
+from config import BASE_FOLDER_RICETTE, EMBEDDING_MODEL
+from models import RecipeDBSchema, JobStatus, Ingredient
+from RAG.elysia_ import add_recipes_elysia, search_recipes_elysia
+from importRicette.saveRecipe import process_video
+from logging_config import (
+    setup_logging, 
+    get_error_logger, 
+    request_id_var, 
+    job_id_var
+)
+
+# Import uvicorn per server
+import uvicorn
 
 # Directory base e frontend
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -37,14 +51,17 @@ DIST_DIR = os.path.join(BASE_DIR, "frontend")
 setup_logging()
 error_logger = get_error_logger(__name__)
 
-# -------------------------------
-# Schemi Pydantic
-# -------------------------------
+# ===============================
+# SCHEMI PYDANTIC PER VALIDAZIONE
+# ===============================
+
 class VideoURLs(BaseModel):
+    """Schema per validazione URL video da importare."""
     urls: List[HttpUrl]
 
     @field_validator('urls')
     def validate_urls(cls, vs):
+        """Valida che gli URL appartengano ai domini supportati."""
         allowed_domains = ['youtube.com', 'youtu.be', 'instagram.com', 'facebook.com', 'tiktok.com']
         for v in vs:
             if not any(domain in str(v) for domain in allowed_domains):
@@ -52,20 +69,65 @@ class VideoURLs(BaseModel):
         return vs
 
 class RecalcBody(BaseModel):
+    """Schema per richiesta di ricalcolo embeddings (deprecato)."""
     model_name: Optional[str] = None
     out_path: Optional[str] = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
+    """
+    Gestisce il ciclo di vita dell'applicazione FastAPI.
+    
+    Inizializza lo stato dell'app all'avvio e gestisce la pulizia
+    allo shutdown.
+    """
+    # Startup: inizializza il dizionario dei job
     app.state.jobs = {}
     yield
-    # Shutdown (se necessario in futuro)
+    # Shutdown: pulizia risorse (se necessario in futuro)
     pass
 
-# Job per l'ingest delle ricette
+# ===============================
+# JOB IN BACKGROUND
+# ===============================
+
+def _reimport_shortcodes_job(job_id: str, shortcodes: List[str]):
+    """
+    Job in background per reimportare ricette da shortcode esistenti.
+    
+    TODO: Implementare la logica effettiva di reimport.
+    Attualmente è solo un placeholder.
+    
+    Args:
+        job_id: ID univoco del job
+        shortcodes: Lista di shortcode da reimportare
+    """
+    try:
+        # Imposta il job ID per il logging
+        job_id_var.set(job_id)
+        
+        # TODO: Implementare la logica di reimport
+        # Per ora simuliamo il processo
+        import time
+        time.sleep(2)  # Simula elaborazione
+        
+        error_logger.info(f"Reimport completato per shortcode: {shortcodes}")
+        
+    except Exception as e:
+        error_logger.log_exception("reimport_shortcodes", e, {"shortcodes": shortcodes})
+
 def _ingest_urls_job(job_id: str, urls: List[str]):
+    """
+    Job principale per l'importazione di ricette da URL video.
+    
+    Processa una lista di URL video, estrae le informazioni delle ricette,
+    genera i metadati e li indicizza nel database vettoriale Elysia/Weaviate.
+    
+    Args:
+        job_id: ID univoco del job per tracking
+        urls: Lista di URL video da processare
+    """
     total = len(urls)
     # Stato iniziale running e progress structure
     job_entry = app.state.jobs.get(job_id) or {}
@@ -109,6 +171,7 @@ def _ingest_urls_job(job_id: str, urls: List[str]):
         metadatas = []
         success = 0
         failed = 0
+        error_details = []  # Raccoglie i dettagli degli errori
 
         for i, url in enumerate(urls, start=1):
             idx0 = i - 1
@@ -145,7 +208,7 @@ def _ingest_urls_job(job_id: str, urls: List[str]):
                      progress["urls"][idx0].update({"status": "failed", "stage": "error"})
                      progress["failed"] = failed
                      progress["percentage"] = _recalc_job_percentage()
-                    raise Exception("Recipe data is empty")
+                    raise ValueError("Recipe data is empty")
                 
                 try:
                  filename = os.path.join(BASE_FOLDER_RICETTE, recipe_data.shortcode, "media_original", f"metadata_{recipe_data.shortcode}.json")
@@ -163,15 +226,45 @@ def _ingest_urls_job(job_id: str, urls: List[str]):
                  progress["urls"][idx0].update({"status": "success", "stage": "done", "local_percent": 100.0})
                  progress["success"] = success
                  progress["percentage"] = _recalc_job_percentage()
-            except Exception:
+            except Exception as e:
                 failed += 1
+                error_message = str(e)
+                
+                # Estrai shortcode dall'URL per messaggi più informativi
+                shortcode = "unknown"
+                try:
+                    if "instagram.com" in url.lower():
+                        # Estrai shortcode da URL Instagram
+                        url_parts = url.split("/")
+                        for i_part, part in enumerate(url_parts):
+                            if part in ["p", "reel", "tv"] and i_part + 1 < len(url_parts):
+                                shortcode = url_parts[i_part + 1]
+                                break
+                    elif "youtube.com" in url.lower() or "youtu.be" in url.lower():
+                        # Estrai video ID da URL YouTube
+                        if "v=" in url:
+                            shortcode = url.split("v=")[1].split("&")[0]
+                        elif "youtu.be/" in url:
+                            shortcode = url.split("youtu.be/")[1].split("?")[0]
+                    else:
+                        # Per altri URL, usa l'ultima parte del path
+                        shortcode = url.split("/")[-1].split("?")[0]
+                except Exception:
+                    shortcode = "unknown"
+                
+                # Raccoglie i dettagli dell'errore con shortcode specifico
+                error_details.append(f"URL {i} ({shortcode}): {error_message}")
+                
                 if 0 <= idx0 < len(progress.get("urls", [])):
                     ue = progress["urls"][idx0]
                     if ue.get("stage") != "error":
                         ue["stage"] = "error"
                     ue["status"] = "failed"
+                    ue["error"] = error_message
                 progress["failed"] = failed
                 progress["percentage"] = _recalc_job_percentage()
+                # Log dell'errore specifico con shortcode estratto
+                error_logger.log_exception("process_video_job", e, {"url": url, "shortcode": shortcode})
                 continue
 
         if metadatas:
@@ -180,12 +273,11 @@ def _ingest_urls_job(job_id: str, urls: List[str]):
             progress["percentage"] = max(float(progress.get("percentage") or 0.0), 95.0)
             logging.getLogger(__name__).info(f"call ingest_json_to_elysia", extra={})
  
-            for metadata in metadatas:
-             if (add_recipe_elysia(metadata)):
-                logging.getLogger(__name__).info(f"ricetta {metadata.shortcode} inserita con successo")
-                success_count += 1
-             else:
-                failed_count += 1
+            #for metadata in metadatas:
+            if add_recipes_elysia(metadatas):
+                logging.getLogger(__name__).info(f"ricette inserite con successo")
+            else:
+                logging.getLogger(__name__).error(f"errore nell'inserimento delle ricette")
             
             
         # Completa job
@@ -197,9 +289,16 @@ def _ingest_urls_job(job_id: str, urls: List[str]):
         }
         if len(metadatas) > 0:
             job_entry["status"] = "completed"
+            # Aggiungi dettagli degli errori se ci sono stati fallimenti
+            if error_details:
+                job_entry["detail"] = f"Completato con {len(metadatas)} ricette. Errori: {'; '.join(error_details)}"
         else:
             job_entry["status"] = "failed"
-            job_entry["detail"] = job_entry.get("detail") or "Nessuna ricetta indicizzata"
+            # Usa i dettagli degli errori raccolti o un messaggio di default
+            if error_details:
+                job_entry["detail"] = "; ".join(error_details)
+            else:
+                job_entry["detail"] = "Nessuna ricetta indicizzata"
         progress["stage"] = "done"
         progress["percentage"] = 100.0
         app.state.jobs[job_id] = job_entry
@@ -228,11 +327,18 @@ def _ingest_urls_job(job_id: str, urls: List[str]):
             pass  # Errore minore di cleanup
         loop.close()
 
-# -------------------------------
-# Inizializzazione FastAPI
-# -------------------------------
-app = FastAPI(title="Smart Recipe", version="0.7", lifespan=lifespan)
-# CORS middleware
+# ===============================
+# INIZIALIZZAZIONE APPLICAZIONE
+# ===============================
+
+app = FastAPI(
+    title="Smart Recipe",
+    version="0.7",
+    description="API per gestione ricette con ricerca semantica basata su Weaviate/Elysia",
+    lifespan=lifespan
+)
+
+# Configurazione CORS per permettere richieste cross-origin
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -241,15 +347,115 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount mediaRicette directory explicitly to ensure all dynamic subfolders are accessible
+# ===============================
+# ENDPOINTS API
+# ===============================
+
+@app.get("/shortcodes/list")
+async def get_shortcodes_list():
+    """
+    Recupera la lista di tutti gli shortcode disponibili.
+    
+    Scansiona la directory MediaRicette e restituisce informazioni
+    su tutte le ricette salvate localmente.
+    
+    Returns:
+        Dict con lista shortcode e conteggio totale
+    """
+    try:
+        media_dir = os.path.join(BASE_DIR, "static", "MediaRicette")
+        
+        if not os.path.exists(media_dir):
+            return {"shortcodes": [], "total": 0}
+        
+        # Ottieni tutte le directory (shortcode)
+        shortcodes = []
+        for item in os.listdir(media_dir):
+            item_path = os.path.join(media_dir, item)
+            if os.path.isdir(item_path) and not item.startswith('.'):
+                # Conta i file di ricetta (inclusi quelli nelle sottocartelle)
+                recipe_files = []
+                for root, dirs, files in os.walk(item_path):
+                    for file in files:
+                        if file.endswith(('.json', '.mp3', '.jpg', '.jpeg', '.png')) and not file.startswith('.'):
+                            recipe_files.append(os.path.join(root, file))
+                
+                if recipe_files:
+                    shortcodes.append({
+                        "shortcode": item,
+                        "path": item_path,
+                        "files_count": len(recipe_files)
+                    })
+        
+        # Ordina per nome
+        shortcodes.sort(key=lambda x: x["shortcode"])
+        
+        return {
+            "shortcodes": shortcodes,
+            "total": len(shortcodes)
+        }
+        
+    except Exception as e:
+        error_logger.error(f"Errore nel recupero shortcode: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Errore nel recupero shortcode: {str(e)}"
+        )
+
+@app.post("/shortcodes/reimport")
+async def reimport_selected_shortcodes(shortcodes: List[str], background_tasks: BackgroundTasks):
+    """
+    Avvia il reimport di ricette selezionate.
+    
+    TODO: Implementazione completa del reimport.
+    
+    Args:
+        shortcodes: Lista di shortcode da reimportare
+        background_tasks: Gestore task in background FastAPI
+        
+    Returns:
+        Dict con job_id e stato del task
+    """
+    try:
+        if not shortcodes:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Nessun shortcode fornito"
+            )
+        
+        # Genera un job ID per il reimport
+        job_id = str(uuid.uuid4())
+        
+        # Avvia il reimport in background
+        background_tasks.add_task(_reimport_shortcodes_job, job_id, shortcodes)
+        
+        return {
+            "job_id": job_id,
+            "status": "queued",
+            "message": f"Reimport avviato per {len(shortcodes)} shortcode",
+            "shortcodes": shortcodes
+        }
+        
+    except Exception as e:
+        error_logger.error(f"Errore nell'avvio reimport shortcode: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Errore nell'avvio reimport: {str(e)}"
+        )
+
+# Configurazione mount directory statiche
 app.mount("/mediaRicette", StaticFiles(directory=os.path.join(BASE_DIR, "static", "mediaRicette")), name="mediaRicette")
-# Mount static directory to serve HTML, CSS, JS and other assets
-app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static"), html=True), name="static")
-# Mount frontend MVP so it is reachable at /frontend
-app.mount("/frontend", StaticFiles(directory=os.path.join(BASE_DIR, "frontend"), html=True), name="frontend")
+app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
+app.mount("/frontend", StaticFiles(directory=os.path.join(BASE_DIR, "frontend")), name="frontend")
 
 @app.middleware("http")
 async def add_request_id(request: Request, call_next):
+    """
+    Middleware per aggiungere Request ID a tutte le richieste HTTP.
+    
+    Aggiunge un ID univoco ad ogni richiesta per tracciamento e logging.
+    Logga solo errori (>=400) e warning per ridurre verbosità.
+    """
     token = None
     start = perf_counter()
     rid = request.headers.get("X-Request-ID") or str(uuid.uuid4())
@@ -292,6 +498,11 @@ async def add_request_id(request: Request, call_next):
 
 @app.get("/", include_in_schema=False)
 async def index():
+    """
+    Serve la pagina index.html del frontend.
+    
+    Cerca prima in frontend/, poi in static/ come fallback.
+    """
     dist_index = os.path.join(DIST_DIR, "index.html")
     static_index = os.path.join(BASE_DIR, "static", "index.html")
     if os.path.isfile(dist_index):
@@ -302,6 +513,19 @@ async def index():
 
 @app.post("/ingest/recipes", response_model=JobStatus, status_code=status.HTTP_202_ACCEPTED)
 async def enqueue_ingest(videos: VideoURLs, background_tasks: BackgroundTasks):
+    """
+    Avvia l'importazione asincrona di ricette da URL video.
+    
+    Crea un job in background che processa gli URL forniti,
+    estrae le ricette e le indicizza nel database.
+    
+    Args:
+        videos: Schema con lista URL video da processare
+        background_tasks: Gestore task in background
+        
+    Returns:
+        JobStatus con ID del job e stato iniziale
+    """
     job_id = str(uuid.uuid4())
     url_list = [str(u) for u in videos.urls]
     total = len(url_list)
@@ -325,7 +549,12 @@ async def enqueue_ingest(videos: VideoURLs, background_tasks: BackgroundTasks):
 
 @app.get("/ingest/status")
 def jobs_status():
-    """Restituisce lo status di tutti i job"""
+    """
+    Recupera lo stato di tutti i job di importazione.
+    
+    Returns:
+        Lista con dettagli di tutti i job attivi e completati
+    """
     jobs_dict = getattr(app.state, 'jobs', {})
     out = []
     for jid, job in jobs_dict.items():
@@ -342,6 +571,18 @@ def jobs_status():
 
 @app.get("/ingest/status/{job_id}", response_model=JobStatus)
 def job_status(job_id: str):
+    """
+    Recupera lo stato di un job specifico.
+    
+    Args:
+        job_id: ID univoco del job
+        
+    Returns:
+        JobStatus con dettagli del job
+        
+    Raises:
+        HTTPException 404 se il job non esiste
+    """
     job = app.state.jobs.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job non trovato")
@@ -351,13 +592,25 @@ def job_status(job_id: str):
 @app.get("/recipe/{shortcode}")
 def get_recipe_by_shortcode(shortcode: str):
     """
-    Ritorna i metadati completi della ricetta identificata dallo shortcode.
+    Recupera una ricetta specifica tramite shortcode.
     
-    Usa il sistema Elysia/Weaviate per la ricerca semantica.
+    TODO: Implementare ricerca per shortcode in Weaviate.
+    
+    Args:
+        shortcode: Identificativo univoco della ricetta
+        
+    Returns:
+        Metadati completi della ricetta
+        
+    Raises:
+        HTTPException 501: Funzionalità non ancora implementata
     """
     try:
-        
-        return 
+        # TODO: Implementare ricerca per shortcode specifico
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Ricerca per shortcode non ancora implementata"
+        )
         
     except HTTPException:
         raise
@@ -368,106 +621,32 @@ def get_recipe_by_shortcode(shortcode: str):
 @app.get("/embeddings/preview3d")
 def embeddings_preview3d(limit: int = 1000, with_meta: bool = True):
     """
-    Restituisce una proiezione 3D (PCA) degli embeddings per visualizzazione browser.
-
-    - Usa ChromaDB per leggere `ids`, `embeddings` e opzionalmente `documents`/`metadatas`.
-    - Proiezione PCA 3D implementata con NumPy (SVD).
+    Visualizzazione 3D degli embeddings (DEPRECATO).
+    
+    Questa funzionalità non è attualmente supportata con Weaviate/Elysia.
+    Mantenuta per compatibilità backward.
+    
+    Args:
+        limit: Numero massimo di punti da visualizzare
+        with_meta: Include metadati nei risultati
+        
+    Returns:
+        Dict vuoto con messaggio di non supportato
     """
-    try:
-        # Verifica disponibilità collection 
-        #if not getattr(elysia_recipe_db, "collection", None):
-        #    raise HTTPException(status_code=503, detail="Elysia/Weaviate non disponibile")
-
-        # Import locale per non vincolare l'avvio se numpy manca
-        try:
-            import numpy as np  # type: ignore
-        except Exception:
-            raise HTTPException(status_code=500, detail="NumPy non installato: impossibile calcolare PCA 3D")
-
-        # Funzionalità embeddings 3D temporaneamente non supportata con Elysia
-        # TODO: Implementare visualizzazione embeddings con Weaviate
-        return {"status": "ok", "n": 0, "points": [], "message": "Embeddings 3D view non supportata con Elysia"}
-
-        embeddings = results.get("embeddings")
-        if embeddings is None:
-            embeddings = []
-        ids = results.get("ids")
-        if ids is None:
-            ids = []
-        documents = results.get("documents")
-        if documents is None:
-            documents = []
-        metadatas = results.get("metadatas")
-        if metadatas is None:
-            metadatas = []
-
-        if len(embeddings) == 0 or len(ids) == 0:
-            return {"status": "ok", "n": 0, "points": []}
-
-        # Costruisci matrice e PCA 3D
-        X = np.asarray(embeddings, dtype=float)
-        # Validazione forma dati
-        if X.size == 0 or X.ndim != 2:
-            return {"status": "ok", "n": 0, "points": []}
-        # Allinea lunghezze con ids (difese su inconsistenze)
-        n = min(len(ids), X.shape[0])
-        if n == 0:
-            return {"status": "ok", "n": 0, "points": []}
-        X = X[:n]
-        ids = ids[:n]
-        if documents:
-            documents = documents[:n]
-        if metadatas:
-            metadatas = metadatas[:n]
-        # Centering
-        Xc = X - X.mean(axis=0, keepdims=True)
-        # SVD
-        U, S, Vt = np.linalg.svd(Xc, full_matrices=False)
-        # Proiezione sui primi 3 componenti
-        comps = Vt[:3].T if Vt.shape[0] >= 3 else Vt.T  # gestione dimensioni < 3
-        coords = Xc @ comps
-
-        # Prepara etichette
-        labels = []
-        if documents:
-            for doc in documents:
-                # Estrai titolo se presente nel documento strutturato
-                label = None
-                try:
-                    first_line = (doc.split("\n", 1)[0] or "").strip()
-                    if first_line.lower().startswith("titolo:"):
-                        label = first_line.split(":", 1)[1].strip()
-                except Exception:
-                    label = None
-                labels.append(label)
-        else:
-            labels = [None] * len(ids)
-
-        # Costruisci risposta compatta
-        points = []
-        for i, rid in enumerate(ids):
-            x = float(coords[i, 0]) if coords.shape[1] >= 1 else 0.0
-            y = float(coords[i, 1]) if coords.shape[1] >= 2 else 0.0
-            z = float(coords[i, 2]) if coords.shape[1] >= 3 else 0.0
-            pt = {"id": rid, "x": x, "y": y, "z": z}
-            if with_meta:
-                if labels:
-                    pt["label"] = labels[i]
-                if metadatas:
-                    pt["meta"] = metadatas[i]
-            points.append(pt)
-
-        return {"status": "ok", "n": len(points), "points": points}
-    except HTTPException:
-        raise
-    except Exception as e:
-        error_logger.log_exception("embeddings_preview3d", e)
-        raise HTTPException(status_code=500, detail=str(e))
+    # TODO: Implementare visualizzazione embeddings con Weaviate
+    return {
+        "status": "ok", 
+        "n": 0, 
+        "points": [], 
+        "message": "Embeddings 3D view non supportata con Elysia"
+    }
 
 @app.get("/embeddings/3d", response_class=HTMLResponse)
 def embeddings_3d_page():
     """
-    Pagina HTML semplice che visualizza gli embeddings 3D via Plotly.
+    Serve pagina HTML per visualizzazione embeddings 3D (DEPRECATO).
+    
+    Mantenuto per compatibilità backward.
     """
     html_path = os.path.join(BASE_DIR, "static", "embeddings_3d.html")
     if os.path.isfile(html_path):
@@ -524,121 +703,52 @@ def embeddings_3d_page():
 @app.get("/embeddings/preview3d_with_query")
 def embeddings_preview3d_with_query(q: str, limit: int = 1000, with_meta: bool = True):
     """
-    Come `preview3d`, ma aggiunge il punto della query proiettato negli stessi assi PCA.
+    Visualizzazione 3D embeddings con query (DEPRECATO).
+    
+    Non supportato con Weaviate/Elysia.
+    
+    Args:
+        q: Query di ricerca
+        limit: Numero massimo punti
+        with_meta: Include metadati
+        
+    Returns:
+        Dict vuoto con messaggio non supportato
     """
-    try:
-       # if not getattr(elysia_recipe_db, "collection", None):
-        #    raise HTTPException(status_code=503, detail="Elysia/Weaviate non disponibile")
-
-        try:
-            import numpy as np  # type: ignore
-        except Exception:
-            raise HTTPException(status_code=500, detail="NumPy non installato: impossibile calcolare PCA 3D")
-
-        # Funzionalità embeddings 3D con query temporaneamente non supportata con Elysia
-        # TODO: Implementare con Weaviate
-        return {"status": "ok", "n": 0, "points": [], "query_point": None, "message": "Embeddings 3D view con query non supportata con Elysia"}
-
-        embeddings = results.get("embeddings")
-        if embeddings is None:
-            embeddings = []
-        ids = results.get("ids")
-        if ids is None:
-            ids = []
-        documents = results.get("documents")
-        if documents is None:
-            documents = []
-        metadatas = results.get("metadatas")
-        if metadatas is None:
-            metadatas = []
-
-        X = np.asarray(embeddings, dtype=float)
-        if X.size == 0 or X.ndim != 2:
-            return {"status": "ok", "n": 0, "points": [], "query_point": None}
-
-        n = min(len(ids), X.shape[0])
-        if n == 0:
-            return {"status": "ok", "n": 0, "points": [], "query_point": None}
-        X = X[:n]
-        ids = ids[:n]
-        if documents:
-            documents = documents[:n]
-        if metadatas:
-            metadatas = metadatas[:n]
-
-        # PCA su dataset
-        Xmean = X.mean(axis=0, keepdims=True)
-        Xc = X - Xmean
-        U, S, Vt = np.linalg.svd(Xc, full_matrices=False)
-        comps = Vt[:3].T if Vt.shape[0] >= 3 else Vt.T
-        coords = Xc @ comps
-
-        # Embedding della query non supportato direttamente con Elysia
-        # La gestione degli embeddings è interna a Weaviate
-        return {"status": "ok", "n": 0, "points": [], "query_point": None, "message": "Embeddings query non supportata con Elysia"}
-        qv = np.asarray(q_vec, dtype=float)
-        if qv.ndim == 1:
-            qv = qv.reshape(1, -1)
-        # Match dimensioni: se la dimensione del modello differisce, taglia/riempie a zero
-        d = X.shape[1]
-        if qv.shape[1] != d:
-            if qv.shape[1] > d:
-                qv = qv[:, :d]
-            else:
-                pad = np.zeros((1, d - qv.shape[1]), dtype=float)
-                qv = np.concatenate([qv, pad], axis=1)
-        q_centered = qv - Xmean
-        q_coords = (q_centered @ comps)[0]
-
-        # Etichette
-        labels = []
-        if documents:
-            for doc in documents:
-                label = None
-                try:
-                    first_line = (doc.split("\n", 1)[0] or "").strip()
-                    if first_line.lower().startswith("titolo:"):
-                        label = first_line.split(":", 1)[1].strip()
-                except Exception:
-                    label = None
-                labels.append(label)
-        else:
-            labels = [None] * len(ids)
-
-        points = []
-        for i, rid in enumerate(ids):
-            x = float(coords[i, 0]) if coords.shape[1] >= 1 else 0.0
-            y = float(coords[i, 1]) if coords.shape[1] >= 2 else 0.0
-            z = float(coords[i, 2]) if coords.shape[1] >= 3 else 0.0
-            pt = {"id": rid, "x": x, "y": y, "z": z}
-            if with_meta:
-                if labels:
-                    pt["label"] = labels[i]
-                if metadatas:
-                    pt["meta"] = metadatas[i]
-            points.append(pt)
-
-        query_point = {
-            "id": "__query__",
-            "label": q,
-            "x": float(q_coords[0]) if q_coords.shape[0] >= 1 else 0.0,
-            "y": float(q_coords[1]) if q_coords.shape[0] >= 2 else 0.0,
-            "z": float(q_coords[2]) if q_coords.shape[0] >= 3 else 0.0,
-        }
-
-        return {"status": "ok", "n": len(points), "points": points, "query_point": query_point}
-    except HTTPException:
-        raise
-    except Exception as e:
-        error_logger.log_exception("embeddings_preview3d_with_query", e)
-        raise HTTPException(status_code=500, detail=str(e))
+    # TODO: Implementare con Weaviate se necessario
+    return {
+        "status": "ok",
+        "n": 0,
+        "points": [],
+        "query_point": None,
+        "message": "Embeddings 3D view con query non supportata con Elysia"
+    }
 
 @app.get("/search/")
-def search_recipes(query: str, limit: int = 12, max_time: Optional[int] = None, difficulty: Optional[str] = None, diet: Optional[str] = None, cuisine: Optional[str] = None):
+def search_recipes(
+    query: str,
+    limit: int = 12,
+    max_time: Optional[int] = None,
+    difficulty: Optional[str] = None,
+    diet: Optional[str] = None,
+    cuisine: Optional[str] = None
+):
     """
-    Ricerca semantica con Elysia/Weaviate.
+    Endpoint principale per ricerca semantica ricette.
     
-    Supporta filtri avanzati per tempo, difficoltà, dieta e cucina.
+    Utilizza Weaviate/Elysia per ricerca vettoriale semantica
+    con supporto per filtri multipli.
+    
+    Args:
+        query: Testo di ricerca
+        limit: Numero massimo risultati (default 12)
+        max_time: Tempo massimo preparazione in minuti
+        difficulty: Livello difficoltà ricetta
+        diet: Tipo di dieta (vegan, vegetarian, etc.)
+        cuisine: Tipo di cucina
+        
+    Returns:
+        Lista ricette ordinate per rilevanza
     """
     try:
         # Costruisci filtri da parametri query
@@ -660,103 +770,21 @@ def search_recipes(query: str, limit: int = 12, max_time: Optional[int] = None, 
     except Exception as e:
         error_logger.log_exception("search", e, {"query": query[:50]})
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Errore in ricerca semantica")
+  
+# ===============================
+# ENDPOINTS DI SISTEMA
+# ===============================
 
-# -------------------------------
-# Endpoints amministrativi e reimport collection ricette
-# -------------------------------
-
-@app.post("/embeddings/recalculate")
-def recalc_embeddings(body: RecalcBody):
-    """
-    reimport collection ricette
-    
-    """
-    try:
-        # Ottieni la lista di tutte le cartelle dentro BASE_FOLDER_RICETTE
-        recipe_folders = []
-        recipes_processed = 0
-        recipes_failed = 0
-        
-        # Verifica che la directory esista
-        if not os.path.exists(BASE_FOLDER_RICETTE):
-            return {
-                "status": "error",
-                "detail": f"La directory {BASE_FOLDER_RICETTE} non esiste"
-        }
-        
-        #recipe_db = RecipeDatabase()
-        #db = get_langchain_recipe_db()
-        # Elenca tutte le entry nella directory
-        
-        for entry in os.listdir(BASE_FOLDER_RICETTE):
-            entry_path = os.path.join(BASE_FOLDER_RICETTE, entry)
-            # Controlla se è una directory
-            if os.path.isdir(entry_path):
-                recipe_folders.append(entry)
-        
-         # Ordina le cartelle alfabeticamente
-        recipe_folders.sort()
-        for recipe_folder in recipe_folders:
-
-            #json_file = os.path.join(recipe_folder,"media_original", "metadata_{recipe_folder}.json")
-            json_file = os.path.join(BASE_FOLDER_RICETTE, recipe_folder, "media_original", f"metadata_{recipe_folder}.json")
-            logging.getLogger(__name__).info(f" {json_file}")
-
-            if not os.path.isfile(json_file):
-                error_logger.logger.warning(f"no recipe metadata json found in folder: {recipe_folder}")
-                # Elimina la cartella se il file json non esiste
-                try:
-                    import shutil
-                    shutil.rmtree(recipe_folder)
-                    logging.getLogger(__name__).warning(f"Cartella eliminata: {recipe_folder} (mancava il metadata json)")
-                except Exception as ex:
-                    logging.getLogger(__name__).error(f"Errore nell'eliminazione della cartella {recipe_folder}: {ex}")
-                continue
-            else:
-             with open(json_file, 'r', encoding='utf-8') as f:
-                recipe_data_dict = json.load(f)
-                
-             # Converti dizionario in oggetto RecipeDBSchema
-             try:
-                recipe_data = RecipeDBSchema(**recipe_data_dict)
-             except Exception as e:
-                error_logger.log_exception("convert_recipe_data", e, {"shortcode": recipe_data_dict.get("shortcode", "unknown")})
-                continue
-                
-             #recipe_db.add_recipe(recipe_data)
-             logging.getLogger(__name__).info(f"recipe_data: {recipe_data}")
-
-             #success = db.add_recipe(recipe_data_dict)
-             #success_count, collection_name = ingest_json_to_elysia([recipe_data], collection_name=COLLECTION_NAME)
-             success_count = add_recipe_elysia(recipe_data)
-
-             if success_count > 0:
-                 logging.getLogger(__name__).info(f"Ricetta {recipe_data.shortcode} inserita con successo nella collection.")
-                 recipes_processed += 1
-             else:
-                 logging.getLogger(__name__).error(f"Errore nell'inserimento della ricetta {recipe_data.shortcode}")
-                 recipes_failed += 1
-        
-        # Restituisci il risultato del ricalcolo
-        return {
-            "status": "success",
-            "recipes_processed": recipes_processed,
-            "recipes_failed": recipes_failed,
-            "total_recipes": len(recipe_folders),
-            "message": f"Ricalcolo embeddings completato: {recipes_processed} ricette aggiornate con successo"
-        }
-
-    except Exception as e:
-        error_logger.log_exception("recalc_info", e,{})
-        return {"status": "error", "detail": str(e)}
-    
-# -------------------------------
-# Endpoints per la validazione di stato e prova
-# -------------------------------
 @app.get("/health", status_code=status.HTTP_200_OK)
 def health_check():
     """
-    Check di salute esteso con info sul sistema ottimizzato
+    Health check endpoint per monitoraggio sistema.
+    
+    Verifica lo stato del sistema e restituisce informazioni
+    su versione, database e configurazione.
+    
+    Returns:
+        Dict con stato sistema e statistiche
     """
     try:
         #stats = elysia_recipe_db.get_stats()
@@ -781,8 +809,16 @@ def health_check():
             "system": "Smart Recipe API"
         }
 
+
+# Endpoint catch-all per il frontend SPA (deve essere l'ultimo)
 @app.get("/{full_path:path}", include_in_schema=False)
 async def spa_fallback(full_path: str):
+    """
+    Catch-all per servire il frontend SPA.
+    
+    Gestisce il routing lato client servendo index.html
+    per path non mappati ad altri endpoint.
+    """
     file_path = os.path.join(DIST_DIR, full_path)
     if os.path.isfile(file_path):
         return FileResponse(file_path)
@@ -791,5 +827,10 @@ async def spa_fallback(full_path: str):
         return FileResponse(dist_index)
     return JSONResponse({"detail": "Risorsa non trovata e frontend non costruito"}, status_code=404)
 
+# ===============================
+# ENTRY POINT
+# ===============================
+
 if __name__ == "__main__":
+    # Avvia il server Uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

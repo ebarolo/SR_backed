@@ -1,11 +1,10 @@
 <!DOCTYPE html>
 <html lang="it">
-
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Import Ricette - Smart Recipe</title>
-    <link rel="stylesheet" href="shadcn-styles.css">
+    <link rel="stylesheet" href="asset/shadcn-styles.css">
     <style>
         /* Stili personalizzati specifici per l'applicazione */
         .bg-gradient-to-br {
@@ -15,6 +14,29 @@
         /* Gradients specifici usati nel codice JavaScript */
         .from-purple-500 { --tw-gradient-from: rgb(168 85 247); --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, rgb(168 85 247 / 0)); }
         .to-indigo-600 { --tw-gradient-to: rgb(79 70 229); }
+        
+        /* Stili per scrollbar personalizzata */
+        .scrollbar-thin {
+            scrollbar-width: thin;
+        }
+        
+        .scrollbar-thin::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .scrollbar-thin::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 3px;
+        }
+        
+        .scrollbar-thin::-webkit-scrollbar-thumb {
+            background: #3b82f6;
+            border-radius: 3px;
+        }
+        
+        .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+            background: #2563eb;
+        }
     </style>
 </head>
 
@@ -47,15 +69,13 @@
             <div class="p-6 border-b border-border collapsible-header cursor-pointer" onclick="toggleCollapse('importPanel')">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center space-x-3">
-                    
-                        <div>
                             <div class="h-8 w-8 rounded-full bg-oneui-blue flex items-center justify-center">
                                 <span class="text-white text-sm font-bold">1</span>
                             </div>
                             <h3 class="text-lg font-semibold text-oneui-darkblue">
                                 Aggiungi Ricette da URL
                             </h3>
-                        </div>
+                       
                     </div>
                     <svg id="importPanelIcon"
                         class="w-5 h-5 text-muted-foreground transition-transform duration-200 collapsible-icon" fill="none"
@@ -70,14 +90,8 @@
                 <div class="p-0">
                     <!-- Aggiungi Ricette Section -->
                     <div class="p-6 border-b border-border">
-       
-                        <p class="text-sm text-muted-foreground mb-6">
-                            Supportiamo YouTube, Instagram, Facebook e TikTok.
-                        </p>
-
                         <form id="importForm" class="space-y-4">
                             <div class="space-y-2">
-                                <label for="urlInput" class="label">URL Ricette</label>
                                 <textarea id="urlInput"
                                     placeholder="Inserisci gli URL uno per riga o separati da virgole, o incolla direttamente dal tuo clipboard..."
                                     class="input textarea min-h-32"
@@ -127,6 +141,14 @@
                                 </path>
                             </svg>
                             <span class="hidden sm:inline">Aggiorna</span>
+                        </button>
+                        <button id="clearCompletedBtn" class="btn btn-outline h-9 px-3 text-red-600 border-red-300 hover:bg-red-50">
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
+                                </path>
+                            </svg>
+                            <span class="hidden sm:inline">Cancella Completati</span>
                         </button>
                         <svg id="jobsListIcon"
                             class="w-5 h-5 text-muted-foreground transition-transform duration-200 collapsible-icon" fill="none"
@@ -178,38 +200,60 @@
             <div id="embeddingPanel" class="collapsible-content collapsed">
                 <div class="p-6">
                     <div class="flex items-center space-x-3 mb-4">
-                        <div class="h-8 w-8 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center">
-                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
-                                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
-                                </path>
-                            </svg>
-                        </div>
-                        <div>
-                            <h4 class="text-md font-semibold text-oneui-darkblue">
-                                Ricalcolo Vettori Semantici
-                            </h4>
-                            <p class="text-xs text-muted-foreground">
-                                Aggiorna gli embedding delle ricette con il modello AI più recente
-                            </p>
-                        </div>
+                        
                     </div>
                     
-                    <div class="bg-material-surfaceContainer p-4 rounded-material mb-4">
-                        <div class="flex items-start space-x-3">
-                            <div class="mt-1">
-                                <svg class="w-5 h-5 text-warning-DEFAULT" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
-                                </svg>
+                    
+                    <!-- Lista Shortcode per Reimport Selezionato -->
+                    <div class="mb-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <h4 class="text-md font-semibold text-oneui-darkblue">
+                                📋 Seleziona Shortcode da Reimportare
+                            </h4>
+                            <div class="flex items-center space-x-2">
+                                <button id="selectAllBtn" class="btn btn-outline h-8 px-3 text-sm">
+                                    Seleziona Tutto
+                                </button>
+                                <button id="deselectAllBtn" class="btn btn-outline h-8 px-3 text-sm">
+                                    Deseleziona Tutto
+                                </button>
+                                <button id="refreshShortcodesBtn" class="btn btn-secondary h-8 px-3 text-sm">
+                                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                                        </path>
+                                    </svg>
+                                    Aggiorna
+                                </button>
                             </div>
-                            <div class="flex-1">
-                                <h5 class="text-sm font-medium text-foreground mb-1">Informazioni Importanti</h5>
-                                <ul class="text-xs text-muted-foreground space-y-1">
-                                    <li>• Il ricalcolo aggiornerà tutti i vettori semantici nel database</li>
-                                    <li>• L'operazione può richiedere diversi minuti in base al numero di ricette</li>
-                                    <li>• Durante il processo, la ricerca potrebbe essere temporaneamente degradata</li>
-                                    <li>• Modello attuale: <code class="bg-oneui-surface px-1 py-0.5 rounded text-oneui-darkblue font-mono">BAAI/bge-m3</code></li>
-                                </ul>
+                        </div>
+                        
+                        <!-- Lista Shortcode con Scroll -->
+                        <div id="shortcodesList" class="max-h-64 overflow-y-auto border border-oneui-surface-variant rounded-material p-4 bg-oneui-surface">
+                            <div class="text-center py-8 text-muted-foreground">
+                                <svg class="w-8 h-8 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                                    </path>
+                                </svg>
+                                <p>Caricamento shortcode...</p>
+                            </div>
+                        </div>
+                        
+                        <!-- Contatori -->
+                        <div class="mt-3 flex items-center justify-between text-sm text-muted-foreground">
+                            <div>
+                                <span id="selectedCount">0</span> di <span id="totalCount">0</span> selezionati
+                            </div>
+                            <div>
+                                <button id="reimportSelectedBtn" class="btn btn-primary h-9 px-4" disabled>
+                                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                                        </path>
+                                    </svg>
+                                    Reimporta Selezionati
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -222,7 +266,7 @@
                                     d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
                                 </path>
                             </svg>
-                            Avvia Ricalcolo
+                            Avvia Ricalcolo Completo
                         </button>
                         
                         <div id="recalculateStatus" class="hidden">
@@ -254,88 +298,9 @@
                 </div>
             </div>
         </div>
-
-        <!-- Stats -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 w-full">
-            <div class="card card-elevated">
-                <div class="p-6">
-                    <div class="flex items-center justify-between mb-2">
-                        <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
-                        <p class="text-sm font-medium text-green-700">Completati</p>
-                    </div>
-                    <div>
-                        <div class="text-2xl font-bold text-green-800" id="completedCount">
-                            0
-                        </div>
-                        <p class="text-xs text-green-600">Job completati oggi</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card card-elevated">
-                <div class="p-6">
-                    <div class="flex items-center justify-between mb-2">
-                        <svg class="w-5 h-5 text-oneui-blue animate-spin" fill="none" stroke="currentColor"
-                            viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
-                            </path>
-                        </svg>
-                        <p class="text-sm font-medium text-oneui-darkblue">In Corso</p>
-                    </div>
-                    <div>
-                        <div class="text-2xl font-bold text-oneui-darkblue" id="runningCount">
-                            0
-                        </div>
-                        <p class="text-xs text-oneui-blue">Job attualmente attivi</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card card-elevated">
-                <div class="p-6">
-                    <div class="flex items-center justify-between mb-2">
-                        <svg class="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
-                        <p class="text-sm font-medium text-yellow-700">In Coda</p>
-                    </div>
-                    <div>
-                        <div class="text-2xl font-bold text-yellow-800" id="queuedCount">
-                            0
-                        </div>
-                        <p class="text-xs text-yellow-600">Job in attesa</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card card-elevated">
-                <div class="p-6">
-                    <div class="flex items-center justify-between mb-2">
-                        <svg class="w-5 h-5 text-material-primary" fill="none" stroke="currentColor"
-                            viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4">
-                            </path>
-                        </svg>
-                        <p class="text-sm font-medium text-material-primary">Database</p>
-                    </div>
-                    <div>
-                        <div class="text-2xl font-bold text-material-primary" id="databaseCount">
-                            0
-                        </div>
-                        <p class="text-xs text-material-primary">Ricette nel DB</p>
-                    </div>
-                </div>
-            </div>
-        </div>
     </main>
 
-    <script src="import.js"></script>
+    <script src="asset/import.js"></script>
 </body>
 
 </html>

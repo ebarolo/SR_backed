@@ -1,26 +1,63 @@
+"""
+Modulo di integrazione con Weaviate/Elysia per Smart Recipe.
+
+Gestisce l'indicizzazione e la ricerca semantica delle ricette
+utilizzando Weaviate come vector database e Elysia per il preprocessing
+avanzato e la ricerca con AI.
+
+Author: Smart Recipe Team
+Version: 0.7
+"""
+
 from typing import List, Dict, Any, Optional
 import uuid as uuid_lib
-
 import logging
 
-from config import (WCD_URL, WCD_API_KEY, ELYSIA_COLLECTION_NAME, ELYSIA_AVAILABLE, OPENAI_API_KEY)
-from logging_config import get_error_logger, clear_error_chain
-from utility import nfkc, lemmatize_it, remove_stopwords_spacy
+# Import configurazione
+from config import (
+    WCD_URL,
+    WCD_API_KEY,
+    ELYSIA_COLLECTION_NAME,
+    OPENAI_API_KEY
+)
+
+# Import utility e modelli
+from logging_config import get_error_logger
+from utility import nfkc, remove_stopwords_spacy
 from models import RecipeDBSchema
 
-from elysia import configure
+# Import Elysia SDK
+from elysia import (
+    configure,
+    preprocess,
+    preprocessed_collection_exists,
+    Tree
+)
 from elysia.util.client import ClientManager
-from elysia import preprocess
-from elysia import preprocessed_collection_exists
 
-from elysia import Tree
-
+# Import Weaviate
 import weaviate.classes.config as wvc
 
+# Inizializza logger
 error_logger = get_error_logger(__name__)
 
-def add_recipes_elysia(recipe_data: RecipeDBSchema):
+
+def add_recipes_elysia(recipe_data: List[RecipeDBSchema]) -> bool:
+    """
+    Aggiunge o aggiorna ricette nel database vettoriale Weaviate.
+    
+    Processa una lista di ricette, normalizza i dati, e li indicizza
+    in Weaviate. Dopo l'inserimento, preprocessa la collection con Elysia
+    per ottimizzare la ricerca semantica.
+    
+    Args:
+        recipe_data: Lista di oggetti RecipeDBSchema da indicizzare
+        
+    Returns:
+        bool: True se l'operazione ha successo, False altrimenti
+    """
     try:
+        # Configura connessione a Weaviate/Elysia
         configure(
             wcd_url=WCD_URL,
             wcd_api_key=WCD_API_KEY,
@@ -34,101 +71,120 @@ def add_recipes_elysia(recipe_data: RecipeDBSchema):
         client_manager = ClientManager()
 
         with client_manager.connect_to_client() as client:
-            # Usa un nome valido per la collection (senza trattini)
-            
+            # Verifica/crea collection in Weaviate
             if client.collections.exists(ELYSIA_COLLECTION_NAME):
-                print(f"Collection '{ELYSIA_COLLECTION_NAME}' already exists")
-                # Opzionale: elimina la collection esistente per ricrearla
-                # client.collections.delete(collection_name)
+                logging.info(f"Collection '{ELYSIA_COLLECTION_NAME}' già esistente")
             else:
                 client.collections.create(ELYSIA_COLLECTION_NAME)
-                print(f"Collection '{ELYSIA_COLLECTION_NAME}' created successfully")
+                logging.info(f"Collection '{ELYSIA_COLLECTION_NAME}' creata con successo")
 
             recipe_collection = client.collections.get(ELYSIA_COLLECTION_NAME)
 
+            # Processa ogni ricetta
             for recipe in recipe_data:
-                try:           
-                    # Processa ingredienti
-                    ingr_lem = recipe_data.ingredients
-                    cats_lem = []
-                    for index, ingredient in enumerate(recipe_data.ingredients, start=1):
-
-                        i_n = nfkc(ingredient.name)
-                        i_s = remove_stopwords_spacy(i_n)
-                        ingr_lem[index].name = i_s
-                        
-                    #cats = [nfkc(x) for x in recipe_data.category]
-                    for category in recipe_data.category:
-                      c_n = nfkc(category)
-                      c_s = remove_stopwords_spacy(c_n)
-                      cats_lem.append(i_s)
-
-                    # Crea testo per il documento
-                    document_text = (f"Titolo: {recipe_data.title}\n"
-                                           f"Descrizione: {recipe_data.description}\n"
-                                           f"Ingredienti: {'; '.join(ingr_lem)}\n"
-                                           f"Categoria: {'; '.join(cats_lem)}\n"
-                        )
-
-                    # Prepara i dati per Weaviate
-                    recipe_object = {
-                            "title": recipe_data.title,
-                            "description": recipe_data.description,
-                            "ingredients": ingr_lem,
-                            "category": cats_lem,
-                            "cuisine_type": recipe_data.cuisine_type or "",
-                            "diet": recipe_data.diet or "",
-                            "technique": recipe_data.technique or "",
-                            "language": recipe_data.language,
-                            "shortcode": recipe_data.shortcode,
-                            "cooking_time": recipe_data.cooking_time or 0,
-                            "preparation_time": recipe_data.preparation_time or 0,
-                            "chef_advise": recipe_data.chef_advise or "",
-                            "tags": recipe_data.tags or [],
-                            "nutritional_info": recipe_data.nutritional_info or [],
-                            "recipe_step": recipe_data.recipe_step,
-                            "images": recipe_data.images or []
-                        }
-                        
-                    # Genera UUID valido dal shortcode
-                    recipe_uuid = str(uuid_lib.uuid5(uuid_lib.NAMESPACE_DNS, recipe_data.shortcode))
-                    logging.debug(f"Recipe {recipe_data.shortcode}: UUID generato = {recipe_uuid}")
-                        
-                    # Verifica se esiste già
-                    exists = recipe_collection.data.exists(recipe_uuid)
-                    logging.debug(f"Recipe {recipe_data.shortcode}: esiste già = {exists}")
+                try:
+                    # Normalizza e processa ingredienti (rimuove stopwords)
+                    ingr_lem = recipe.ingredients.copy() if recipe.ingredients else []
+                    for index, ingredient in enumerate(recipe.ingredients, start=1):
+                        if hasattr(ingredient, 'name'):
+                            # Normalizza nome ingrediente
+                            normalized_name = nfkc(ingredient.name)
+                            # Rimuove stopwords
+                            cleaned_name = remove_stopwords_spacy(normalized_name)
+                            if index <= len(ingr_lem):
+                                ingr_lem[index-1].name = cleaned_name
                     
-                    if exists:   
-                        recipe_collection.data.update(recipe_uuid)
-                        logging.info(f"✅ Recipe {recipe_data.shortcode} aggiornata con successo")
+                    # Normalizza categorie
+                    cats_lem = []
+                    for category in recipe.category:
+                        normalized_cat = nfkc(category)
+                        cleaned_cat = remove_stopwords_spacy(normalized_cat)
+                        cats_lem.append(cleaned_cat)
+
+                    # Crea testo strutturato per embedding
+                    document_text = (
+                        f"Titolo: {recipe.title}\n"
+                        f"Descrizione: {recipe.description}\n"
+                        f"Ingredienti: {'; '.join([str(ing) for ing in ingr_lem])}\n"
+                        f"Categoria: {'; '.join(cats_lem)}\n"
+                    )
+
+                    # Prepara oggetto per Weaviate
+                    recipe_object = {
+                        "title": recipe.title,
+                        "description": recipe.description,
+                        "ingredients": ingr_lem,
+                        "category": cats_lem,
+                        "cuisine_type": recipe.cuisine_type or "",
+                        "diet": recipe.diet or "",
+                        "technique": recipe.technique or "",
+                        "language": recipe.language,
+                        "shortcode": recipe.shortcode,
+                        "cooking_time": recipe.cooking_time or 0,
+                        "preparation_time": recipe.preparation_time or 0,
+                        "chef_advise": recipe.chef_advise or "",
+                        "tags": recipe.tags or [],
+                        "nutritional_info": recipe.nutritional_info or [],
+                        "recipe_step": recipe.recipe_step
+                    }
+                    
+                    # Genera UUID deterministico dal shortcode per evitare duplicati
+                    recipe_uuid = str(uuid_lib.uuid5(uuid_lib.NAMESPACE_DNS, recipe.shortcode))
+                    logging.debug(f"Recipe {recipe.shortcode}: UUID = {recipe_uuid}")
+                    
+                    # Verifica esistenza e aggiorna/inserisce
+                    exists = recipe_collection.data.exists(recipe_uuid)
+                    
+                    if exists:
+                        # Aggiorna ricetta esistente
+                        recipe_collection.data.update(recipe_uuid, recipe_object)
+                        logging.info(f"✅ Ricetta {recipe.shortcode} aggiornata")
                     else:
+                        # Inserisce nuova ricetta
                         recipe_collection.data.insert(recipe_object)
-                        logging.info(f"✅ Recipe {recipe_data.shortcode} inserita con successo")
+                        logging.info(f"✅ Ricetta {recipe.shortcode} inserita")
                     
                 except Exception as e:
-                    logging.error(f"❌ Errore inserimento recipe {recipe_data.shortcode}: {str(e)}")
+                    # Log errore per singola ricetta (non blocca le altre)
+                    logging.error(f"❌ Errore inserimento ricetta {recipe.shortcode}: {str(e)}")
                     error_logger.log_exception("add_recipe_elysia", e, {
-                        "shortcode": recipe_data.shortcode,
-                        "title": recipe_data.title,
-                        "ingredients_count": len(recipe_data.ingredients),
-                        "categories_count": len(recipe_data.category)
+                        "shortcode": recipe.shortcode,
+                        "title": recipe.title,
+                        "ingredients_count": len(recipe.ingredients) if recipe.ingredients else 0,
+                        "categories_count": len(recipe.category) if recipe.category else 0
                     })
             
-            # Preprocessa la collection dopo aver inserito tutte le ricette
+            # Preprocessa collection con Elysia per ottimizzare ricerca
             respPreprocess = preprocess(ELYSIA_COLLECTION_NAME)
-            logging.info(f"✅ Collection pre-processata con successo")
+            logging.info(f"✅ Collection preprocessata con Elysia")
             status = True
     except Exception as e:
-        logging.error(f"❌ Errore pre-processing collection: {str(e)}")
+        # Log errore generale
+        logging.error(f"❌ Errore preprocessing collection: {str(e)}")
         error_logger.log_exception("add_recipes_elysia", e, {})
         status = False
     finally:
+        # Chiude connessione
         client_manager.close()
         return status
 
 
-def search_recipes_elysia(query: str, limit: int = 10):
+def search_recipes_elysia(query: str, limit: int = 10) -> tuple[Any, Any]:
+    """
+    Esegue ricerca semantica delle ricette usando Elysia.
+    
+    Utilizza l'AI di Elysia per interpretare la query e trovare
+    le ricette più rilevanti basandosi sulla similarità semantica.
+    
+    Args:
+        query: Testo di ricerca in linguaggio naturale
+        limit: Numero massimo di risultati da restituire
+        
+    Returns:
+        tuple: (risposta_testuale, oggetti_ricette) o (None, None) in caso di errore
+    """
     try:
+        # Configura connessione
         configure(
             wcd_url=WCD_URL,
             wcd_api_key=WCD_API_KEY,
@@ -139,21 +195,25 @@ def search_recipes_elysia(query: str, limit: int = 10):
             openai_api_key=OPENAI_API_KEY
         )
 
+        # Verifica preprocessing collection
         if not preprocessed_collection_exists(ELYSIA_COLLECTION_NAME):
-            logging.info("Collection non pre-processata")
+            logging.info("Collection non preprocessata, avvio preprocessing...")
             preprocess(ELYSIA_COLLECTION_NAME)
 
+        # Esegue ricerca con Elysia Tree (AI search)
         tree = Tree()
         risposta, oggetti = tree(
             query,
             collection_names=[ELYSIA_COLLECTION_NAME]
         )
-       
+        
+        logging.info(f"✅ Ricerca completata: {len(oggetti) if oggetti else 0} risultati")
         return risposta, oggetti
 
     except Exception as e:
-        error_logger.log_exception("ERROR search_recipe_elysia", e, {
-            "risposta": None,
-            "oggetti": None
+        # Log errore ricerca
+        error_logger.log_exception("search_recipe_elysia", e, {
+            "query": query[:100],  # Log solo primi 100 caratteri query
+            "limit": limit
         })
         return None, None
