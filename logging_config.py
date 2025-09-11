@@ -5,6 +5,7 @@ from pythonjsonlogger import jsonlogger
 import contextvars
 import os
 from typing import Optional, Dict, Any
+import atexit
 
 # Context variables to carry request/job identifiers across logs
 request_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("request_id", default="-")
@@ -77,6 +78,78 @@ def clear_error_chain() -> None:
     error_chain_var.set([])
 
 
+class JSONArrayFileHandler(logging.FileHandler):
+    """
+    File handler that writes log records as a single valid JSON array.
+
+    Notes:
+    - Uses write mode ('w') to always create a fresh valid JSON array file.
+    - Appends items with commas and closes the array on process exit.
+    - Works best for single-process logging; rotation is not handled here.
+    """
+
+    def __init__(self, filename: str, encoding: str = "utf-8", array_indent: int = 2):
+        # Always start a fresh valid JSON array
+        super().__init__(filename, mode="w", encoding=encoding, delay=True)
+        self._first = True
+        self._closed = False
+        self._array_indent = max(array_indent, 0)
+
+        # Open the underlying stream and write the opening bracket
+        self.acquire()
+        try:
+            self.stream = self._open()
+            self.stream.write("[\n")
+            self.stream.flush()
+        finally:
+            self.release()
+
+        # Ensure we close the JSON array at interpreter exit
+        atexit.register(self._finalize_array)
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            msg = self.format(record)  # Expect a JSON string from the formatter
+            self.acquire()
+            try:
+                # Write comma between items
+                if not self._first:
+                    self.stream.write(",\n")
+                else:
+                    self._first = False
+
+                # Indent the object within the array for readability
+                indent_prefix = " " * self._array_indent
+                for i, line in enumerate(msg.splitlines() or [msg]):
+                    self.stream.write(indent_prefix + line)
+                    if i < len(msg.splitlines()) - 1:
+                        self.stream.write("\n")
+                self.stream.flush()
+            finally:
+                self.release()
+        except Exception:
+            self.handleError(record)
+
+    def _finalize_array(self) -> None:
+        if self._closed:
+            return
+        try:
+            self.acquire()
+            try:
+                self.stream.write("\n]\n")
+                self.stream.flush()
+                self._closed = True
+            finally:
+                self.release()
+        except Exception:
+            # Best-effort close; ignore errors during interpreter shutdown
+            pass
+        try:
+            super().close()
+        except Exception:
+            pass
+
+
 def setup_logging(level: str | None = None, json_file_path: str | None = None, console: bool = True) -> None:
     """
     Configure root logging with enhanced error tracking:
@@ -89,7 +162,14 @@ def setup_logging(level: str | None = None, json_file_path: str | None = None, c
         console: Whether to also log to console with a readable formatter.
     """
     log_level = (level or os.getenv("LOG_LEVEL") or "INFO").upper()
-    json_path = json_file_path or os.getenv("LOG_JSON_PATH") or "backend.log"
+    json_path = json_file_path or os.getenv("LOG_JSON_PATH") or "backend.json"
+    json_mode = (os.getenv("LOG_JSON_MODE") or "jsonl").lower()  # 'jsonl' (default) or 'array'
+    # Pretty-print indent for JSON content (applies to each object; in array mode the array is indented too)
+    try:
+        json_indent_env = os.getenv("LOG_JSON_INDENT")
+        json_indent = int(json_indent_env) if json_indent_env else None
+    except ValueError:
+        json_indent = None
 
     root_logger = logging.getLogger()
     # Clear existing handlers to avoid duplicate logs when reloading
@@ -125,15 +205,30 @@ def setup_logging(level: str | None = None, json_file_path: str | None = None, c
         console_handler.addFilter(context_filter)
         root_logger.addHandler(console_handler)
 
-    # JSON file handler - full context for analysis
-    file_handler = logging.FileHandler(json_path, encoding="utf-8")
-    json_fmt = jsonlogger.JsonFormatter(
-        fmt=(
-            "%(asctime)s %(levelname)s %(name)s %(message)s "
-            "%(request_id)s %(job_id)s %(pathname)s %(lineno)d "
-            "%(source_file)s %(source_line)d %(source_func)s %(error_chain)s"
+    # JSON file handler - structured logs with full context
+    if json_mode == "array":
+        file_handler = JSONArrayFileHandler(json_path, encoding="utf-8", array_indent=2)
+        json_fmt = jsonlogger.JsonFormatter(
+            fmt=(
+                "%(asctime)s %(levelname)s %(name)s %(message)s "
+                "%(request_id)s %(job_id)s %(pathname)s %(lineno)d "
+                "%(source_file)s %(source_line)d %(source_func)s %(error_chain)s"
+            ),
+            json_indent=json_indent,           # pretty-print each object if requested
+            json_ensure_ascii=False            # keep unicode as-is for readability
         )
-    )
+    else:
+        file_handler = logging.FileHandler(json_path, encoding="utf-8")
+        json_fmt = jsonlogger.JsonFormatter(
+            fmt=(
+                "%(asctime)s %(levelname)s %(name)s %(message)s "
+                "%(request_id)s %(job_id)s %(pathname)s %(lineno)d "
+                "%(source_file)s %(source_line)d %(source_func)s %(error_chain)s"
+            ),
+            json_indent=json_indent,           # pretty-print JSONL if requested (multi-line per record)
+            json_ensure_ascii=False            # keep unicode as-is for readability
+        )
+
     file_handler.setFormatter(json_fmt)
     file_handler.addFilter(context_filter)
     root_logger.addHandler(file_handler)
@@ -183,5 +278,4 @@ class ErrorLogger:
 def get_error_logger(name: str) -> ErrorLogger:
     """Get an enhanced error logger for a module."""
     return ErrorLogger(logging.getLogger(name))
-
 

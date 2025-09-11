@@ -238,6 +238,7 @@ async def whisper_speech_recognition(audio_file_path: str, language: str) -> str
                 openAIclient.audio.transcriptions.create,
                 model=OPENAI_TRANSCRIBE_MODEL,
                 file=audio_file,
+                language=language,
             )
             # Log successful transcription (info level) con anteprima del testo
             import logging

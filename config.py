@@ -22,8 +22,8 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_RESPONSES_MODEL = os.getenv("OPENAI_RESPONSES_MODEL", "gpt-5")
 # Modello Chat Vision (analisi frames immagine)
 OPENAI_VISION_CHAT_MODEL = os.getenv("OPENAI_VISION_CHAT_MODEL", "gpt-4.1")
-# Modello trascrizione audio
-OPENAI_TRANSCRIBE_MODEL = os.getenv("OPENAI_TRANSCRIBE_MODEL", "gpt-4.1")
+# Modello trascrizione audio (usare "gpt-4o-transcribe" o "whisper-1")
+OPENAI_TRANSCRIBE_MODEL = os.getenv("OPENAI_TRANSCRIBE_MODEL", "gpt-4o-transcribe")
 # Modello generazione immagini
 OPENAI_IMAGE_MODEL = os.getenv("OPENAI_IMAGE_MODEL", "gpt-image-1")
 # Client OpenAI condiviso
