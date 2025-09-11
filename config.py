@@ -21,7 +21,7 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 # Modello Responses (estrazione ricetta testuale)
 OPENAI_RESPONSES_MODEL = os.getenv("OPENAI_RESPONSES_MODEL", "gpt-5")
 # Modello Chat Vision (analisi frames immagine)
-OPENAI_VISION_CHAT_MODEL = os.getenv("OPENAI_VISION_CHAT_MODEL", "gpt-4o-mini")
+OPENAI_VISION_CHAT_MODEL = os.getenv("OPENAI_VISION_CHAT_MODEL", "gpt-4.1")
 # Modello trascrizione audio
 OPENAI_TRANSCRIBE_MODEL = os.getenv("OPENAI_TRANSCRIBE_MODEL", "gpt-4o-transcribe")
 # Modello generazione immagini
@@ -60,4 +60,4 @@ WCD_API_KEY = os.getenv("WCD_API_KEY")
 
 # Configurazione Elysia
 ELYSIA_AVAILABLE = True
-ELYSIA_COLLECTION_NAME = os.getenv("ELYSIA_COLLECTION_NAME", "Recipes")
+ELYSIA_COLLECTION_NAME = os.getenv("ELYSIA_COLLECTION_NAME", "Recipe_Vector")

@@ -1,172 +1,202 @@
+"""
+Modelli Pydantic per Smart Recipe API.
+
+Definisce gli schemi di validazione dati per ricette, ingredienti,
+job di importazione e risposte API.
+
+Author: Smart Recipe Team
+Version: 0.7
+"""
+
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 
 class Ingredient(BaseModel):
-    name: str
-    qt: float
-    um: str
+    """Modello per ingrediente di una ricetta."""
+    name: str  # Nome dell'ingrediente
+    qt: float  # Quantità
+    um: str    # Unità di misura
 
 class RecipeDBSchema(BaseModel):
-    title: str
-    category: List[str]
-    preparation_time: Optional[int]
-    cooking_time: Optional[int]
-    ingredients: List[Ingredient]
-    recipe_step: List[str]
-    description: str
-    diet: Optional[str]
-    technique: Optional[str] 
-    language: str
-    chef_advise: Optional[str]
-    tags: Optional[List[str]]
-    nutritional_info: Optional[List[str]] 
-    cuisine_type: Optional[str] 
-    ricetta_audio: Optional[str]
-    ricetta_caption: Optional[str] 
-    shortcode: str
+    """
+    Schema completo per una ricetta nel database.
+    
+    Contiene tutti i campi necessari per memorizzare e indicizzare
+    una ricetta nel sistema Weaviate/Elysia.
+    """
+    title: str                                # Titolo della ricetta
+    category: List[str]                       # Categorie (primo, secondo, dolce, etc.)
+    preparation_time: Optional[int]           # Tempo preparazione in minuti
+    cooking_time: Optional[int]               # Tempo cottura in minuti
+    ingredients: List[Ingredient]              # Lista ingredienti con quantità
+    recipe_step: List[str]                    # Passaggi della ricetta
+    description: str                          # Descrizione breve
+    diet: Optional[str]                       # Tipo dieta (vegan, vegetarian, etc.)
+    technique: Optional[str]                  # Tecnica di cottura principale
+    language: str                             # Lingua della ricetta
+    chef_advise: Optional[str]                # Consigli dello chef
+    tags: Optional[List[str]]                 # Tag per ricerca
+    nutritional_info: Optional[List[str]]     # Informazioni nutrizionali
+    cuisine_type: Optional[str]               # Tipo di cucina (italiana, indiana, etc.)
+    ricetta_audio: Optional[str]              # Path file audio ricetta
+    ricetta_caption: Optional[str]            # Trascrizione/caption dal video
+    shortcode: str                            # Identificativo univoco (da social media)
  
 class RecipeResponse(BaseModel):
-    _id: str
-    title: str
-    description: str
-    category: List[str]
-    cuisine_type: str
-    ingredients: List[Ingredient]
-    recipe_step: List[str]
-    preparation_time: int
-    cooking_time: int
-    tags: List[str]
-    chef_advise: Optional[str]
-    shortcode: str
+    """
+    Schema per risposta API di ricerca ricette.
+    
+    Include i dati della ricetta più lo score di rilevanza
+    dalla ricerca semantica.
+    """
+    _id: str                      # ID univoco nel database
+    title: str                    # Titolo ricetta
+    description: str              # Descrizione
+    category: List[str]           # Categorie
+    cuisine_type: str             # Tipo cucina
+    ingredients: List[Ingredient] # Lista ingredienti
+    recipe_step: List[str]        # Passaggi ricetta
+    preparation_time: int         # Tempo preparazione
+    cooking_time: int             # Tempo cottura
+    tags: List[str]               # Tag
+    chef_advise: Optional[str]    # Consigli chef
+    shortcode: str                # Shortcode social
     match_score: float = Field(..., description="Score di rilevanza della ricetta")
 
 class JobStatus(BaseModel):
-    job_id: str
-    status: str
-    detail: Optional[str] = None
-    result: Optional[Dict[str, Any]] = None
-    progress_percent: Optional[float] = None
-    progress: Optional[Dict[str, Any]] = None
+    """
+    Schema per stato di un job di importazione.
+    
+    Utilizzato per tracciare il progresso dell'importazione
+    asincrona di ricette da URL video.
+    """
+    job_id: str                               # ID univoco del job
+    status: str                               # Stato: queued, running, completed, failed
+    detail: Optional[str] = None             # Dettagli errore o messaggio
+    result: Optional[Dict[str, Any]] = None  # Risultati finali del job
+    progress_percent: Optional[float] = None # Percentuale completamento
+    progress: Optional[Dict[str, Any]] = None # Dettagli progresso per ogni URL
   
-recipe_schema ={
-  "name": "recipe",
-  "schema": {
-    "type": "object",
-    "properties": {
-      "numer_person": {
-        "type": "integer",
-        "description": "Number of people the recipe is for."
-      },
-      "category": {
-        "type": "array",
-        "description": "List of categories the recipe belongs to.",
-        "items": {
-          "type": "string"
-        }
-      },
-      "chef_advise": {
-        "type": "string",
-        "description": "Advice or tip from the chef regarding the recipe."
-      },
-      "cooking_time": {
-        "type": "integer",
-        "description": "Cooking time in minutes."
-      },
-      "cuisine_type": {
-        "type": "string",
-        "description": "The cuisine type (e.g. Italian, Indian)."
-      },
-      "description": {
-        "type": "string",
-        "description": "Brief description of the recipe."
-      },
-      "diet": {
-        "type": "string",
-        "description": "Diet type (e.g. vegan, vegetarian, gluten-free)."
-      },
-      "ingredients": {
-        "type": "array",
-        "description": "List of ingredient objects.",
-        "items": {
-          "type": "object",
-          "properties": {
-            "name": {
-              "type": "string",
-              "description": "Name of the ingredient."
+# Schema JSON per validazione ricette con OpenAI Structured Output
+recipe_schema = {
+    "name": "recipe",
+    "schema": {
+        "type": "object",
+        "properties": {
+            "numer_person": {
+                "type": "integer",
+                "description": "Numero di persone per cui è la ricetta"
             },
-            "qt": {
-              "type": "number",
-              "description": "Quantity of the ingredient."
+            "category": {
+                "type": "array",
+                "description": "Lista categorie della ricetta",
+                "items": {
+                    "type": "string"
+                }
             },
-            "um": {
-              "type": "string",
-              "description": "Unit of measure for the quantity."
+            "chef_advise": {
+                "type": "string",
+                "description": "Consigli o suggerimenti dello chef"
+            },
+            "cooking_time": {
+                "type": "integer",
+                "description": "Tempo di cottura in minuti"
+            },
+            "cuisine_type": {
+                "type": "string",
+                "description": "Tipo di cucina (es. Italiana, Indiana)"
+            },
+            "description": {
+                "type": "string",
+                "description": "Descrizione breve della ricetta"
+            },
+            "diet": {
+                "type": "string",
+                "description": "Tipo di dieta (es. vegana, vegetariana, senza glutine)"
+            },
+            "ingredients": {
+                "type": "array",
+                "description": "Lista oggetti ingrediente",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string",
+                            "description": "Nome dell'ingrediente"
+                        },
+                        "qt": {
+                            "type": "number",
+                            "description": "Quantità dell'ingrediente"
+                        },
+                        "um": {
+                            "type": "string",
+                            "description": "Unità di misura per la quantità"
+                        }
+                    },
+                    "required": [
+                        "name",
+                        "qt",
+                        "um"
+                    ],
+                    "additionalProperties": False
+                }
+            },
+            "language": {
+                "type": "string",
+                "description": "Lingua della ricetta"
+            },
+            "nutritional_info": {
+                "type": "array",
+                "description": "Lista informazioni nutrizionali",
+                "items": {
+                    "type": "string"
+                }
+            },
+            "preparation_time": {
+                "type": "integer",
+                "description": "Tempo di preparazione in minuti"
+            },
+            "recipe_step": {
+                "type": "array",
+                "description": "Lista ordinata dei passaggi di preparazione",
+                "items": {
+                    "type": "string"
+                }
+            },
+            "tags": {
+                "type": "array",
+                "description": "Tag ricetta per ricerca o categorizzazione",
+                "items": {
+                    "type": "string"
+                }
+            },
+            "technique": {
+                "type": "string",
+                "description": "Tecnica di cottura principale utilizzata"
+            },
+            "title": {
+                "type": "string",
+                "description": "Titolo della ricetta"
             }
-          },
-          "required": [
-            "name",
-            "qt",
-            "um"
-          ],
-          "additionalProperties": False
-        }
-      },
-      "language": {
-        "type": "string",
-        "description": "Language of the recipe."
-      },
-      "nutritional_info": {
-        "type": "array",
-        "description": "List of nutritional information strings.",
-        "items": {
-          "type": "string"
-        }
-      },
-      "preparation_time": {
-        "type": "integer",
-        "description": "Preparation time in minutes."
-      },
-      "recipe_step": {
-        "type": "array",
-        "description": "Ordered list of recipe preparation steps.",
-        "items": {
-          "type": "string"
-        }
-      },
-      "tags": {
-        "type": "array",
-        "description": "Recipe tags for search or categorization.",
-        "items": {
-          "type": "string"
-        }
-      },
-      "technique": {
-        "type": "string",
-        "description": "Primary cooking technique used."
-      },
-      "title": {
-        "type": "string",
-        "description": "Recipe title."
-      }
+        },
+        "required": [
+            "category",
+            "numer_person",
+            "chef_advise",
+            "cooking_time",
+            "cuisine_type",
+            "description",
+            "diet",
+            "ingredients",
+            "language",
+            "nutritional_info",
+            "preparation_time",
+            "recipe_step",
+            "tags",
+            "technique",
+            "title"
+        ],
+        "additionalProperties": False
     },
-    "required": [
-      "category",
-      "numer_person",
-      "chef_advise",
-      "cooking_time",
-      "cuisine_type",
-      "description",
-      "diet",
-      "ingredients",
-      "language",
-      "nutritional_info",
-      "preparation_time",
-      "recipe_step",
-      "tags",
-      "technique",
-      "title"
-    ],
-    "additionalProperties": False
-  },
-  "strict": True
+    "strict": True  # Forza validazione stretta OpenAI
 }

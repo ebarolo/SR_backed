@@ -97,17 +97,10 @@ async def scarica_contenuto_reel(url: str) -> Dict[str, Any]:
                 post = instaloader.Post.from_shortcode(L.context, shortcode)
             except instaloader.exceptions.InstaloaderException as e:
                 error_logger.log_exception("instaloader_fetch_post", e, {"shortcode": shortcode, "url": url})
-                
-                return [{ # Manteniamo la struttura a lista come nel caso di successo
-                    "error": f"Errore durante il recupero del post con shortcode {shortcode}: {str(e)}",
-                    "shortcode": shortcode
-                }]
+                raise ValueError(f"Errore durante il recupero del post con shortcode {shortcode}: {str(e)}") from e
             except Exception as e: # Cattura generica per altri possibili errori non di Instaloader
                 error_logger.log_exception("unexpected_fetch_post", e, {"shortcode": shortcode, "url": url})
-                return [{
-                    "error": f"Errore inaspettato durante il recupero del post con shortcode {shortcode}: {str(e)}",
-                    "shortcode": shortcode,
-                }]
+                raise ValueError(f"Errore inaspettato durante il recupero del post con shortcode {shortcode}: {str(e)}") from e
 
             # Dump all available post attributes
             post_attributes = {}
@@ -139,7 +132,7 @@ async def scarica_contenuto_reel(url: str) -> Dict[str, Any]:
 
     except instaloader.exceptions.InstaloaderException as e:
         error_logger.log_exception("scarica_contenuto_reel", e, {"url": url})
-        raise ValueError(f"Errore scarica_contenuto_reel: {str(e)}")
+        raise ValueError(f"Errore scarica_contenuto_reel: {str(e)}") from e
 
 async def scarica_contenuti_account(username: str):
     # Clear error chain at start of new operation
@@ -182,7 +175,4 @@ async def scarica_contenuti_account(username: str):
         return result
     except instaloader.exceptions.InstaloaderException as e:
         error_logger.log_exception("scarica_contenuti_account", e, {"username": username})
-        result.append(
-            {"error": str(e), "titolo": "", "percorso_video": "", "caption": ""}
-        )
-        return result
+        raise ValueError(f"Errore scarica_contenuti_account: {str(e)}") from e

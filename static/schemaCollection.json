@@ -51,7 +51,7 @@
                 "bsonType": "string"
               },
               "qt": {
-                "bsonType": "double"
+                "bsonType": "int"
               },
               "um": {
                 "bsonType": "string"

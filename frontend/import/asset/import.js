@@ -7,6 +7,8 @@ class ImportManager {
         this.apiBaseUrl = window.location.origin;
         this.lastJobsHash = null; // Cache per evitare rerender inutili
         this.hasActiveJobs = false; // Flag per gestire il refresh intelligente
+        this.shortcodes = []; // Lista shortcode disponibili
+        this.selectedShortcodes = new Set(); // Shortcode selezionati
         
         this.initializeElements();
         this.setupEventListeners();
@@ -31,28 +33,65 @@ class ImportManager {
     }
 
     setupEventListeners() {
-        this.elements.form.addEventListener('submit', (e) => {
-            e.preventDefault();
-            this.handleSubmit();
-        });
+        if (this.elements.form) {
+            this.elements.form.addEventListener('submit', (e) => {
+                e.preventDefault();
+                this.handleSubmit();
+            });
+        }
 
-        this.elements.clearBtn.addEventListener('click', () => {
-            this.elements.urlInput.value = '';
-        });
+        if (this.elements.clearBtn) {
+            this.elements.clearBtn.addEventListener('click', () => {
+                if (this.elements.urlInput) {
+                    this.elements.urlInput.value = '';
+                }
+            });
+        }
 
-        this.elements.pasteBtn.addEventListener('click', async () => {
-            await this.handlePaste();
-        });
+        if (this.elements.pasteBtn) {
+            this.elements.pasteBtn.addEventListener('click', async () => {
+                await this.handlePaste();
+            });
+        }
 
-        this.elements.refreshBtn.addEventListener('click', () => {
-            this.loadJobs();
-        });
+        if (this.elements.refreshBtn) {
+            this.elements.refreshBtn.addEventListener('click', () => {
+                this.loadJobs();
+            });
+        }
+
+        // Aggiungi listener per il pulsante di cancellazione
+        const clearCompletedBtn = document.getElementById('clearCompletedBtn');
+        if (clearCompletedBtn) {
+            clearCompletedBtn.addEventListener('click', () => {
+                this.clearCompletedJobs();
+            });
+        }
+
+        // Listener per shortcode
+        const selectAllBtn = document.getElementById('selectAllBtn');
+        const deselectAllBtn = document.getElementById('deselectAllBtn');
+        const refreshShortcodesBtn = document.getElementById('refreshShortcodesBtn');
+        const reimportSelectedBtn = document.getElementById('reimportSelectedBtn');
+
+        if (selectAllBtn) {
+            selectAllBtn.addEventListener('click', () => this.selectAllShortcodes());
+        }
+        if (deselectAllBtn) {
+            deselectAllBtn.addEventListener('click', () => this.deselectAllShortcodes());
+        }
+        if (refreshShortcodesBtn) {
+            refreshShortcodesBtn.addEventListener('click', () => this.loadShortcodes());
+        }
+        if (reimportSelectedBtn) {
+            reimportSelectedBtn.addEventListener('click', () => this.reimportSelectedShortcodes());
+        }
     }
 
     async handlePaste() {
         try {
             const text = await navigator.clipboard.readText();
-            if (text) {
+            if (text && this.elements.urlInput) {
                 this.elements.urlInput.value = text;
                 this.showNotification('Testo incollato con successo', 'success');
             }
@@ -88,6 +127,11 @@ class ImportManager {
     }
 
     async handleSubmit() {
+        if (!this.elements.urlInput) {
+            this.showNotification('Elemento input non trovato', 'destructive');
+            return;
+        }
+        
         const input = this.elements.urlInput.value.trim();
         if (!input) {
             this.showNotification('Inserisci almeno un URL', 'warning');
@@ -117,7 +161,14 @@ class ImportManager {
             
             if (jobId) {
                 this.showNotification(`Import avviato con successo! Job ID: ${jobId}`, 'success');
-                this.elements.urlInput.value = '';
+                if (this.elements.urlInput) {
+                    this.elements.urlInput.value = '';
+                }
+                
+                // Chiudi la sezione import e apri il monitoraggio
+                this.collapseImportSection();
+                this.expandMonitoringSection();
+                
                 this.loadJobs();
             }
         } catch (error) {
@@ -209,9 +260,317 @@ class ImportManager {
         }
     }
 
+    async clearCompletedJobs() {
+        const completedJobs = document.querySelectorAll('.step-completed');
+        if (completedJobs.length === 0) {
+            this.showNotification('Nessun job completato da cancellare', 'warning');
+            return;
+        }
+
+        const confirmResult = confirm(
+            `⚠️ Conferma Cancellazione\n\n` +
+            `Vuoi cancellare ${completedJobs.length} job completati?\n\n` +
+            `Questa azione rimuoverà i job dalla visualizzazione ma non influenzerà le ricette già salvate nel database.`
+        );
+
+        if (!confirmResult) {
+            return;
+        }
+
+        try {
+            // Nascondi i job completati con animazione
+            completedJobs.forEach((job, index) => {
+                setTimeout(() => {
+                    job.style.opacity = '0';
+                    job.style.transform = 'translateX(-100%) scale(0.95)';
+                    job.style.transition = 'all 0.3s ease-out';
+                    
+                    setTimeout(() => {
+                        job.remove();
+                        // Ricalcola l'altezza dell'accordion dopo la rimozione
+                        this.scheduleAccordionRecalculation('jobsList');
+                    }, 300);
+                }, index * 100); // Staggered animation
+            });
+
+            // Aggiorna le statistiche
+            const remainingJobs = document.querySelectorAll('.card-elevated:not(.step-completed)');
+            const runningCount = document.querySelectorAll('.step-running').length;
+            const queuedCount = document.querySelectorAll('.step-queued').length;
+            
+            this.updateStats({ 
+                completed: 0, 
+                running: runningCount, 
+                queued: queuedCount 
+            });
+
+            this.showNotification(
+                `✅ ${completedJobs.length} job completati rimossi dalla visualizzazione`,
+                'success'
+            );
+
+            // Se non ci sono più job, mostra lo stato vuoto
+            if (remainingJobs.length === 0) {
+                setTimeout(() => {
+                    this.renderEmptyState();
+                }, completedJobs.length * 100 + 500);
+            }
+
+        } catch (error) {
+            console.error('Errore durante la cancellazione:', error);
+            this.showNotification('Errore durante la cancellazione', 'destructive');
+        }
+    }
+
+    collapseImportSection() {
+        const importPanel = document.getElementById('importPanel');
+        const importPanelIcon = document.getElementById('importPanelIcon');
+        
+        if (importPanel && !importPanel.classList.contains('collapsed')) {
+            // Imposta l'altezza corrente prima di comprimere
+            importPanel.style.maxHeight = importPanel.scrollHeight + 'px';
+            if (importPanelIcon) importPanelIcon.classList.add('rotated');
+            
+            // Force reflow
+            importPanel.offsetHeight;
+            
+            // Anima verso 0
+            setTimeout(() => {
+                importPanel.classList.add('collapsed');
+            }, 10);
+        }
+    }
+
+    expandMonitoringSection() {
+        const jobsList = document.getElementById('jobsList');
+        const jobsListIcon = document.getElementById('jobsListIcon');
+        
+        if (jobsList && jobsList.classList.contains('collapsed')) {
+            // Prima calcola l'altezza reale del contenuto
+            jobsList.style.maxHeight = 'none';
+            const targetHeight = jobsList.scrollHeight;
+            jobsList.style.maxHeight = '0px';
+            
+            // Rimuovi la classe collapsed e anima verso l'altezza target
+            jobsList.classList.remove('collapsed');
+            if (jobsListIcon) jobsListIcon.classList.remove('rotated');
+            
+            // Force reflow per assicurare che l'animazione funzioni
+            jobsList.offsetHeight;
+            
+            // Anima verso l'altezza corretta
+            jobsList.style.maxHeight = targetHeight + 'px';
+            
+            // Dopo l'animazione, rimuovi la limitazione di altezza
+            setTimeout(() => {
+                if (!jobsList.classList.contains('collapsed')) {
+                    jobsList.style.maxHeight = 'none';
+                }
+            }, 400);
+        }
+    }
+
     async loadInitialJobs() {
         await this.loadJobs();
         await this.loadDatabaseStats();
+        await this.loadShortcodes(); // Carica anche i shortcode all'avvio
+    }
+
+    // ===========================
+    // GESTIONE SHORTCODE
+    // ===========================
+    
+    async loadShortcodes() {
+        try {
+            const response = await fetch(`${this.apiBaseUrl}/shortcodes/list`);
+            
+            if (!response.ok) {
+                throw new Error('Errore nel caricamento shortcode');
+            }
+
+            const data = await response.json();
+            this.shortcodes = data.shortcodes || [];
+            
+            this.renderShortcodesList();
+            this.updateShortcodeCounters();
+            
+        } catch (error) {
+            console.error('Errore nel caricamento shortcode:', error);
+            this.showNotification('Errore nel caricamento shortcode', 'destructive');
+            this.renderShortcodesError();
+        }
+    }
+
+    renderShortcodesList() {
+        const shortcodesList = document.getElementById('shortcodesList');
+        if (!shortcodesList) return;
+
+        if (this.shortcodes.length === 0) {
+            shortcodesList.innerHTML = `
+                <div class="text-center py-8 text-muted-foreground">
+                    <svg class="w-12 h-12 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+                        </path>
+                    </svg>
+                    <p>Nessun shortcode trovato</p>
+                    <p class="text-xs mt-1">Verifica che la directory MediaRicette contenga ricette</p>
+                </div>
+            `;
+            return;
+        }
+
+        const shortcodesHTML = this.shortcodes.map(shortcode => {
+            const isSelected = this.selectedShortcodes.has(shortcode.shortcode);
+            return `
+                <div class="flex items-center space-x-3 p-3 rounded-lg border border-oneui-surface-variant hover:bg-oneui-surface-variant transition-colors">
+                    <input 
+                        type="checkbox" 
+                        id="shortcode-${shortcode.shortcode}" 
+                        class="w-4 h-4 text-oneui-blue bg-oneui-surface border-oneui-surface-variant rounded focus:ring-oneui-blue focus:ring-2"
+                        ${isSelected ? 'checked' : ''}
+                        onchange="importManager.toggleShortcodeSelection('${shortcode.shortcode}')"
+                    >
+                    <div class="flex-1 min-w-0">
+                        <div class="font-mono text-sm font-medium text-oneui-darkblue truncate">
+                            ${shortcode.shortcode}
+                        </div>
+                        <div class="text-xs text-muted-foreground">
+                            ${shortcode.files_count} file
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <div class="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span class="text-xs text-green-600">Disponibile</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        shortcodesList.innerHTML = `
+            <div class="space-y-2">
+                ${shortcodesHTML}
+            </div>
+        `;
+    }
+
+    renderShortcodesError() {
+        const shortcodesList = document.getElementById('shortcodesList');
+        if (!shortcodesList) return;
+
+        shortcodesList.innerHTML = `
+            <div class="text-center py-8 text-red-600">
+                <svg class="w-12 h-12 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z">
+                    </path>
+                </svg>
+                <p>Errore nel caricamento shortcode</p>
+                <button onclick="importManager.loadShortcodes()" class="btn btn-outline mt-2 text-sm">
+                    Riprova
+                </button>
+            </div>
+        `;
+    }
+
+    toggleShortcodeSelection(shortcode) {
+        if (this.selectedShortcodes.has(shortcode)) {
+            this.selectedShortcodes.delete(shortcode);
+        } else {
+            this.selectedShortcodes.add(shortcode);
+        }
+        
+        this.updateShortcodeCounters();
+        this.updateReimportButton();
+    }
+
+    selectAllShortcodes() {
+        this.shortcodes.forEach(sc => this.selectedShortcodes.add(sc.shortcode));
+        this.renderShortcodesList();
+        this.updateShortcodeCounters();
+        this.updateReimportButton();
+    }
+
+    deselectAllShortcodes() {
+        this.selectedShortcodes.clear();
+        this.renderShortcodesList();
+        this.updateShortcodeCounters();
+        this.updateReimportButton();
+    }
+
+    updateShortcodeCounters() {
+        const selectedCount = document.getElementById('selectedCount');
+        const totalCount = document.getElementById('totalCount');
+        
+        if (selectedCount) selectedCount.textContent = this.selectedShortcodes.size;
+        if (totalCount) totalCount.textContent = this.shortcodes.length;
+    }
+
+    updateReimportButton() {
+        const reimportBtn = document.getElementById('reimportSelectedBtn');
+        if (!reimportBtn) return;
+
+        const hasSelection = this.selectedShortcodes.size > 0;
+        reimportBtn.disabled = !hasSelection;
+        
+        if (hasSelection) {
+            reimportBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            reimportBtn.classList.add('hover:shadow-md');
+        } else {
+            reimportBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            reimportBtn.classList.remove('hover:shadow-md');
+        }
+    }
+
+    async reimportSelectedShortcodes() {
+        if (this.selectedShortcodes.size === 0) {
+            this.showNotification('Seleziona almeno un shortcode', 'warning');
+            return;
+        }
+
+        const confirmResult = confirm(
+            `⚠️ Conferma Reimport\n\n` +
+            `Vuoi reimportare ${this.selectedShortcodes.size} shortcode selezionati?\n\n` +
+            `Questa operazione aggiornerà gli embedding per le ricette selezionate.`
+        );
+
+        if (!confirmResult) {
+            return;
+        }
+
+        try {
+            const shortcodesArray = Array.from(this.selectedShortcodes);
+            
+            const response = await fetch(`${this.apiBaseUrl}/shortcodes/reimport`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(shortcodesArray)
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.detail || 'Errore durante il reimport');
+            }
+
+            const result = await response.json();
+            
+            this.showNotification(
+                `✅ Reimport avviato per ${shortcodesArray.length} shortcode!\nJob ID: ${result.job_id}`,
+                'success'
+            );
+
+            // Deseleziona tutto dopo l'avvio
+            this.deselectAllShortcodes();
+            
+            // Aggiorna i job per mostrare il nuovo job
+            this.loadJobs();
+
+        } catch (error) {
+            console.error('Errore durante il reimport:', error);
+            this.showNotification(`Errore: ${error.message}`, 'destructive');
+        }
     }
     
     async loadDatabaseStats() {
@@ -244,16 +603,20 @@ class ImportManager {
     
     updateDatabaseStats(stats) {
         const { total_recipes = 0 } = stats;
-        this.elements.databaseCount.textContent = total_recipes;
-        
-        // Aggiorna anche il colore dell'icona del database in base al numero di ricette
-        const dbCard = this.elements.databaseCount.closest('.card-elevated');
-        if (dbCard) {
-            const icon = dbCard.querySelector('svg');
-            if (total_recipes > 0) {
-                icon.classList.add('animate-pulse-soft');
-            } else {
-                icon.classList.remove('animate-pulse-soft');
+        if (this.elements.databaseCount) {
+            this.elements.databaseCount.textContent = total_recipes;
+            
+            // Aggiorna anche il colore dell'icona del database in base al numero di ricette
+            const dbCard = this.elements.databaseCount.closest('.card-elevated');
+            if (dbCard) {
+                const icon = dbCard.querySelector('svg');
+                if (icon) {
+                    if (total_recipes > 0) {
+                        icon.classList.add('animate-pulse-soft');
+                    } else {
+                        icon.classList.remove('animate-pulse-soft');
+                    }
+                }
             }
         }
     }
@@ -458,17 +821,24 @@ class ImportManager {
             
             // Sezione URL dettagliata con step individuali evidenziati
             if (status === 'running' && urls.length > 0) {
-                const allUrls = urls.slice(0, 5); // Mostra fino a 5 URL
+                const allUrls = urls.slice(0, 10); // Mostra fino a 10 URL
                 if (allUrls.length > 0) {
                     progressSection += `
                         <div class="mt-4 space-y-3">
-                            <div class="flex items-center space-x-2">
-                                <div class="step-title-enhanced text-base">🔍 URL in Elaborazione</div>
-                                <div class="text-xs bg-oneui-lightblue text-oneui-darkblue px-2 py-1 rounded-full font-medium">
-                                    ${allUrls.length}/${total}
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-2">
+                                    <div class="step-title-enhanced text-base">🔍 URL in Elaborazione</div>
+                                    <div class="text-xs bg-oneui-lightblue text-oneui-darkblue px-2 py-1 rounded-full font-medium">
+                                        ${allUrls.length}/${total}
+                                    </div>
                                 </div>
+                                ${urls.length > 10 ? `
+                                    <div class="text-xs text-muted-foreground">
+                                        Mostra primi 10 di ${urls.length}
+                                    </div>
+                                ` : ''}
                             </div>
-                            <div class="space-y-2">
+                            <div class="max-h-64 overflow-y-auto space-y-2 pr-2 scrollbar-thin scrollbar-thumb-oneui-blue scrollbar-track-oneui-surface">
                                 ${allUrls.map((u, idx) => {
                                     const urlStageInfo = stageDescriptions[u.stage] || { name: u.stage || u.status, icon: '⏸️', desc: '' };
                                     let urlStatusClass = '';
@@ -522,10 +892,10 @@ class ImportManager {
                                     `;
                                 }).join('')}
                             </div>
-                            ${urls.length > 5 ? `
-                                <div class="text-center">
-                                    <div class="text-xs text-muted-foreground bg-muted px-3 py-1 rounded-full inline-block">
-                                        +${urls.length - 5} altri URL in coda
+                            ${urls.length > 10 ? `
+                                <div class="text-center pt-2 border-t border-oneui-surface-variant">
+                                    <div class="text-xs text-muted-foreground bg-oneui-surface-variant px-3 py-1 rounded-full inline-block">
+                                        +${urls.length - 10} altri URL in coda
                                     </div>
                                 </div>
                             ` : ''}
@@ -669,9 +1039,9 @@ class ImportManager {
     }
 
     updateStats({ completed, running, queued }) {
-        this.elements.completedCount.textContent = completed;
-        this.elements.runningCount.textContent = running;
-        this.elements.queuedCount.textContent = queued;
+        if (this.elements.completedCount) this.elements.completedCount.textContent = completed;
+        if (this.elements.runningCount) this.elements.runningCount.textContent = running;
+        if (this.elements.queuedCount) this.elements.queuedCount.textContent = queued;
     }
 
     // Gestione intelligente del refresh
@@ -724,6 +1094,8 @@ class ImportManager {
 
     setSubmitLoading(loading) {
         const btn = this.elements.submitBtn;
+        if (!btn) return;
+        
         if (loading) {
             btn.disabled = true;
             btn.className = 'btn bg-oneui-blue text-white hover:bg-oneui-darkblue h-11 px-6 shadow-lg opacity-70';
@@ -747,14 +1119,18 @@ class ImportManager {
 
     setRefreshLoading(loading) {
         const btn = this.elements.refreshBtn;
+        if (!btn) return;
+        
         if (loading) {
             btn.disabled = true;
             btn.className = 'btn btn-secondary bg-material-surface-container h-9 px-4 opacity-50';
-            btn.querySelector('svg').classList.add('animate-spin');
+            const svg = btn.querySelector('svg');
+            if (svg) svg.classList.add('animate-spin');
         } else {
             btn.disabled = false;
             btn.className = 'btn btn-secondary h-9 px-4 hover:shadow-md';
-            btn.querySelector('svg').classList.remove('animate-spin');
+            const svg = btn.querySelector('svg');
+            if (svg) svg.classList.remove('animate-spin');
         }
     }
 
@@ -1060,6 +1436,7 @@ function initializeCollapsibleState() {
 let importManager;
 document.addEventListener('DOMContentLoaded', () => {
     importManager = new ImportManager();
+    window.importManager = importManager; // Rendi disponibile globalmente
     initializeCollapsibleState();
 });
 
