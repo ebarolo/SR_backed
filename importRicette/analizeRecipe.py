@@ -2,7 +2,6 @@
 import os
 import base64
 import asyncio
-import re
 import json
 import requests
 
@@ -37,7 +36,7 @@ def read_prompt_files(file_name: str, **kwargs) -> str:
     """
     try:
         # Costruisci il percorso completo del file
-        file_path = os.path.join("static", "PROMPT", file_name)
+        file_path = os.path.join("static", "prompt", file_name)
 
         # Leggi il contenuto del file
         with open(file_path, "r", encoding="utf-8") as file:
@@ -119,8 +118,8 @@ async def extract_recipe_info( recipe_audio_text: str, recipe_caption_text: str,
     }
 
     # Leggi e popola i prompt in modo dinamico
-    user_prompt = read_prompt_files("prompt_user_TXT.txt", **replacements)
-    system_prompt = read_prompt_files("prompt_system.txt", **replacements)
+    user_prompt = read_prompt_files("prt_analyRecipe_user.txt", **replacements)
+    system_prompt = read_prompt_files("prt_analyRecipe_system.txt", **replacements)
         
     try:
         
@@ -314,7 +313,7 @@ async def generateRecipeImages(ricetta: dict, shortcode: str):
      }
 
      # Leggi e popola i prompt in modo dinamico
-     image_prompt = read_prompt_files("prompt_immagini_ricetta.txt", **replacements)
+     image_prompt = read_prompt_files("prt_imgRecipe_user.txt", **replacements)
 
      try:
         
