@@ -96,7 +96,8 @@ def add_recipes_elysia(recipe_data: List[RecipeDBSchema]) -> bool:
                         for ingredient in recipe.ingredients:
                             try:
                                 normalized_name = nfkc(getattr(ingredient, 'name', '') or '')
-                                cleaned_name = remove_stopwords_spacy(normalized_name)
+                                #cleaned_name = remove_stopwords_spacy(normalized_name)
+                                cleaned_name = normalized_name
                                 qt = getattr(ingredient, 'qt', None)
                                 um = getattr(ingredient, 'um', '') or ''
                                 # Rappresentazione compatta della quantità, senza zeri superflui
@@ -116,7 +117,8 @@ def add_recipes_elysia(recipe_data: List[RecipeDBSchema]) -> bool:
                     cats_lem = []
                     for category in recipe.category:
                         normalized_cat = nfkc(category)
-                        cleaned_cat = remove_stopwords_spacy(normalized_cat)
+                        #cleaned_cat = remove_stopwords_spacy(normalized_cat)
+                        cleaned_cat = normalized_cat
                         cats_lem.append(cleaned_cat)
 
                     # Crea testo strutturato per embedding
