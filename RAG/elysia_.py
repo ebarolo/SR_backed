@@ -10,6 +10,8 @@ Version: 0.7
 """
 
 from typing import List, Dict, Any, Optional
+import asyncio
+import threading
 import uuid as uuid_lib
 import logging
 
@@ -32,6 +34,9 @@ from elysia import (
     preprocess,
     preprocessed_collection_exists,
     Tree
+)
+from elysia.preprocessing.collection import (
+    preprocessed_collection_exists_async,
 )
 from elysia.util.client import ClientManager
 
@@ -83,16 +88,29 @@ def add_recipes_elysia(recipe_data: List[RecipeDBSchema]) -> bool:
             # Processa ogni ricetta
             for recipe in recipe_data:
                 try:
-                    # Normalizza e processa ingredienti (rimuove stopwords)
-                    ingr_lem = recipe.ingredients.copy() if recipe.ingredients else []
-                    for index, ingredient in enumerate(recipe.ingredients, start=1):
-                        if hasattr(ingredient, 'name'):
-                            # Normalizza nome ingrediente
-                            normalized_name = nfkc(ingredient.name)
-                            # Rimuove stopwords
-                            cleaned_name = remove_stopwords_spacy(normalized_name)
-                            if index <= len(ingr_lem):
-                                ingr_lem[index-1].name = cleaned_name
+                    # Normalizza e processa ingredienti (rimuove stopwords) -> lista di stringhe serializzabili
+                    # N.B.: Weaviate non può serializzare oggetti Pydantic. Convertiamo in stringhe semplici.
+                    # Formato: "{qt} {um} {name}" (es. "100 g pomodori")
+                    ingredients_text: List[str] = []
+                    if recipe.ingredients:
+                        for ingredient in recipe.ingredients:
+                            try:
+                                normalized_name = nfkc(getattr(ingredient, 'name', '') or '')
+                                cleaned_name = remove_stopwords_spacy(normalized_name)
+                                qt = getattr(ingredient, 'qt', None)
+                                um = getattr(ingredient, 'um', '') or ''
+                                # Rappresentazione compatta della quantità, senza zeri superflui
+                                qt_str = (
+                                    (f"{float(qt):g}" if qt is not None else "").strip()
+                                )
+                                parts = [p for p in [qt_str, um.strip(), cleaned_name.strip()] if p]
+                                ingredients_text.append(" ".join(parts))
+                            except Exception:
+                                # In caso di ingrediente malformato, fallback al semplice str()
+                                try:
+                                    ingredients_text.append(str(ingredient))
+                                except Exception:
+                                    pass
                     
                     # Normalizza categorie
                     cats_lem = []
@@ -105,7 +123,7 @@ def add_recipes_elysia(recipe_data: List[RecipeDBSchema]) -> bool:
                     document_text = (
                         f"Titolo: {recipe.title}\n"
                         f"Descrizione: {recipe.description}\n"
-                        f"Ingredienti: {'; '.join([str(ing) for ing in ingr_lem])}\n"
+                        f"Ingredienti: {'; '.join(ingredients_text)}\n"
                         f"Categoria: {'; '.join(cats_lem)}\n"
                     )
 
@@ -113,8 +131,9 @@ def add_recipes_elysia(recipe_data: List[RecipeDBSchema]) -> bool:
                     recipe_object = {
                         "title": recipe.title,
                         "description": recipe.description,
-                        "ingredients": ingr_lem,
-                        "category": cats_lem,
+                        # Importante: usare tipi nativi JSON (stringhe) per Weaviate
+                        "ingredients": ingredients_text,
+                        "category": recipe.category,
                         "cuisine_type": recipe.cuisine_type or "",
                         "diet": recipe.diet or "",
                         "technique": recipe.technique or "",
@@ -155,7 +174,23 @@ def add_recipes_elysia(recipe_data: List[RecipeDBSchema]) -> bool:
                     })
             
             # Preprocessa collection con Elysia per ottimizzare ricerca
-            respPreprocess = preprocess(ELYSIA_COLLECTION_NAME)
+            # Nota: il wrapper sincrono di Elysia usa nest_asyncio e fallisce con uvloop.
+            # Se c'è un loop in esecuzione, eseguiamo il preprocess in un thread separato.
+            def _run_preprocess_sync():
+                try:
+                    preprocess(ELYSIA_COLLECTION_NAME)
+                except Exception as _e:
+                    logging.error(f"❌ Errore preprocessing collection (thread): {_e}")
+
+            try:
+                asyncio.get_running_loop()
+                t = threading.Thread(target=_run_preprocess_sync, daemon=True)
+                t.start()
+                t.join()
+            except RuntimeError:
+                # Nessun loop attivo: possiamo chiamare direttamente
+                preprocess(ELYSIA_COLLECTION_NAME)
+
             logging.info(f"✅ Collection preprocessata con Elysia")
             status = True
     except Exception as e:
@@ -164,8 +199,31 @@ def add_recipes_elysia(recipe_data: List[RecipeDBSchema]) -> bool:
         error_logger.log_exception("add_recipes_elysia", e, {})
         status = False
     finally:
-        # Chiude connessione
-        client_manager.close()
+        # Chiude connessione Weaviate per evitare ResourceWarning
+        try:
+            # Se possibile chiudiamo il client sincrono usato nel contesto
+            # Nota: il context manager di ClientManager non chiude automaticamente il client
+            with client_manager.connect_to_client() as client:
+                try:
+                    client.close()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        # Proviamo anche a chiudere i client gestiti dal manager (best-effort)
+        try:
+            # Evita problemi con loop attivo: esegui in thread separato
+            def _close_clients():
+                try:
+                    import asyncio as _a
+                    _a.run(client_manager.close_clients())
+                except Exception:
+                    pass
+            th = threading.Thread(target=_close_clients, daemon=True)
+            th.start()
+            th.join(timeout=2)
+        except Exception:
+            pass
         return status
 
 
@@ -195,10 +253,38 @@ def search_recipes_elysia(query: str, limit: int = 10) -> tuple[Any, Any]:
             openai_api_key=OPENAI_API_KEY
         )
 
-        # Verifica preprocessing collection
-        if not preprocessed_collection_exists(ELYSIA_COLLECTION_NAME):
+        # Verifica preprocessing collection in modo compatibile con uvloop
+        def _exists_sync() -> bool:
+            try:
+                return preprocessed_collection_exists(ELYSIA_COLLECTION_NAME)
+            except Exception:
+                return False
+
+        exists: bool = False
+        try:
+            asyncio.get_running_loop()
+            res: Dict[str, Any] = {}
+            def _check():
+                res["exists"] = _exists_sync()
+            t = threading.Thread(target=_check, daemon=True)
+            t.start(); t.join()
+            exists = bool(res.get("exists", False))
+        except RuntimeError:
+            exists = _exists_sync()
+
+        if not exists:
             logging.info("Collection non preprocessata, avvio preprocessing...")
-            preprocess(ELYSIA_COLLECTION_NAME)
+            def _run_preprocess_sync():
+                try:
+                    preprocess(ELYSIA_COLLECTION_NAME)
+                except Exception as _e:
+                    logging.error(f"❌ Errore preprocessing collection (thread): {_e}")
+            try:
+                asyncio.get_running_loop()
+                t = threading.Thread(target=_run_preprocess_sync, daemon=True)
+                t.start(); t.join()
+            except RuntimeError:
+                preprocess(ELYSIA_COLLECTION_NAME)
 
         # Esegue ricerca con Elysia Tree (AI search)
         tree = Tree()
