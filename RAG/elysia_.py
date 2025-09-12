@@ -66,9 +66,9 @@ def add_recipes_elysia(recipe_data: List[RecipeDBSchema]) -> bool:
         configure(
             wcd_url=WCD_URL,
             wcd_api_key=WCD_API_KEY,
-            base_model="gpt-5-mini",
+            base_model="gpt-4.1",
             base_provider="openai",
-            complex_model="gpt-5",
+            complex_model="gpt-4.1",
             complex_provider="openai",
             openai_api_key=OPENAI_API_KEY
         )
@@ -133,7 +133,7 @@ def add_recipes_elysia(recipe_data: List[RecipeDBSchema]) -> bool:
                         "description": recipe.description,
                         # Importante: usare tipi nativi JSON (stringhe) per Weaviate
                         "ingredients": ingredients_text,
-                        "category": cats_lem,
+                        "category": recipe.category,
                         "cuisine_type": recipe.cuisine_type or "",
                         "diet": recipe.diet or "",
                         "technique": recipe.technique or "",
