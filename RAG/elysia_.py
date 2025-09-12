@@ -25,7 +25,7 @@ from config import (
 
 # Import utility e modelli
 from logging_config import get_error_logger
-from utility import nfkc, remove_stopwords_spacy
+from utility import normalize_text
 from models import RecipeDBSchema
 
 # Import Elysia SDK
@@ -35,9 +35,7 @@ from elysia import (
     preprocessed_collection_exists,
     Tree
 )
-from elysia.preprocessing.collection import (
-    preprocessed_collection_exists_async,
-)
+
 from elysia.util.client import ClientManager
 
 # Import Weaviate
@@ -77,9 +75,7 @@ def add_recipes_elysia(recipe_data: List[RecipeDBSchema]) -> bool:
 
         with client_manager.connect_to_client() as client:
             # Verifica/crea collection in Weaviate
-            if client.collections.exists(ELYSIA_COLLECTION_NAME):
-                logging.info(f"Collection '{ELYSIA_COLLECTION_NAME}' già esistente")
-            else:
+            if not client.collections.exists(ELYSIA_COLLECTION_NAME):
                 client.collections.create(ELYSIA_COLLECTION_NAME)
                 logging.info(f"Collection '{ELYSIA_COLLECTION_NAME}' creata con successo")
 
@@ -95,15 +91,15 @@ def add_recipes_elysia(recipe_data: List[RecipeDBSchema]) -> bool:
                     if recipe.ingredients:
                         for ingredient in recipe.ingredients:
                             try:
-                                normalized_name = nfkc(getattr(ingredient, 'name', '') or '')
-                                cleaned_name = remove_stopwords_spacy(normalized_name)
-                                qt = getattr(ingredient, 'qt', None)
+                                normalized_name = normalize_text(getattr(ingredient, 'name', '') or '')
+                                #cleaned_name = remove_stopwords_spacy(normalized_name)
+                                qt = getattr(ingredient, 'qt', '')
                                 um = getattr(ingredient, 'um', '') or ''
                                 # Rappresentazione compatta della quantità, senza zeri superflui
                                 qt_str = (
                                     (f"{float(qt):g}" if qt is not None else "").strip()
                                 )
-                                parts = [p for p in [qt_str, um.strip(), cleaned_name.strip()] if p]
+                                parts = [p for p in [qt_str, um.strip(), normalized_name.strip()] if p]
                                 ingredients_text.append(" ".join(parts))
                             except Exception:
                                 # In caso di ingrediente malformato, fallback al semplice str()
@@ -112,39 +108,54 @@ def add_recipes_elysia(recipe_data: List[RecipeDBSchema]) -> bool:
                                 except Exception:
                                     pass
                     
-                    # Normalizza categorie
-                    cats_lem = []
+                    # Normalizza categorie (tollerante a None)
+                    
+                    cats_lem: List[str] = []
                     for category in recipe.category:
-                        normalized_cat = nfkc(category)
-                        cleaned_cat = remove_stopwords_spacy(normalized_cat)
-                        cats_lem.append(cleaned_cat)
+                        logging.info(f"category '{category}'")
+                        normalized_cat = normalize_text(category)
+                        logging.info(f"normalized_cat '{normalized_cat}'")
+                        #cleaned_cat = remove_stopwords_spacy(normalized_cat)
+                        if normalized_cat:
+                            cats_lem.append(normalized_cat)
+                        logging.info(f"cats_lem '{cats_lem}'")
+            
 
-                    # Crea testo strutturato per embedding
-                    document_text = (
-                        f"Titolo: {recipe.title}\n"
-                        f"Descrizione: {recipe.description}\n"
-                        f"Ingredienti: {'; '.join(ingredients_text)}\n"
-                        f"Categoria: {'; '.join(cats_lem)}\n"
-                    )
+                    tags_lem: List[str] = []
+                    for tag in recipe.tags:
+                        logging.info(f"tag '{tag}'")
+                        normalized_tag = normalize_text(tag)
+                        logging.info(f"normalized_tag '{normalized_tag}'")
+                        #cleaned_cat = remove_stopwords_spacy(normalized_cat)
+                        if normalized_tag:
+                            tags_lem.append(normalized_tag)
+                    
+                    nutr_lem: List[str] = []
+                    for nutr in recipe.nutritional_info:
+                        logging.info(f"nutr '{nutr}'")
+                        normalized_nutr = normalize_text(nutr)
+                        logging.info(f"normalized_tag '{normalized_nutr}'")
+                        #cleaned_cat = remove_stopwords_spacy(normalized_cat)
+                        if normalized_nutr:
+                            nutr_lem.append(normalized_nutr)
 
-                    # Prepara oggetto per Weaviate
+                    # Prepara oggetto per Weaviate con tipi sicuri (no None)
                     recipe_object = {
-                        "title": recipe.title,
-                        "description": recipe.description,
-                        # Importante: usare tipi nativi JSON (stringhe) per Weaviate
+                        "title": recipe.title or "",
+                        "description": recipe.description or "",
                         "ingredients": ingredients_text,
-                        "category": recipe.category,
+                        "category": cats_lem,
                         "cuisine_type": recipe.cuisine_type or "",
                         "diet": recipe.diet or "",
                         "technique": recipe.technique or "",
-                        "language": recipe.language,
+                        "language": recipe.language or "",
                         "shortcode": recipe.shortcode,
                         "cooking_time": recipe.cooking_time or 0,
                         "preparation_time": recipe.preparation_time or 0,
                         "chef_advise": recipe.chef_advise or "",
-                        "tags": recipe.tags or [],
-                        "nutritional_info": recipe.nutritional_info or [],
-                        "recipe_step": recipe.recipe_step
+                        "tags": tags_lem,
+                        "nutritional_info": nutr_lem,
+                        "recipe_step": recipe.recipe_step,
                     }
                     
                     # Genera UUID deterministico dal shortcode per evitare duplicati
@@ -166,12 +177,6 @@ def add_recipes_elysia(recipe_data: List[RecipeDBSchema]) -> bool:
                 except Exception as e:
                     # Log errore per singola ricetta (non blocca le altre)
                     logging.error(f"❌ Errore inserimento ricetta {recipe.shortcode}: {str(e)}")
-                    error_logger.log_exception("add_recipe_elysia", e, {
-                        "shortcode": recipe.shortcode,
-                        "title": recipe.title,
-                        "ingredients_count": len(recipe.ingredients) if recipe.ingredients else 0,
-                        "categories_count": len(recipe.category) if recipe.category else 0
-                    })
             
             # Preprocessa collection con Elysia per ottimizzare ricerca
             # Nota: il wrapper sincrono di Elysia usa nest_asyncio e fallisce con uvloop.
@@ -191,7 +196,7 @@ def add_recipes_elysia(recipe_data: List[RecipeDBSchema]) -> bool:
                 # Nessun loop attivo: possiamo chiamare direttamente
                 preprocess(ELYSIA_COLLECTION_NAME)
 
-            logging.info(f"✅ Collection preprocessata con Elysia")
+            
             status = True
     except Exception as e:
         # Log errore generale

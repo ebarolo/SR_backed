@@ -21,6 +21,7 @@ from functools import wraps
 # Import librerie NLP
 from transformers import AutoTokenizer
 import spacy
+import it_core_news_lg
 
 # Import configurazione e logging
 from config import BASE_FOLDER_RICETTE, EMBEDDING_MODEL
@@ -29,7 +30,7 @@ from logging_config import get_error_logger
 # Inizializzazioni
 error_logger = get_error_logger(__name__)
 _tokenizer_cache = {}  # Cache per tokenizer
-nlp_it = spacy.load("it_core_news_lg")  # Modello spaCy italiano 
+nlp_it = it_core_news_lg.load()
 
 def sanitize_text(text: str) -> str:
     """
@@ -99,6 +100,17 @@ def nfkc(s: str) -> str:
     s = s.casefold().strip()
     s = re.sub(r"\s+", " ", s)  # Collassa spazi multipli
     return s
+
+def normalize_text(txt: str) -> str:
+    doc = nlp_it(txt)
+    # Lemmatize tokens
+    lemma_list = [token.lemma_ for token in doc]
+    # Remove stop words
+    filtered_sentence = [word for word in lemma_list if not nlp_it.vocab[word].is_stop]
+    # Remove punctuations
+    punctuations = "?:!.,;"
+    filtered_sentence = [word for word in filtered_sentence if word not in punctuations]
+    return filtered_sentence
 
 def remove_stopwords_spacy(text: str) -> str:
     """

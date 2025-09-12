@@ -23,9 +23,8 @@ Receive recipe text and (optional) transcript. Sanitize input, extract and struc
    - For valid input, extract:
      - `category` (antipasto, primo, secondo, contorno, dolce, bevanda; otherwise "")
      - `cuisine_type` (italiana, francese, cinese, giappoinese, mediterranea, internazionale, medioevale, moderna, tradizionale, etnica; otherwise "")
-     - `ingredients` list (preserve order, if no quantity and unit of measure, estimate the quantity for 2 people)
+     - `ingredients` list (preserve order, normalize the ingredients name with spaCy model it_core_news_lg, if no quantity and unit of measure, estimate the quantity for 2 people)
      - `steps` list (preserve order)
-     - `notes` as string or empty
      - `numer_person` as integer
      - `diet` as string (vegano, vegetarian, gluten-free, mediterranea; otherwise "")
      - `description` just an overview of the recipe, no story or other text.
