@@ -49,7 +49,7 @@ CHROMADB_AVAILABLE = False
 
 # Percorso per il database ChromaDB locale (se None, usa in-memory)
 CHROMA_LOCAL_PATH = os.getenv("CHROMA_LOCAL_PATH", os.path.join(os.getcwd(), "chroma_db"))
-COLLECTION_NAME = "SmartRecipe"
+CHROMA_COLLECTION_NAME = "SmartRecipe"
 
 # -------------------------------
 # Configurazione Weaviate/Elysia 
@@ -59,5 +59,6 @@ WCD_URL = os.getenv("WCD_URL")
 WCD_API_KEY = os.getenv("WCD_API_KEY")
 
 # Configurazione Elysia
-ELYSIA_AVAILABLE = True
-ELYSIA_COLLECTION_NAME = os.getenv("ELYSIA_COLLECTION_NAME", "Recipe_Vector")
+ELYSIA_AVAILABLE = False
+WCD_AVAILABLE = True
+WCD_COLLECTION_NAME = os.getenv("ELYSIA_COLLECTION_NAME", "Recipe_Vector")

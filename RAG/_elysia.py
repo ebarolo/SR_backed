@@ -133,7 +133,6 @@ def add_recipes_elysia(recipe_data: List[RecipeDBSchema]) -> bool:
                     recipe_object = {
                         "title": recipe.title,
                         "description": recipe.description,
-                        # Importante: usare tipi nativi JSON (stringhe) per Weaviate
                         "ingredients": ingredients_text,
                         "category": recipe.category,
                         "cuisine_type": recipe.cuisine_type or "",
@@ -227,7 +226,6 @@ def add_recipes_elysia(recipe_data: List[RecipeDBSchema]) -> bool:
         except Exception:
             pass
         return status
-
 
 def search_recipes_elysia(query: str, limit: int = 10) -> tuple[Any, Any]:
     """
