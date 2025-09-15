@@ -5,7 +5,6 @@ Testa tutte le funzionalità della classe per la gestione
 delle collection Weaviate e la ricerca semantica.
 
 Author: Smart Recipe Team
-Version: 0.7
 """
 
 import pytest
