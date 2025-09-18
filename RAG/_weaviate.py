@@ -1,7 +1,9 @@
 import os
 import sys
 import weaviate
-import weaviate.classes.config as wvc
+from weaviate.classes.init import Auth
+from weaviate.classes.config import Configure, Property, DataType
+
 from typing import List, Dict, Any, Optional
 import logging
 import uuid as uuid_lib
@@ -22,10 +24,10 @@ class WeaviateSemanticEngine:
         
         try:
             # Configurazione client Weaviate
-            self.client = weaviate.Client(
-                url=WCD_URL,
-                auth_client_secret=weaviate.AuthApiKey(api_key=WCD_API_KEY),
-                additional_headers={"X-OpenAI-Api-Key": os.getenv("OPENAI_API_KEY")}
+            self.client = weaviate.connect_to_weaviate_cloud(
+                cluster_url=WCD_URL,
+                auth_credentials=Auth.api_key(WCD_API_KEY),
+                headers={"X-OpenAI-Api-Key": os.getenv("OPENAI_API_KEY")}
             )
             
             # Verifica connessione
@@ -412,7 +414,7 @@ class WeaviateSemanticEngine:
                 logger.error(f"Collection '{collection_name}' non esiste")
                 return False
             
-            collection = self.client.collections.get(collection_name)
+            collection = self.client.collections.use(collection_name)
             
             # Converte ingredienti in lista di stringhe
             ingredients_text = []
@@ -602,60 +604,3 @@ class WeaviateSemanticEngine:
         if hasattr(self, 'client'):
             self.client = None
             logger.info("Connessione Weaviate chiusa")
-
-# Funzione di utilità per uso rapido
-def quick_semantic_search(query: str, limit: int = 10) -> List[Dict[str, Any]]:
-    """
-    Funzione di utilità per una ricerca semantica rapida
-    
-    Args:
-        query: Testo della query
-        limit: Numero massimo di risultati
-        
-    Returns:
-        Lista di risultati
-    """
-    searcher = WeaviateSemanticEngine()
-    try:
-        return searcher.semantic_search(query, limit)
-    finally:
-        searcher.close()
-
-# Esempio di utilizzo
-if __name__ == "__main__":
-    try:
-        # Inizializza il searcher
-        searcher = WeaviateSemanticEngine()
-        
-        # Crea la collection se non esiste
-        print("Creazione/verifica collection...")
-        searcher.create_collection()
-        
-        # Statistiche collection
-        print("\nStatistiche collection:")
-        stats = searcher.get_collection_stats()
-        for key, value in stats.items():
-            print(f"   {key}: {value}")
-        
-        # Esempio di ricerca semantica
-        query = "ricetta pasta carbonara"
-        results = searcher.semantic_search(query, limit=5)
-        
-        print(f"\nRisultati per '{query}':")
-        for i, result in enumerate(results, 1):
-            print(f"\n{i}. Distanza: {result.get('_additional', {}).get('distance', 'N/A')}")
-            # Stampa le proprietà disponibili
-            for key, value in result.items():
-                if key != '_additional':
-                    print(f"   {key}: {value}")
-        
-        # Info sulla collection
-        print(f"\nInfo collection:")
-        info = searcher.get_collection_info()
-        for key, value in info.items():
-            print(f"   {key}: {value}")
-        
-        searcher.close()
-        
-    except Exception as e:
-        print(f"Errore: {e}")

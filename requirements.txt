@@ -46,7 +46,7 @@ grpcio-tools==1.74.0
 grpcio-status==1.74.0
 protobuf==6.32.0
 elysia-ai==0.2.6
-weaviate-client==4.16.9
+weaviate-client==4.16.10
 
 # Langchain
 langchain>=0.3.27

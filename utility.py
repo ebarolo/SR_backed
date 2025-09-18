@@ -21,7 +21,6 @@ from functools import wraps
 # Import librerie NLP
 from transformers import AutoTokenizer
 import spacy
-import it_core_news_lg
 
 # Import configurazione e logging
 from config import BASE_FOLDER_RICETTE, EMBEDDING_MODEL
@@ -30,7 +29,7 @@ from logging_config import get_error_logger
 # Inizializzazioni
 error_logger = get_error_logger(__name__)
 _tokenizer_cache = {}  # Cache per tokenizer
-nlp_it = it_core_news_lg.load()
+nlp_it = spacy.load("it_core_news_lg")
 
 def sanitize_text(text: str) -> str:
     """
@@ -288,3 +287,167 @@ def ensure_text_within_token_limit(text: str) -> str:
     except Exception as e:
         error_logger.log_exception("token_check", e, {"model_name": model_name})
         return text
+
+# ===============================
+# GESTIONE JOB E PROGRESSO
+# ===============================
+
+def extract_shortcode_from_url(url: str) -> str:
+    """
+    Estrae shortcode/ID da URL video di diverse piattaforme.
+    
+    Supporta:
+    - Instagram (p/, reel/, tv/)
+    - YouTube (v=, youtu.be/)
+    - Altri URL (ultima parte del path)
+    
+    Args:
+        url: URL video da analizzare
+        
+    Returns:
+        Shortcode/ID estratto o "unknown" se non trovato
+    """
+    try:
+        url_lower = url.lower()
+        
+        if "instagram.com" in url_lower:
+            # Estrai shortcode da URL Instagram
+            url_parts = url.split("/")
+            for i_part, part in enumerate(url_parts):
+                if part in ["p", "reel", "tv"] and i_part + 1 < len(url_parts):
+                    return url_parts[i_part + 1]
+        elif "youtube.com" in url_lower or "youtu.be" in url_lower:
+            # Estrai video ID da URL YouTube
+            if "v=" in url:
+                return url.split("v=")[1].split("&")[0]
+            elif "youtu.be/" in url:
+                return url.split("youtu.be/")[1].split("?")[0]
+        else:
+            # Per altri URL, usa l'ultima parte del path
+            return url.split("/")[-1].split("?")[0]
+            
+    except Exception:
+        pass
+    
+    return "unknown"
+
+def calculate_job_percentage(progress: dict, total: int) -> float:
+    """
+    Calcola la percentuale di completamento del job.
+    
+    Args:
+        progress: Dizionario progresso con urls
+        total: Numero totale URL da processare
+        
+    Returns:
+        Percentuale calcolata (0-90% per fase URL)
+    """
+    try:
+        url_entries = progress.get("urls") or []
+        if total <= 0:
+            return 0.0
+        
+        local_sum = sum(float(u.get("local_percent", 0.0)) for u in url_entries)
+        # 0..90% per fase URL
+        return round(min(90.0, (local_sum / (100.0 * max(1, total))) * 90.0), 2)
+    except Exception:
+        return float(progress.get("percentage", 0.0) or 0.0)
+
+def create_progress_callback(progress: dict, url_index: int, total: int):
+    """
+    Crea callback per aggiornamento progresso URL.
+    
+    Args:
+        progress: Dizionario progresso
+        url_index: Indice URL corrente (0-based)
+        total: Numero totale URL
+        
+    Returns:
+        Funzione callback per aggiornamento progresso
+    """
+    def _callback(event: dict):
+        try:
+            stage = event.get("stage")
+            local_percent = float(event.get("local_percent", 0.0))
+            
+            if 0 <= url_index < len(progress.get("urls", [])):
+                url_entry = progress["urls"][url_index]
+                
+                # Aggiorna stato solo se non già completato
+                if url_entry.get("status") not in ("success", "failed"):
+                    url_entry["status"] = "running"
+                
+                if stage:
+                    url_entry["stage"] = stage
+                    
+                url_entry["local_percent"] = local_percent
+                
+                # Gestisci errori
+                if stage == "error" and "message" in event:
+                    url_entry["error"] = str(event.get("message"))
+                    url_entry["status"] = "failed"
+                
+                # Ricalcola percentuale totale
+                progress["percentage"] = calculate_job_percentage(progress, total)
+                
+        except Exception:
+            pass  # Non loggiamo errori minori di callback
+    
+    return _callback
+
+def update_url_progress(progress: dict, url_index: int, status: str, stage: str = None, 
+                       local_percent: float = None, error: str = None):
+    """
+    Aggiorna il progresso di un singolo URL.
+    
+    Args:
+        progress: Dizionario progresso
+        url_index: Indice URL (0-based)
+        status: Nuovo stato URL
+        stage: Fase corrente (opzionale)
+        local_percent: Percentuale locale (opzionale)
+        error: Messaggio errore (opzionale)
+    """
+    try:
+        if 0 <= url_index < len(progress.get("urls", [])):
+            url_entry = progress["urls"][url_index]
+            url_entry["status"] = status
+            
+            if stage is not None:
+                url_entry["stage"] = stage
+            if local_percent is not None:
+                url_entry["local_percent"] = local_percent
+            if error is not None:
+                url_entry["error"] = error
+                
+    except Exception:
+        pass  # Non loggiamo errori minori di aggiornamento
+
+def save_recipe_metadata(recipe_data, base_folder: str) -> bool:
+    """
+    Salva i metadati della ricetta in file JSON.
+    
+    Args:
+        recipe_data: Oggetto ricetta con metadati
+        base_folder: Cartella base per salvataggio
+        
+    Returns:
+        True se salvato con successo, False altrimenti
+    """
+    try:
+        import json
+        filename = os.path.join(
+            base_folder, 
+            recipe_data.shortcode, 
+            "media_original", 
+            f"metadata_{recipe_data.shortcode}.json"
+        )
+        
+        with open(filename, 'w', encoding='utf-8') as f:
+            json.dump(recipe_data.model_dump(), f, indent=1, ensure_ascii=False)
+        
+        return True
+        
+    except Exception as e:
+        error_logger.log_exception("save_metadata", e, {"shortcode": recipe_data.shortcode})
+        return False

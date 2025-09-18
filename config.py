@@ -54,11 +54,10 @@ CHROMA_COLLECTION_NAME = "SmartRecipe"
 # -------------------------------
 # Configurazione Weaviate/Elysia 
 # -------------------------------
-# URL del cluster Weaviate (es. https://your-cluster.weaviate.network)
 WCD_URL = os.getenv("WCD_URL")
 WCD_API_KEY = os.getenv("WCD_API_KEY")
 
 # Configurazione Elysia
 ELYSIA_AVAILABLE = False
 WCD_AVAILABLE = True
-WCD_COLLECTION_NAME = os.getenv("ELYSIA_COLLECTION_NAME", "Recipe_Vector")
+WCD_COLLECTION_NAME = os.getenv("WCD_COLLECTION_NAME", "Recipe_Vector")

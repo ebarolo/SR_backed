@@ -1,7 +1,7 @@
 import logging
 import traceback
 import inspect
-from pythonjsonlogger import jsonlogger
+from pythonjsonlogger.json import JsonFormatter
 import contextvars
 import os
 from typing import Optional, Dict, Any
@@ -208,7 +208,7 @@ def setup_logging(level: str | None = None, json_file_path: str | None = None, c
     # JSON file handler - structured logs with full context
     if json_mode == "array":
         file_handler = JSONArrayFileHandler(json_path, encoding="utf-8", array_indent=2)
-        json_fmt = jsonlogger.JsonFormatter(
+        json_fmt = JsonFormatter(
             fmt=(
                 "%(asctime)s %(levelname)s %(name)s %(message)s "
                 "%(request_id)s %(job_id)s %(pathname)s %(lineno)d "
@@ -219,7 +219,7 @@ def setup_logging(level: str | None = None, json_file_path: str | None = None, c
         )
     else:
         file_handler = logging.FileHandler(json_path, encoding="utf-8")
-        json_fmt = jsonlogger.JsonFormatter(
+        json_fmt = JsonFormatter(
             fmt=(
                 "%(asctime)s %(levelname)s %(name)s %(message)s "
                 "%(request_id)s %(job_id)s %(pathname)s %(lineno)d "

@@ -1,19 +1,6 @@
-"""
-Smart Recipe API - Sistema di gestione ricette con ricerca semantica.
-
-Questo modulo implementa il backend FastAPI per Smart Recipe, un sistema
-di gestione ricette che utilizza Weaviate/Elysia per la ricerca semantica
-e OpenAI GPT-5 per l'elaborazione intelligente delle ricette.
-
-Author: Smart Recipe Team
-Version: 0.7
-"""
-
 # Import FastAPI e middleware
 from fastapi import FastAPI, HTTPException, status, BackgroundTasks, Request
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
-from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 # Import standard library
@@ -31,8 +18,16 @@ from typing import List, Optional, Dict, Any
 # Import moduli interni
 from config import BASE_FOLDER_RICETTE, EMBEDDING_MODEL
 from models import RecipeDBSchema, JobStatus, Ingredient
-from RAG.elysia_ import add_recipes_elysia, search_recipes_elysia
+#from RAG._elysia import add_recipes_elysia, search_recipes_elysia
+from RAG._weaviate import WeaviateSemanticEngine
 from importRicette.saveRecipe import process_video
+from utility import (
+    extract_shortcode_from_url,
+    calculate_job_percentage,
+    create_progress_callback,
+    update_url_progress,
+    save_recipe_metadata
+)
 from logging_config import (
     setup_logging, 
     get_error_logger, 
@@ -73,7 +68,6 @@ class RecalcBody(BaseModel):
     model_name: Optional[str] = None
     out_path: Optional[str] = None
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
@@ -92,32 +86,7 @@ async def lifespan(app: FastAPI):
 # JOB IN BACKGROUND
 # ===============================
 
-def _reimport_shortcodes_job(job_id: str, shortcodes: List[str]):
-    """
-    Job in background per reimportare ricette da shortcode esistenti.
-    
-    TODO: Implementare la logica effettiva di reimport.
-    Attualmente è solo un placeholder.
-    
-    Args:
-        job_id: ID univoco del job
-        shortcodes: Lista di shortcode da reimportare
-    """
-    try:
-        # Imposta il job ID per il logging
-        job_id_var.set(job_id)
-        
-        # TODO: Implementare la logica di reimport
-        # Per ora simuliamo il processo
-        import time
-        time.sleep(2)  # Simula elaborazione
-        
-        error_logger.info(f"Reimport completato per shortcode: {shortcodes}")
-        
-    except Exception as e:
-        error_logger.log_exception("reimport_shortcodes", e, {"shortcodes": shortcodes})
-
-def _ingest_urls_job(job_id: str, urls: List[str]):
+async def _ingest_urls_job(job_id: str, urls: List[str]):
     """
     Job principale per l'importazione di ricette da URL video.
     
@@ -129,189 +98,122 @@ def _ingest_urls_job(job_id: str, urls: List[str]):
         urls: Lista di URL video da processare
     """
     total = len(urls)
-    # Stato iniziale running e progress structure
+    
+    # Inizializza stato job
     job_entry = app.state.jobs.get(job_id) or {}
     job_entry["status"] = "running"
-    progress = job_entry.setdefault(
-        "progress",
-        {
-            "total": total,
-            "success": 0,
-            "failed": 0,
-            "percentage": 0.0,
-            "stage": "running",
-            "urls": [
-                {
-                    "index": i + 1,
-                    "url": u,
-                    "status": "queued",
-                    "stage": "queued",
-                    "local_percent": 0.0,
-                }
-                for i, u in enumerate(urls)
-            ],
-        },
-    )
+    progress = job_entry.setdefault("progress", {
+        "total": total,
+        "success": 0,
+        "failed": 0,
+        "percentage": 0.0,
+        "stage": "running",
+        "urls": [
+            {
+                "index": i + 1,
+                "url": u,
+                "status": "queued",
+                "stage": "queued",
+                "local_percent": 0.0,
+            }
+            for i, u in enumerate(urls)
+        ],
+    })
     progress["stage"] = "running"
     app.state.jobs[job_id] = job_entry
 
-    def _recalc_job_percentage() -> float:
-        try:
-            url_entries = progress.get("urls") or []
-            if total <= 0:
-                return 0.0
-            local_sum = sum(float(u.get("local_percent", 0.0)) for u in url_entries)
-            # 0..90% per fase URL
-            return round(min(90.0, (local_sum / (100.0 * max(1, total))) * 90.0), 2)
-        except Exception:
-            return float(progress.get("percentage", 0.0) or 0.0)
-
-    async def _runner():
-        #texts_for_embedding = []
+    async def _process_urls():
+        """Processa tutti gli URL e gestisce il progresso."""
         metadatas = []
         success = 0
         failed = 0
-        error_details = []  # Raccoglie i dettagli degli errori
-
+        error_details = []
+        indexing_engine = WeaviateSemanticEngine()
         for i, url in enumerate(urls, start=1):
-            idx0 = i - 1
-            # Marca l'URL come in esecuzione
+            url_index = i - 1
+            
+            # Aggiorna stato URL a running
+            update_url_progress(progress, url_index, "running", "download")
+            
+            # Crea callback per progresso
+            progress_callback = create_progress_callback(progress, url_index, total)
+            
             try:
-                progress["urls"][idx0].update({"status": "running", "stage": "download"})
-            except Exception:
-                pass  # Non loggiamo errori minori di aggiornamento progress
-
-            def _cb(event: dict):
-                try:
-                    stage = event.get("stage")
-                    lp = float(event.get("local_percent", 0.0))
-                    if 0 <= idx0 < len(progress.get("urls", [])):
-                        url_entry = progress["urls"][idx0]
-                        if url_entry.get("status") not in ("success", "failed"):
-                            url_entry["status"] = "running"
-                        if stage:
-                            url_entry["stage"] = stage
-                        url_entry["local_percent"] = lp
-                        if stage == "error" and "message" in event:
-                            url_entry["error"] = str(event.get("message"))
-                            url_entry["status"] = "failed"
-                        progress["percentage"] = _recalc_job_percentage()
-                except Exception:
-                    pass  # Non loggiamo errori minori di callback
-
-            #processo i dati della ricetta
-            try:
-                recipe_data = await process_video(url, progress_cb=_cb)
+                # Processa video
+                recipe_data = await process_video(url, progress_cb=progress_callback)
+                
                 if not recipe_data:
-                    failed += 1
-                    if 0 <= idx0 < len(progress.get("urls", [])):
-                     progress["urls"][idx0].update({"status": "failed", "stage": "error"})
-                     progress["failed"] = failed
-                     progress["percentage"] = _recalc_job_percentage()
                     raise ValueError("Recipe data is empty")
                 
-                try:
-                 filename = os.path.join(BASE_FOLDER_RICETTE, recipe_data.shortcode, "media_original", f"metadata_{recipe_data.shortcode}.json")
-                 with open(filename, 'w', encoding='utf-8') as f:
-                  json.dump(recipe_data.model_dump(), f, indent=1, ensure_ascii=False)
-
-                except Exception as e:
-                 error_logger.log_exception("save_metadata", e, {"shortcode": recipe_data.shortcode})
-                 continue
-             
+                # Salva metadati
+                if not save_recipe_metadata(recipe_data, BASE_FOLDER_RICETTE):
+                    continue
+                
                 metadatas.append(recipe_data)
-
                 success += 1
-                if 0 <= idx0 < len(progress.get("urls", [])):
-                 progress["urls"][idx0].update({"status": "success", "stage": "done", "local_percent": 100.0})
-                 progress["success"] = success
-                 progress["percentage"] = _recalc_job_percentage()
+                update_url_progress(progress, url_index, "success", "done", 100.0)
+                progress["success"] = success
+                
             except Exception as e:
                 failed += 1
                 error_message = str(e)
+                shortcode = extract_shortcode_from_url(url)
                 
-                # Estrai shortcode dall'URL per messaggi più informativi
-                shortcode = "unknown"
-                try:
-                    if "instagram.com" in url.lower():
-                        # Estrai shortcode da URL Instagram
-                        url_parts = url.split("/")
-                        for i_part, part in enumerate(url_parts):
-                            if part in ["p", "reel", "tv"] and i_part + 1 < len(url_parts):
-                                shortcode = url_parts[i_part + 1]
-                                break
-                    elif "youtube.com" in url.lower() or "youtu.be" in url.lower():
-                        # Estrai video ID da URL YouTube
-                        if "v=" in url:
-                            shortcode = url.split("v=")[1].split("&")[0]
-                        elif "youtu.be/" in url:
-                            shortcode = url.split("youtu.be/")[1].split("?")[0]
-                    else:
-                        # Per altri URL, usa l'ultima parte del path
-                        shortcode = url.split("/")[-1].split("?")[0]
-                except Exception:
-                    shortcode = "unknown"
-                
-                # Raccoglie i dettagli dell'errore con shortcode specifico
                 error_details.append(f"URL {i} ({shortcode}): {error_message}")
-                
-                if 0 <= idx0 < len(progress.get("urls", [])):
-                    ue = progress["urls"][idx0]
-                    if ue.get("stage") != "error":
-                        ue["stage"] = "error"
-                    ue["status"] = "failed"
-                    ue["error"] = error_message
+                update_url_progress(progress, url_index, "failed", "error", error=error_message)
                 progress["failed"] = failed
-                progress["percentage"] = _recalc_job_percentage()
-                # Log dell'errore specifico con shortcode estratto
+                
                 error_logger.log_exception("process_video_job", e, {"url": url, "shortcode": shortcode})
                 continue
-
-        if metadatas:
             
+            # Ricalcola percentuale totale
+            progress["percentage"] = calculate_job_percentage(progress, total)
+
+        # Indicizza ricette se disponibili
+        if metadatas:
             progress["stage"] = "indexing"
             progress["percentage"] = max(float(progress.get("percentage") or 0.0), 95.0)
-            logging.getLogger(__name__).info(f"call ingest_json_to_elysia", extra={})
- 
-            #for metadata in metadatas:
-            if add_recipes_elysia(metadatas):
-                logging.getLogger(__name__).info(f"ricette inserite con successo")
+            
+            logging.getLogger(__name__).info("call add_recipes_batch")
+            if indexing_engine.add_recipes_batch(metadatas):
+                logging.getLogger(__name__).info("ricette inserite con successo")
             else:
-                logging.getLogger(__name__).error(f"errore nell'inserimento delle ricette")
-            
-            
+                logging.getLogger(__name__).error("errore nell'inserimento delle ricette")
+        
         # Completa job
+        _finalize_job(job_entry, metadatas, total, success, failed, error_details)
+        return job_entry["result"]
+
+    def _finalize_job(job_entry, metadatas, total, success, failed, error_details):
+        """Finalizza il job con risultati e stato."""
         job_entry["result"] = {
             "indexed": len(metadatas),
             "total_urls": total,
             "success": success,
             "failed": failed,
         }
+        
         if len(metadatas) > 0:
             job_entry["status"] = "completed"
-            # Aggiungi dettagli degli errori se ci sono stati fallimenti
             if error_details:
                 job_entry["detail"] = f"Completato con {len(metadatas)} ricette. Errori: {'; '.join(error_details)}"
         else:
             job_entry["status"] = "failed"
-            # Usa i dettagli degli errori raccolti o un messaggio di default
             if error_details:
                 job_entry["detail"] = "; ".join(error_details)
             else:
                 job_entry["detail"] = "Nessuna ricetta indicizzata"
+        
         progress["stage"] = "done"
         progress["percentage"] = 100.0
         app.state.jobs[job_id] = job_entry
 
-        return job_entry["result"]
-
-    loop = _asyncio.new_event_loop()
+    # CORREZIONE: Esegui direttamente la funzione asincrona
     try:
-        _asyncio.set_event_loop(loop)
         job_token = job_id_var.set(job_id)
-        _ = loop.run_until_complete(_runner())
+        await _process_urls()
     except Exception as e:
-        # Errore globale del job
+        # Gestisci errore globale del job
         je = app.state.jobs.get(job_id, {})
         je["status"] = "failed"
         je["detail"] = str(e)
@@ -324,8 +226,7 @@ def _ingest_urls_job(job_id: str, urls: List[str]):
         try:
             job_id_var.reset(job_token)
         except Exception:
-            pass  # Errore minore di cleanup
-        loop.close()
+            pass
 
 # ===============================
 # INIZIALIZZAZIONE APPLICAZIONE
@@ -338,180 +239,7 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Configurazione CORS per permettere richieste cross-origin
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# ===============================
-# ENDPOINTS API
-# ===============================
-
-@app.get("/shortcodes/list")
-async def get_shortcodes_list():
-    """
-    Recupera la lista di tutti gli shortcode disponibili.
-    
-    Scansiona la directory MediaRicette e restituisce informazioni
-    su tutte le ricette salvate localmente.
-    
-    Returns:
-        Dict con lista shortcode e conteggio totale
-    """
-    try:
-        media_dir = os.path.join(BASE_DIR, "static", "MediaRicette")
-        
-        if not os.path.exists(media_dir):
-            return {"shortcodes": [], "total": 0}
-        
-        # Ottieni tutte le directory (shortcode)
-        shortcodes = []
-        for item in os.listdir(media_dir):
-            item_path = os.path.join(media_dir, item)
-            if os.path.isdir(item_path) and not item.startswith('.'):
-                # Conta i file di ricetta (inclusi quelli nelle sottocartelle)
-                recipe_files = []
-                for root, dirs, files in os.walk(item_path):
-                    for file in files:
-                        if file.endswith(('.json', '.mp3', '.jpg', '.jpeg', '.png')) and not file.startswith('.'):
-                            recipe_files.append(os.path.join(root, file))
-                
-                if recipe_files:
-                    shortcodes.append({
-                        "shortcode": item,
-                        "path": item_path,
-                        "files_count": len(recipe_files)
-                    })
-        
-        # Ordina per nome
-        shortcodes.sort(key=lambda x: x["shortcode"])
-        
-        return {
-            "shortcodes": shortcodes,
-            "total": len(shortcodes)
-        }
-        
-    except Exception as e:
-        error_logger.error(f"Errore nel recupero shortcode: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Errore nel recupero shortcode: {str(e)}"
-        )
-
-@app.post("/shortcodes/reimport")
-async def reimport_selected_shortcodes(shortcodes: List[str], background_tasks: BackgroundTasks):
-    """
-    Avvia il reimport di ricette selezionate.
-    
-    TODO: Implementazione completa del reimport.
-    
-    Args:
-        shortcodes: Lista di shortcode da reimportare
-        background_tasks: Gestore task in background FastAPI
-        
-    Returns:
-        Dict con job_id e stato del task
-    """
-    try:
-        if not shortcodes:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Nessun shortcode fornito"
-            )
-        
-        # Genera un job ID per il reimport
-        job_id = str(uuid.uuid4())
-        
-        # Avvia il reimport in background
-        background_tasks.add_task(_reimport_shortcodes_job, job_id, shortcodes)
-        
-        return {
-            "job_id": job_id,
-            "status": "queued",
-            "message": f"Reimport avviato per {len(shortcodes)} shortcode",
-            "shortcodes": shortcodes
-        }
-        
-    except Exception as e:
-        error_logger.error(f"Errore nell'avvio reimport shortcode: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Errore nell'avvio reimport: {str(e)}"
-        )
-
-# Configurazione mount directory statiche
-app.mount("/mediaRicette", StaticFiles(directory=os.path.join(BASE_DIR, "static", "mediaRicette")), name="mediaRicette")
-app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
-app.mount("/frontend", StaticFiles(directory=os.path.join(BASE_DIR, "frontend")), name="frontend")
-
-@app.middleware("http")
-async def add_request_id(request: Request, call_next):
-    """
-    Middleware per aggiungere Request ID a tutte le richieste HTTP.
-    
-    Aggiunge un ID univoco ad ogni richiesta per tracciamento e logging.
-    Logga solo errori (>=400) e warning per ridurre verbosità.
-    """
-    token = None
-    start = perf_counter()
-    rid = request.headers.get("X-Request-ID") or str(uuid.uuid4())
-    client = getattr(request, "client", None)
-    client_ip = getattr(client, "host", None) if client else None
-    ua = request.headers.get("user-agent")
-    try:
-        token = request_id_var.set(rid)
-        response = await call_next(request)
-        duration_ms = int((perf_counter() - start) * 1000)
-        response.headers["X-Request-ID"] = rid
-        # Log solo errori e warning per ridurre verbosità
-        if response.status_code >= 400:
-            level = logging.ERROR if response.status_code >= 500 else logging.WARNING
-            error_logger.logger.log(
-                level,
-                f"HTTP {response.status_code} {request.method} {request.url.path}",
-                extra={
-                    "status": response.status_code,
-                    "duration_ms": duration_ms,
-                    "client_ip": client_ip,
-                }
-            )
-        return response
-    except Exception as e:
-        duration_ms = int((perf_counter() - start) * 1000)
-        error_logger.log_exception(
-            f"unhandled_http_exception",
-            e,
-            {
-                "path": request.url.path,
-                "method": request.method,
-                "duration_ms": duration_ms,
-            }
-        )
-        raise
-    finally:
-        if token is not None:
-            request_id_var.reset(token)
-
-@app.get("/", include_in_schema=False)
-async def index():
-    """
-    Serve la pagina index.html del frontend.
-    
-    Cerca prima in frontend/, poi in static/ come fallback.
-    """
-    dist_index = os.path.join(DIST_DIR, "index.html")
-    static_index = os.path.join(BASE_DIR, "static", "index.html")
-    if os.path.isfile(dist_index):
-        return FileResponse(dist_index)
-    if os.path.isfile(static_index):
-        return FileResponse(static_index)
-    return JSONResponse({"detail": "index.html non trovato"}, status_code=404)
-
-@app.post("/ingest/recipes", response_model=JobStatus, status_code=status.HTTP_202_ACCEPTED)
+@app.post("/recipes/ingest", response_model=JobStatus, status_code=status.HTTP_202_ACCEPTED)
 async def enqueue_ingest(videos: VideoURLs, background_tasks: BackgroundTasks):
     """
     Avvia l'importazione asincrona di ricette da URL video.
@@ -547,7 +275,43 @@ async def enqueue_ingest(videos: VideoURLs, background_tasks: BackgroundTasks):
     background_tasks.add_task(_ingest_urls_job, job_id, url_list)
     return JobStatus(job_id=job_id, status="queued", progress_percent=0.0, progress=app.state.jobs[job_id]["progress"])
 
-@app.get("/ingest/status")
+@app.post("/recipes/importFromFolder", response_model=JobStatus, status_code=status.HTTP_202_ACCEPTED)
+async def enqueue_ingest_from_folder(videos: VideoURLs, background_tasks: BackgroundTasks):
+    """
+    Avvia l'importazione asincrona di ricette da cartella locale.
+    
+    Crea un job in background che processa i file forniti,
+    estrae le ricette e le indicizza nel database.
+    
+    Args:
+        videos: Schema con lista URL video da processare
+        background_tasks: Gestore task in background
+        
+    Returns:
+        JobStatus con ID del job e stato iniziale
+    """
+    job_id = str(uuid.uuid4())
+    url_list = [str(u) for u in videos.urls]
+    total = len(url_list)
+    urls_progress = [
+        {"index": i + 1, "url": u, "status": "queued", "stage": "queued", "local_percent": 0.0}
+        for i, u in enumerate(url_list)
+    ]
+    app.state.jobs[job_id] = {
+        "status": "queued",
+        "progress": {
+            "total": total,
+            "success": 0,
+            "failed": 0,
+            "percentage": 0.0,
+            "stage": "queued",
+            "urls": urls_progress,
+        },
+    }
+    background_tasks.add_task(_ingest_urls_job, job_id, url_list)
+    return JobStatus(job_id=job_id, status="queued", progress_percent=0.0, progress=app.state.jobs[job_id]["progress"])
+
+@app.get("/recipes/ingest/status")
 def jobs_status():
     """
     Recupera lo stato di tutti i job di importazione.
@@ -569,7 +333,7 @@ def jobs_status():
         })
     return out
 
-@app.get("/ingest/status/{job_id}", response_model=JobStatus)
+@app.get("/recipes/ingest/status/{job_id}", response_model=JobStatus)
 def job_status(job_id: str):
     """
     Recupera lo stato di un job specifico.
@@ -589,7 +353,56 @@ def job_status(job_id: str):
     progress = job.get("progress") or {}
     return JobStatus(job_id=job_id, status=job.get("status"), detail=job.get("detail"), result=job.get("result"), progress_percent=progress.get("percentage"), progress=progress)
 
-@app.get("/recipe/{shortcode}")
+@app.get("/recipes/search/")
+def search_recipes(
+    query: str,
+    limit: int = 12,
+    max_time: Optional[int] = None,
+    difficulty: Optional[str] = None,
+    diet: Optional[str] = None,
+    cuisine: Optional[str] = None
+):
+    """
+    Endpoint principale per ricerca semantica ricette.
+    
+    Utilizza Weaviate/Elysia per ricerca vettoriale semantica
+    con supporto per filtri multipli.
+    
+    Args:
+        query: Testo di ricerca
+        limit: Numero massimo risultati (default 12)
+        max_time: Tempo massimo preparazione in minuti
+        difficulty: Livello difficoltà ricetta
+        diet: Tipo di dieta (vegan, vegetarian, etc.)
+        cuisine: Tipo di cucina
+        
+    Returns:
+        Lista ricette ordinate per rilevanza
+    """
+    try:
+        indexing_engine = WeaviateSemanticEngine()
+        # Costruisci filtri da parametri query
+        filters = {}
+        if max_time is not None:
+            filters["max_time"] = max_time
+        if difficulty:
+            filters["difficulty"] = difficulty
+        if diet:
+            filters["diet"] = diet  
+        if cuisine:
+            filters["cuisine"] = cuisine
+        
+        # Usa il sistema Elysia/Weaviate
+        #results, oggetti = search_recipes_elysia(query, limit)
+        oggetti = indexing_engine.semantic_search(query, limit)
+        logging.info(f"✅ Ricerca semantica con Elysia/Weaviate completata con successo: {len(oggetti)} risultati")
+        return oggetti
+        
+    except Exception as e:
+        error_logger.log_exception("search", e, {"query": query[:50]})
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Errore in ricerca semantica")
+ 
+@app.get("/recipes/{shortcode}")
 def get_recipe_by_shortcode(shortcode: str):
     """
     Recupera una ricetta specifica tramite shortcode.
@@ -723,54 +536,7 @@ def embeddings_preview3d_with_query(q: str, limit: int = 1000, with_meta: bool =
         "query_point": None,
         "message": "Embeddings 3D view con query non supportata con Elysia"
     }
-
-@app.get("/search/")
-def search_recipes(
-    query: str,
-    limit: int = 12,
-    max_time: Optional[int] = None,
-    difficulty: Optional[str] = None,
-    diet: Optional[str] = None,
-    cuisine: Optional[str] = None
-):
-    """
-    Endpoint principale per ricerca semantica ricette.
-    
-    Utilizza Weaviate/Elysia per ricerca vettoriale semantica
-    con supporto per filtri multipli.
-    
-    Args:
-        query: Testo di ricerca
-        limit: Numero massimo risultati (default 12)
-        max_time: Tempo massimo preparazione in minuti
-        difficulty: Livello difficoltà ricetta
-        diet: Tipo di dieta (vegan, vegetarian, etc.)
-        cuisine: Tipo di cucina
-        
-    Returns:
-        Lista ricette ordinate per rilevanza
-    """
-    try:
-        # Costruisci filtri da parametri query
-        filters = {}
-        if max_time is not None:
-            filters["max_time"] = max_time
-        if difficulty:
-            filters["difficulty"] = difficulty
-        if diet:
-            filters["diet"] = diet  
-        if cuisine:
-            filters["cuisine"] = cuisine
-        
-        # Usa il sistema Elysia/Weaviate
-        results, oggetti = search_recipes_elysia(query, limit)
-        logging.info(f"✅ Ricerca semantica con Elysia/Weaviate completata con successo {results} {oggetti}")
-        return oggetti
-        
-    except Exception as e:
-        error_logger.log_exception("search", e, {"query": query[:50]})
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Errore in ricerca semantica")
-  
+ 
 # ===============================
 # ENDPOINTS DI SISTEMA
 # ===============================
