@@ -18,7 +18,7 @@ from typing import List, Optional, Dict, Any
 # Import moduli interni
 from config import BASE_FOLDER_RICETTE, EMBEDDING_MODEL
 from models import RecipeDBSchema, JobStatus, Ingredient
-#from RAG._elysia import add_recipes_elysia, search_recipes_elysia
+from RAG._elysia import search_recipes_elysia
 from RAG._weaviate import WeaviateSemanticEngine
 from importRicette.saveRecipe import process_video
 from utility import (
@@ -228,6 +228,141 @@ async def _ingest_urls_job(job_id: str, urls: List[str]):
         except Exception:
             pass
 
+async def _ingest_folder_job(job_id: str, dir_list: List[str]):
+    """
+    Job principale per l'importazione di ricette da cartella locale.
+    
+    Processa una cartella locale, estrae le informazioni delle ricette,
+    genera i metadati e li indicizza nel database vettoriale Elysia/Weaviate.
+    """
+    total = len(dir_list)
+    
+    # Inizializza stato job
+    job_entry = app.state.jobs.get(job_id) or {}
+    job_entry["status"] = "running"
+    progress = job_entry.setdefault("progress", {
+        "total": total,
+        "success": 0,
+        "failed": 0,
+        "percentage": 0.0,
+        "stage": "running",
+        "urls": [
+            {
+                "index": i + 1,
+                "url": u,
+                "status": "queued",
+                "stage": "queued",
+                "local_percent": 0.0,
+            }
+            for i, u in enumerate(dir_list)
+        ],
+    })
+    progress["stage"] = "running"
+    app.state.jobs[job_id] = job_entry
+
+    async def _process_dir_list():
+        """Processa tutti gli URL e gestisce il progresso."""
+        metadatas = []
+        success = 0
+        failed = 0
+        error_details = []
+        indexing_engine = WeaviateSemanticEngine()
+        for i, dir_name in enumerate(dir_list, start=1):
+            dir_index = i - 1
+            
+            # Aggiorna stato URL a running
+            update_url_progress(progress, dir_index, "running", "download")
+            
+            # Crea callback per progresso
+            progress_callback = create_progress_callback(progress, dir_index, total)
+            
+            try:
+                for shortcode in dir_list:
+                    metadata_path = os.path.join(BASE_FOLDER_RICETTE, shortcode, "media_original", f"metadata_{shortcode}.json")
+                    with open(metadata_path, "r") as f:
+                        recipe_data = json.load(f)
+                        metadatas.append(recipe_data)
+                        success += 1
+                        
+                update_url_progress(progress, dir_index, "success", "done", 100.0)
+                progress["success"] = success
+                
+            except Exception as e:
+                failed += 1
+                error_message = str(e)
+                #shortcode = extract_shortcode_from_url(url)
+                
+                error_details.append(f"URL {i} ({dir_name}): {error_message}")
+                update_url_progress(progress, dir_index, "failed", "error", error=error_message)
+                progress["failed"] = failed
+                
+                error_logger.log_exception("process_folder_job", e, {"dir_name": dir_name, "shortcode": shortcode})
+                continue
+            
+            # Ricalcola percentuale totale
+            progress["percentage"] = calculate_job_percentage(progress, total)
+
+        # Indicizza ricette se disponibili
+        if metadatas:
+            progress["stage"] = "indexing"
+            progress["percentage"] = max(float(progress.get("percentage") or 0.0), 95.0)
+            
+            logging.getLogger(__name__).info("call add_recipes_batch")
+            if indexing_engine.add_recipes_batch(metadatas):
+                logging.getLogger(__name__).info("ricette inserite con successo")
+            else:
+                logging.getLogger(__name__).error("errore nell'inserimento delle ricette")
+        
+        # Completa job
+        _finalize_job(job_entry, metadatas, total, success, failed, error_details)
+        return job_entry["result"]
+
+    def _finalize_job(job_entry, metadatas, total, success, failed, error_details):
+        """Finalizza il job con risultati e stato."""
+        job_entry["result"] = {
+            "indexed": len(metadatas),
+            "total_urls": total,
+            "success": success,
+            "failed": failed,
+        }
+        
+        if len(metadatas) > 0:
+            job_entry["status"] = "completed"
+            if error_details:
+                job_entry["detail"] = f"Completato con {len(metadatas)} ricette. Errori: {'; '.join(error_details)}"
+        else:
+            job_entry["status"] = "failed"
+            if error_details:
+                job_entry["detail"] = "; ".join(error_details)
+            else:
+                job_entry["detail"] = "Nessuna ricetta indicizzata"
+        
+        progress["stage"] = "done"
+        progress["percentage"] = 100.0
+        app.state.jobs[job_id] = job_entry
+
+    # CORREZIONE: Esegui direttamente la funzione asincrona
+    try:
+        job_token = job_id_var.set(job_id)
+        await _process_dir_list()
+    except Exception as e:
+        # Gestisci errore globale del job
+        je = app.state.jobs.get(job_id, {})
+        je["status"] = "failed"
+        je["detail"] = str(e)
+        prog = je.get("progress") or {}
+        prog["stage"] = "done"
+        prog["percentage"] = float(prog.get("percentage") or 0.0)
+        je["progress"] = prog
+        app.state.jobs[job_id] = je
+    finally:
+        try:
+            job_id_var.reset(job_token)
+            
+        except Exception:
+            pass
+
+    
 # ===============================
 # INIZIALIZZAZIONE APPLICAZIONE
 # ===============================
@@ -276,7 +411,7 @@ async def enqueue_ingest(videos: VideoURLs, background_tasks: BackgroundTasks):
     return JobStatus(job_id=job_id, status="queued", progress_percent=0.0, progress=app.state.jobs[job_id]["progress"])
 
 @app.post("/recipes/importFromFolder", response_model=JobStatus, status_code=status.HTTP_202_ACCEPTED)
-async def enqueue_ingest_from_folder(videos: VideoURLs, background_tasks: BackgroundTasks):
+async def enqueue_ingest_from_folder( background_tasks: BackgroundTasks):
     """
     Avvia l'importazione asincrona di ricette da cartella locale.
     
@@ -291,11 +426,16 @@ async def enqueue_ingest_from_folder(videos: VideoURLs, background_tasks: Backgr
         JobStatus con ID del job e stato iniziale
     """
     job_id = str(uuid.uuid4())
-    url_list = [str(u) for u in videos.urls]
-    total = len(url_list)
-    urls_progress = [
+    folder_path = BASE_FOLDER_RICETTE
+    if not os.path.isdir(folder_path):
+        raise HTTPException(status_code=404, detail="Cartella non trovata")
+   
+    # Ottieni la lista dei nomi delle sottocartelle in BASE_FOLDER_RICETTE
+    dir_list = [d for d in os.listdir(folder_path) if os.path.isdir(os.path.join(folder_path, d))]
+    total = len(dir_list)
+    dir_progress = [
         {"index": i + 1, "url": u, "status": "queued", "stage": "queued", "local_percent": 0.0}
-        for i, u in enumerate(url_list)
+        for i, u in enumerate(dir_list)
     ]
     app.state.jobs[job_id] = {
         "status": "queued",
@@ -305,10 +445,10 @@ async def enqueue_ingest_from_folder(videos: VideoURLs, background_tasks: Backgr
             "failed": 0,
             "percentage": 0.0,
             "stage": "queued",
-            "urls": urls_progress,
+            "urls": dir_progress,
         },
     }
-    background_tasks.add_task(_ingest_urls_job, job_id, url_list)
+    background_tasks.add_task(_ingest_folder_job, job_id, dir_list)
     return JobStatus(job_id=job_id, status="queued", progress_percent=0.0, progress=app.state.jobs[job_id]["progress"])
 
 @app.get("/recipes/ingest/status")
@@ -380,7 +520,7 @@ def search_recipes(
         Lista ricette ordinate per rilevanza
     """
     try:
-        indexing_engine = WeaviateSemanticEngine()
+        #db_engine = WeaviateSemanticEngine()
         # Costruisci filtri da parametri query
         filters = {}
         if max_time is not None:
@@ -393,8 +533,8 @@ def search_recipes(
             filters["cuisine"] = cuisine
         
         # Usa il sistema Elysia/Weaviate
-        #results, oggetti = search_recipes_elysia(query, limit)
-        oggetti = indexing_engine.semantic_search(query, limit)
+        results, oggetti = search_recipes_elysia(query, limit)
+        #oggetti = db_engine.semantic_search(query, limit)
         logging.info(f"✅ Ricerca semantica con Elysia/Weaviate completata con successo: {len(oggetti)} risultati")
         return oggetti
         

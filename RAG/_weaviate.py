@@ -2,7 +2,18 @@ import os
 import sys
 import weaviate
 from weaviate.classes.init import Auth
-from weaviate.classes.config import Configure, Property, DataType
+from weaviate.classes.config import (
+    Configure,
+    DataType,
+    Property,
+    ReplicationDeletionStrategy,
+    VectorDistances,
+    VectorFilterStrategy,
+)
+
+import weaviate.classes as wvc
+
+import weaviate.classes.query as wq
 
 from typing import List, Dict, Any, Optional
 import logging
@@ -65,30 +76,24 @@ class WeaviateSemanticEngine:
             if properties is None:
                 properties = ["*"]  # Tutte le proprietà
             
-            # Costruisci la query GraphQL
-            query_builder = (
-                self.client.query
-                .get(WCD_COLLECTION_NAME, properties)
-                .with_near_text({"concepts": [query]})
-                .with_limit(limit)
-                .with_additional(["distance", "id"])
-            )
+            # Verifica che la collection esista
+            if not self.client.collections.exists(WCD_COLLECTION_NAME):
+                logger.error(f"Collection '{WCD_COLLECTION_NAME}' non esiste")
+                return False
             
-            # Esegui la query
-            result = query_builder.do()
+            collection = self.client.collections.use(WCD_COLLECTION_NAME)
             
-            # Estrai i risultati
-            if "data" in result and "Get" in result["data"]:
-                items = result["data"]["Get"][WCD_COLLECTION_NAME]
-                
-                # Filtra per soglia di distanza
-                filtered_items = [
-                    item for item in items 
-                    if item.get("_additional", {}).get("distance", 1.0) <= distance_threshold
-                ]
-                
-                logger.info(f"Trovati {len(filtered_items)} risultati per query: '{query}'")
-                return filtered_items
+            
+            result = collection.query.near_text(
+                      query=query,
+                      limit=limit,
+                      distance=distance_threshold,
+                      return_metadata=wvc.query.MetadataQuery(distance=True)
+                     )
+            
+
+            if result.objects:
+                return result.objects
             else:
                 logger.warning("Nessun risultato trovato")
                 return []
@@ -96,7 +101,9 @@ class WeaviateSemanticEngine:
         except Exception as e:
             logger.error(f"Errore durante la ricerca semantica: {e}")
             raise
-    
+        finally:
+            self.client.close()
+               
     def search_by_vector(
         self, 
         vector: List[float], 
@@ -235,124 +242,13 @@ class WeaviateSemanticEngine:
                 logger.warning(f"Collection '{collection_name}' già esistente")
                 return True
             
-            # Definisce lo schema della collection basato su RecipeDBSchema
-            collection_config = {
-                "class": collection_name,
-                "description": "",
-                "vectorizer": "text2vec-openai",
-                "moduleConfig": {
-                    "text2vec-openai": {
-                        "model": "text-embedding-3-large",
-                        "modelVersion": "3",
-                        "type": "text"
-                    }
-                },
-                "properties": [
-                    {
-                        "name": "title",
-                        "dataType": ["text"],
-                        "description": "Titolo della ricetta",
-                        "moduleConfig": {
-                            "text2vec-openai": {
-                                "skip": False,
-                                "vectorizePropertyName": False
-                            }
-                        }
-                    },
-                    {
-                        "name": "description", 
-                        "dataType": ["text"],
-                        "description": "Descrizione breve della ricetta",
-                        "moduleConfig": {
-                            "text2vec-openai": {
-                                "skip": False,
-                                "vectorizePropertyName": False
-                            }
-                        }
-                    },
-                    {
-                        "name": "ingredients",
-                        "dataType": ["text[]"],
-                        "description": "Lista ingredienti come stringhe",
-                        "moduleConfig": {
-                            "text2vec-openai": {
-                                "skip": False,
-                                "vectorizePropertyName": False
-                            }
-                        }
-                    },
-                    {
-                        "name": "category",
-                        "dataType": ["text[]"],
-                        "description": "Categorie della ricetta"
-                    },
-                    {
-                        "name": "cuisine_type",
-                        "dataType": ["text"],
-                        "description": "Tipo di cucina"
-                    },
-                    {
-                        "name": "diet",
-                        "dataType": ["text"],
-                        "description": "Tipo di dieta"
-                    },
-                    {
-                        "name": "technique",
-                        "dataType": ["text"],
-                        "description": "Tecnica di cottura"
-                    },
-                    {
-                        "name": "language",
-                        "dataType": ["text"],
-                        "description": "Lingua della ricetta"
-                    },
-                    {
-                        "name": "shortcode",
-                        "dataType": ["text"],
-                        "description": "Identificativo univoco",
-                        "indexSearchable": True
-                    },
-                    {
-                        "name": "cooking_time",
-                        "dataType": ["int"],
-                        "description": "Tempo cottura in minuti"
-                    },
-                    {
-                        "name": "preparation_time",
-                        "dataType": ["int"],
-                        "description": "Tempo preparazione in minuti"
-                    },
-                    {
-                        "name": "chef_advise",
-                        "dataType": ["text"],
-                        "description": "Consigli dello chef"
-                    },
-                    {
-                        "name": "tags",
-                        "dataType": ["text[]"],
-                        "description": "Tag per ricerca"
-                    },
-                    {
-                        "name": "nutritional_info",
-                        "dataType": ["text[]"],
-                        "description": "Informazioni nutrizionali"
-                    },
-                    {
-                        "name": "recipe_step",
-                        "dataType": ["text[]"],
-                        "description": "Passaggi della ricetta",
-                        "moduleConfig": {
-                            "text2vec-openai": {
-                                "skip": False,
-                                "vectorizePropertyName": False
-                            }
-                        }
-                    }
-                ]
-            }
-            
+        
             # Crea la collection
-            self.client.schema.create_class(collection_config)
+            self.client.collections.create( collection_name, vector_config=Configure.Vectors.text2vec_openai(
+        vector_index_config=Configure.VectorIndex.hnsw(
+            distance_metric=VectorDistances.COSINE
+        ),
+    ),  )
             logger.info(f"✅ Collection '{collection_name}' creata con successo")
             return True
             
@@ -461,7 +357,8 @@ class WeaviateSemanticEngine:
         except Exception as e:
             logger.error(f"❌ Errore aggiunta ricetta {recipe.shortcode}: {e}")
             return False
-    
+        
+            
     def add_recipes_batch(self, recipes: List[RecipeDBSchema], collection_name: str = None) -> bool:
         """
         Aggiunge multiple ricette alla collection in batch
@@ -479,9 +376,8 @@ class WeaviateSemanticEngine:
         try:
             if not self.client.collections.exists(collection_name):
                 logger.error(f"Collection '{collection_name}' non esiste")
-                return False
+                self.create_collection(collection_name)
             
-            collection = self.client.collections.get(collection_name)
             success_count = 0
             
             for recipe in recipes:
@@ -498,6 +394,8 @@ class WeaviateSemanticEngine:
         except Exception as e:
             logger.error(f"❌ Errore batch aggiunta ricette: {e}")
             return False
+        finally:
+            self.client.close()
     
     def delete_recipe(self, shortcode: str, collection_name: str = None) -> bool:
         """
