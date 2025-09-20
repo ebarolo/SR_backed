@@ -60,4 +60,4 @@ WCD_API_KEY = os.getenv("WCD_API_KEY")
 # Configurazione Elysia
 ELYSIA_AVAILABLE = False
 WCD_AVAILABLE = True
-WCD_COLLECTION_NAME = os.getenv("WCD_COLLECTION_NAME", "Recipe_Vectors")
+WCD_COLLECTION_NAME = os.getenv("WCD_COLLECTION_NAME", "Recipe_Vector")

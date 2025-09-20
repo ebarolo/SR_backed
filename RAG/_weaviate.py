@@ -12,8 +12,8 @@ from weaviate.classes.config import (
 )
 
 import weaviate.classes as wvc
+from weaviate.classes.query import Filter
 
-import weaviate.classes.query as wq
 
 from typing import List, Dict, Any, Optional
 import logging
@@ -101,8 +101,6 @@ class WeaviateSemanticEngine:
         except Exception as e:
             logger.error(f"Errore durante la ricerca semantica: {e}")
             raise
-        finally:
-            self.client.close()
                
     def search_by_vector(
         self, 
@@ -357,7 +355,6 @@ class WeaviateSemanticEngine:
         except Exception as e:
             logger.error(f"❌ Errore aggiunta ricetta {recipe.shortcode}: {e}")
             return False
-        
             
     def add_recipes_batch(self, recipes: List[RecipeDBSchema], collection_name: str = None) -> bool:
         """
@@ -374,29 +371,136 @@ class WeaviateSemanticEngine:
             collection_name = WCD_COLLECTION_NAME
             
         try:
+            # Verifica che la collection esista una sola volta
             if not self.client.collections.exists(collection_name):
                 logger.error(f"Collection '{collection_name}' non esiste")
-                self.create_collection(collection_name)
+                return False
             
+            collection = self.client.collections.use(collection_name)
             success_count = 0
             
-            for recipe in recipes:
+            # Prepara tutti gli oggetti per l'inserimento batch
+            batch_objects = []
+            
+            for index, recipe in enumerate(recipes):
                 try:
-                    if self.add_recipe(recipe, collection_name):
-                        success_count += 1
+                    # Gestisce sia oggetti RecipeDBSchema che dizionari
+                    if isinstance(recipe, dict):
+                        shortcode = recipe.get('shortcode', '')
+                        title = recipe.get('title', '')
+                        description = recipe.get('description', '')
+                        ingredients = recipe.get('ingredients', [])
+                        category = recipe.get('category', [])
+                        cuisine_type = recipe.get('cuisine_type', '')
+                        diet = recipe.get('diet', '')
+                        technique = recipe.get('technique', '')
+                        language = recipe.get('language', '')
+                        cooking_time = recipe.get('cooking_time', 0)
+                        preparation_time = recipe.get('preparation_time', 0)
+                        chef_advise = recipe.get('chef_advise', '')
+                        tags = recipe.get('tags', [])
+                        nutritional_info = recipe.get('nutritional_info', [])
+                        recipe_step = recipe.get('recipe_step', [])
+                    else:
+                        shortcode = recipe.shortcode
+                        title = recipe.title
+                        description = recipe.description
+                        ingredients = recipe.ingredients
+                        category = recipe.category
+                        cuisine_type = recipe.cuisine_type
+                        diet = recipe.diet
+                        technique = recipe.technique
+                        language = recipe.language
+                        cooking_time = recipe.cooking_time
+                        preparation_time = recipe.preparation_time
+                        chef_advise = recipe.chef_advise
+                        tags = recipe.tags
+                        nutritional_info = recipe.nutritional_info
+                        recipe_step = recipe.recipe_step
+                    
+                    print(f"Preparando ricetta {index + 1}/{len(recipes)}: {shortcode}")
+                    
+                    # Converte ingredienti in lista di stringhe
+                    ingredients_text = []
+                    if ingredients:
+                        for ingredient in ingredients:
+                            if isinstance(ingredient, dict):
+                                qt = ingredient.get('qt', 0)
+                                um = ingredient.get('um', '')
+                                name = ingredient.get('name', '')
+                            else:
+                                qt = ingredient.qt
+                                um = ingredient.um
+                                name = ingredient.name
+                            
+                            qt_str = f"{float(qt):g}" if qt is not None else ""
+                            parts = [p for p in [qt_str, um.strip(), name.strip()] if p]
+                            ingredients_text.append(" ".join(parts))
+                    
+                    # Prepara oggetto per Weaviate
+                    recipe_object = {
+                        "title": title,
+                        "description": description,
+                        "ingredients": ingredients_text,
+                        "category": category,
+                        "cuisine_type": cuisine_type or "",
+                        "diet": diet or "",
+                        "technique": technique or "",
+                        "language": language,
+                        "shortcode": shortcode,
+                        "cooking_time": cooking_time or 0,
+                        "preparation_time": preparation_time or 0,
+                        "chef_advise": chef_advise or "",
+                        "tags": tags or [],
+                        "nutritional_info": nutritional_info or [],
+                        "recipe_step": recipe_step
+                    }
+                    
+                    # Genera UUID deterministico dal shortcode
+                    recipe_uuid = str(uuid_lib.uuid5(uuid_lib.NAMESPACE_DNS, shortcode))
+                    
+                    # Aggiungi alla lista batch
+                    batch_objects.append({
+                        "uuid": recipe_uuid,
+                        "properties": recipe_object
+                    })
+                    
                 except Exception as e:
-                    logger.error(f"❌ Errore ricetta {recipe.shortcode}: {e}")
+                    logger.error(f"❌ Errore preparazione ricetta {shortcode}: {e}")
                     continue
+            
+            # Inserimento batch
+            if batch_objects:
+                try:
+                    # Usa insert_many per inserimento batch efficiente
+                    result = collection.data.insert_many(batch_objects)
+                    success_count = len(batch_objects)
+                    logger.info(f"✅ Inserimento batch completato: {success_count} ricette")
+                except Exception as e:
+                    logger.error(f"❌ Errore inserimento batch: {e}")
+                    # Fallback: inserimento singolo
+                    logger.info("Tentativo inserimento singolo...")
+                    for obj in batch_objects:
+                        try:
+                            exists = collection.data.exists(obj["uuid"])
+                            if exists:
+                                collection.data.update(obj["uuid"], obj["properties"])
+                            else:
+                                collection.data.insert(obj["properties"])
+                            success_count += 1
+                        except Exception as single_e:
+                            shortcode = obj['properties'].get('shortcode', 'unknown')
+                            logger.error(f"❌ Errore inserimento singolo {shortcode}: {single_e}")
+                            continue
             
             logger.info(f"✅ Aggiunte {success_count}/{len(recipes)} ricette")
             return success_count == len(recipes)
             
         except Exception as e:
-            logger.error(f"❌ Errore batch aggiunta ricette: {e}")
+            logger.error(f"❌ Errore generale batch: {e}")
             return False
-        finally:
-            self.client.close()
-    
+        
+
     def delete_recipe(self, shortcode: str, collection_name: str = None) -> bool:
         """
         Elimina una ricetta dalla collection
@@ -416,16 +520,15 @@ class WeaviateSemanticEngine:
                 logger.error(f"Collection '{collection_name}' non esiste")
                 return False
             
-            collection = self.client.collections.get(collection_name)
-            recipe_uuid = str(uuid_lib.uuid5(uuid_lib.NAMESPACE_DNS, shortcode))
-            
-            if collection.data.exists(recipe_uuid):
-                collection.data.delete_by_id(recipe_uuid)
-                logger.info(f"✅ Ricetta {shortcode} eliminata")
-                return True
-            else:
-                logger.warning(f"Ricetta {shortcode} non trovata")
-                return False
+            collection = self.client.collections.use(collection_name)
+
+            collection.data.delete_many(
+                where=Filter.by_property("shortcode").equal(shortcode)
+            )  
+                      
+            logger.info(f"✅ Ricetta {shortcode} eliminata")
+            return True
+           
                 
         except Exception as e:
             logger.error(f"❌ Errore eliminazione ricetta {shortcode}: {e}")
@@ -499,6 +602,19 @@ class WeaviateSemanticEngine:
     
     def close(self):
         """Chiude la connessione"""
-        if hasattr(self, 'client'):
-            self.client = None
-            logger.info("Connessione Weaviate chiusa")
+        if hasattr(self, 'client') and self.client is not None:
+            try:
+                self.client.close()
+                logger.info("Connessione Weaviate chiusa correttamente")
+            except Exception as e:
+                logger.warning(f"Errore durante chiusura connessione: {e}")
+            finally:
+                self.client = None
+    
+    def __enter__(self):
+        """Context manager entry"""
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit - chiude automaticamente la connessione"""
+        self.close()

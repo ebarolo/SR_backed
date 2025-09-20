@@ -128,57 +128,57 @@ async def _ingest_urls_job(job_id: str, urls: List[str]):
         success = 0
         failed = 0
         error_details = []
-        indexing_engine = WeaviateSemanticEngine()
-        for i, url in enumerate(urls, start=1):
-            url_index = i - 1
-            
-            # Aggiorna stato URL a running
-            update_url_progress(progress, url_index, "running", "download")
-            
-            # Crea callback per progresso
-            progress_callback = create_progress_callback(progress, url_index, total)
-            
-            try:
-                # Processa video
-                recipe_data = await process_video(url, progress_cb=progress_callback)
+        with WeaviateSemanticEngine() as indexing_engine:
+            for i, url in enumerate(urls, start=1):
+                url_index = i - 1
                 
-                if not recipe_data:
-                    raise ValueError("Recipe data is empty")
+                # Aggiorna stato URL a running
+                update_url_progress(progress, url_index, "running", "download")
                 
-                # Salva metadati
-                if not save_recipe_metadata(recipe_data, BASE_FOLDER_RICETTE):
+                # Crea callback per progresso
+                progress_callback = create_progress_callback(progress, url_index, total)
+                
+                try:
+                    # Processa video
+                    recipe_data = await process_video(url, progress_cb=progress_callback)
+                    
+                    if not recipe_data:
+                        raise ValueError("Recipe data is empty")
+                    
+                    # Salva metadati
+                    if not save_recipe_metadata(recipe_data, BASE_FOLDER_RICETTE):
+                        continue
+                    
+                    metadatas.append(recipe_data)
+                    success += 1
+                    update_url_progress(progress, url_index, "success", "done", 100.0)
+                    progress["success"] = success
+                    
+                except Exception as e:
+                    failed += 1
+                    error_message = str(e)
+                    shortcode = extract_shortcode_from_url(url)
+                    
+                    error_details.append(f"URL {i} ({shortcode}): {error_message}")
+                    update_url_progress(progress, url_index, "failed", "error", error=error_message)
+                    progress["failed"] = failed
+                    
+                    error_logger.log_exception("process_video_job", e, {"url": url, "shortcode": shortcode})
                     continue
                 
-                metadatas.append(recipe_data)
-                success += 1
-                update_url_progress(progress, url_index, "success", "done", 100.0)
-                progress["success"] = success
-                
-            except Exception as e:
-                failed += 1
-                error_message = str(e)
-                shortcode = extract_shortcode_from_url(url)
-                
-                error_details.append(f"URL {i} ({shortcode}): {error_message}")
-                update_url_progress(progress, url_index, "failed", "error", error=error_message)
-                progress["failed"] = failed
-                
-                error_logger.log_exception("process_video_job", e, {"url": url, "shortcode": shortcode})
-                continue
-            
-            # Ricalcola percentuale totale
-            progress["percentage"] = calculate_job_percentage(progress, total)
+                # Ricalcola percentuale totale
+                progress["percentage"] = calculate_job_percentage(progress, total)
 
-        # Indicizza ricette se disponibili
-        if metadatas:
-            progress["stage"] = "indexing"
-            progress["percentage"] = max(float(progress.get("percentage") or 0.0), 95.0)
-            
-            logging.getLogger(__name__).info("call add_recipes_batch")
-            if indexing_engine.add_recipes_batch(metadatas):
-                logging.getLogger(__name__).info("ricette inserite con successo")
-            else:
-                logging.getLogger(__name__).error("errore nell'inserimento delle ricette")
+            # Indicizza ricette se disponibili
+            if metadatas:
+                progress["stage"] = "indexing"
+                progress["percentage"] = max(float(progress.get("percentage") or 0.0), 95.0)
+                
+                logging.getLogger(__name__).info("call add_recipes_batch")
+                if indexing_engine.add_recipes_batch(metadatas):
+                    logging.getLogger(__name__).info("ricette inserite con successo")
+                else:
+                    logging.getLogger(__name__).error("errore nell'inserimento delle ricette")
         
         # Completa job
         _finalize_job(job_entry, metadatas, total, success, failed, error_details)
@@ -204,8 +204,8 @@ async def _ingest_urls_job(job_id: str, urls: List[str]):
             else:
                 job_entry["detail"] = "Nessuna ricetta indicizzata"
         
-        progress["stage"] = "done"
-        progress["percentage"] = 100.0
+        job_entry["progress"]["stage"] = "done"
+        job_entry["progress"]["percentage"] = 100.0
         app.state.jobs[job_id] = job_entry
 
     # CORREZIONE: Esegui direttamente la funzione asincrona
@@ -266,52 +266,68 @@ async def _ingest_folder_job(job_id: str, dir_list: List[str]):
         success = 0
         failed = 0
         error_details = []
-        indexing_engine = WeaviateSemanticEngine()
-        for i, dir_name in enumerate(dir_list, start=1):
-            dir_index = i - 1
-            
-            # Aggiorna stato URL a running
-            update_url_progress(progress, dir_index, "running", "download")
-            
-            # Crea callback per progresso
-            progress_callback = create_progress_callback(progress, dir_index, total)
-            
-            try:
-                for shortcode in dir_list:
-                    metadata_path = os.path.join(BASE_FOLDER_RICETTE, shortcode, "media_original", f"metadata_{shortcode}.json")
+        
+        # Ottieni il progresso dal job_entry
+        current_progress = job_entry.get("progress", {})
+        
+        with WeaviateSemanticEngine() as indexing_engine:
+            for i, dir_name in enumerate(dir_list, start=1):
+                dir_index = i - 1
+                
+                # Aggiorna stato URL a running
+                update_url_progress(current_progress, dir_index, "running", "download")
+                
+                # Crea callback per progresso
+                progress_callback = create_progress_callback(current_progress, dir_index, total)
+                
+                try:
+                    # Usa dir_name invece di dir_list[i] per evitare errori di indicizzazione
+                    metadata_path = os.path.join(BASE_FOLDER_RICETTE, dir_name, "media_original", f"metadata_{dir_name}.json")
+                    
+                    # Controlla se il file esiste prima di aprirlo
+                    if not os.path.exists(metadata_path):
+                        raise FileNotFoundError(f"File metadata non trovato: {metadata_path}")
+                    
                     with open(metadata_path, "r") as f:
                         recipe_data = json.load(f)
-                        metadatas.append(recipe_data)
-                        success += 1
-                        
-                update_url_progress(progress, dir_index, "success", "done", 100.0)
-                progress["success"] = success
+                    
+                    metadatas.append(recipe_data)
+                    success += 1
+                    
+                    update_url_progress(current_progress, dir_index, "success", "done", 100.0)
+                    current_progress["success"] = success
+                    
+                except Exception as e:
+                    failed += 1
+                    error_message = str(e)
+                    #shortcode = extract_shortcode_from_url(url)
+                    
+                    error_details.append(f"URL {i} ({dir_name}): {error_message}")
+                    update_url_progress(current_progress, dir_index, "failed", "error", error=error_message)
+                    current_progress["failed"] = failed
+                    
+                    error_logger.log_exception("process_folder_job", e, {"dir_name": dir_name, "shortcode": dir_list[i]})
+                    continue
                 
-            except Exception as e:
-                failed += 1
-                error_message = str(e)
-                #shortcode = extract_shortcode_from_url(url)
-                
-                error_details.append(f"URL {i} ({dir_name}): {error_message}")
-                update_url_progress(progress, dir_index, "failed", "error", error=error_message)
-                progress["failed"] = failed
-                
-                error_logger.log_exception("process_folder_job", e, {"dir_name": dir_name, "shortcode": shortcode})
-                continue
-            
-            # Ricalcola percentuale totale
-            progress["percentage"] = calculate_job_percentage(progress, total)
+                # Ricalcola percentuale totale
+                current_progress["percentage"] = calculate_job_percentage(current_progress, total)
+            #print("fine process_dir_list", metadatas)    
+            logging.getLogger(__name__).info(f"Loaded metadata")
 
-        # Indicizza ricette se disponibili
-        if metadatas:
-            progress["stage"] = "indexing"
-            progress["percentage"] = max(float(progress.get("percentage") or 0.0), 95.0)
-            
-            logging.getLogger(__name__).info("call add_recipes_batch")
-            if indexing_engine.add_recipes_batch(metadatas):
-                logging.getLogger(__name__).info("ricette inserite con successo")
-            else:
-                logging.getLogger(__name__).error("errore nell'inserimento delle ricette")
+            # Indicizza ricette se disponibili
+            if metadatas:
+                current_progress["stage"] = "indexing"
+                current_progress["percentage"] = max(float(current_progress.get("percentage") or 0.0), 95.0)
+                
+                logging.getLogger(__name__).info("call add_recipes_batch")
+                if indexing_engine.add_recipes_batch(metadatas):
+                    logging.getLogger(__name__).info("ricette inserite con successo")
+                else:
+                    logging.getLogger(__name__).error("errore nell'inserimento delle ricette")
+        
+        # Aggiorna il job_entry con il progresso finale
+        job_entry["progress"] = current_progress
+        app.state.jobs[job_id] = job_entry
         
         # Completa job
         _finalize_job(job_entry, metadatas, total, success, failed, error_details)
@@ -337,8 +353,8 @@ async def _ingest_folder_job(job_id: str, dir_list: List[str]):
             else:
                 job_entry["detail"] = "Nessuna ricetta indicizzata"
         
-        progress["stage"] = "done"
-        progress["percentage"] = 100.0
+        job_entry["progress"]["stage"] = "done"
+        job_entry["progress"]["percentage"] = 100.0
         app.state.jobs[job_id] = job_entry
 
     # CORREZIONE: Esegui direttamente la funzione asincrona
@@ -535,13 +551,27 @@ def search_recipes(
         # Usa il sistema Elysia/Weaviate
         results, oggetti = search_recipes_elysia(query, limit)
         #oggetti = db_engine.semantic_search(query, limit)
+        
+        # Gestisce il caso in cui la ricerca fallisce
+        if oggetti is None:
+            oggetti = []
+            
         logging.info(f"✅ Ricerca semantica con Elysia/Weaviate completata con successo: {len(oggetti)} risultati")
         return oggetti
         
     except Exception as e:
         error_logger.log_exception("search", e, {"query": query[:50]})
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Errore in ricerca semantica")
- 
+
+@app.get("/recipes/delete/")
+def delete_recipe(shortcode: str):
+    """
+    Elimina una ricetta specifica tramite shortcode.
+    """
+    with WeaviateSemanticEngine() as db_engine:
+        db_engine.delete_recipe(shortcode)
+    return {"message": "Ricetta eliminata con successo"}
+
 @app.get("/recipes/{shortcode}")
 def get_recipe_by_shortcode(shortcode: str):
     """
