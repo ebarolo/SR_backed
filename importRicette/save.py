@@ -5,7 +5,6 @@ Gestisce il download, l'estrazione audio, la trascrizione
 e l'analisi di ricette da video di social media.
 
 Author: Smart Recipe Team
-Version: 0.7
 """
 
 import os
@@ -21,15 +20,15 @@ from typing import Dict, Any, Optional, Callable
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 # Import modelli e configurazione
-from models import RecipeDBSchema
+from utility.models import RecipeDBSchema
 from config import BASE_FOLDER_RICETTE, NO_IMAGE
 
 # Import utility
-from utility import sanitize_text, sanitize_filename
-from logging_config import get_error_logger, request_id_var, clear_error_chain
+from utility.utility import sanitize_text, sanitize_filename
+from utility.logging_config import get_error_logger, request_id_var, clear_error_chain
 
 # Import moduli interni
-from importRicette.analizeRecipe import (
+from importRicette.analize import (
     extract_recipe_info,
     whisper_speech_recognition,
     generateRecipeImages

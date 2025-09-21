@@ -5,7 +5,6 @@ Definisce gli schemi di validazione dati per ricette, ingredienti,
 job di importazione e risposte API.
 
 Author: Smart Recipe Team
-Version: 0.7
 """
 
 from pydantic import BaseModel, Field

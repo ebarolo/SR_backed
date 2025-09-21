@@ -9,7 +9,7 @@ Author: Smart Recipe Team
 Version: 0.8 - Fixed async issues
 """
 
-from typing import List, Dict, Any, Optional, Tuple
+from typing import Any, Tuple
 import asyncio
 import logging
 import concurrent.futures
@@ -24,7 +24,7 @@ from config import (
 )
 
 # Import utility e modelli
-from logging_config import get_error_logger
+from utility.logging_config import get_error_logger
 
 # Import Elysia SDK
 from elysia import (

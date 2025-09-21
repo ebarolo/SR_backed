@@ -7,8 +7,8 @@ import requests
 
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from utility import timeout
-from logging_config import get_error_logger
+from utility.utility import timeout
+from utility.logging_config import get_error_logger
 
 error_logger = get_error_logger(__name__)
 
@@ -20,7 +20,7 @@ from config import (
     OPENAI_TRANSCRIBE_MODEL,
     OPENAI_IMAGE_MODEL,
 )
-from models import recipe_schema
+from utility.models import recipe_schema
 
 def read_prompt_files(file_name: str, **kwargs) -> str:
     """

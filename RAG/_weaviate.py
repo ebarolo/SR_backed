@@ -16,7 +16,7 @@ from typing import List, Dict, Any, Optional
 import logging
 import uuid as uuid_lib
 from config import WCD_URL, WCD_API_KEY, WCD_COLLECTION_NAME, WCD_AVAILABLE
-from models import RecipeDBSchema
+from utility.models import RecipeDBSchema
 
 # Configurazione logging
 logging.basicConfig(level=logging.INFO)

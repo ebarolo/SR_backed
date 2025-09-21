@@ -3,8 +3,8 @@ import asyncio
 import os
 from typing import Dict, Any
 from tenacity import retry, stop_after_attempt, wait_exponential
-from utility import sanitize_filename
-from logging_config import get_error_logger, clear_error_chain
+from utility.utility import sanitize_filename
+from utility.logging_config import get_error_logger, clear_error_chain
 from config import BASE_FOLDER_RICETTE
 
 error_logger = get_error_logger(__name__)

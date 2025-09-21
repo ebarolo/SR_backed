@@ -8,7 +8,7 @@ Contiene funzioni di supporto per:
 - Processing linguistico con spaCy
 
 Author: Smart Recipe Team
-Version: 0.7
+
 """
 
 import re
@@ -24,7 +24,7 @@ import spacy
 
 # Import configurazione e logging
 from config import BASE_FOLDER_RICETTE, EMBEDDING_MODEL
-from logging_config import get_error_logger
+from utility.logging_config import get_error_logger
 
 # Inizializzazioni
 error_logger = get_error_logger(__name__)
