@@ -4,16 +4,13 @@ import weaviate
 from weaviate.classes.init import Auth
 from weaviate.classes.config import (
     Configure,
-    DataType,
-    Property,
-    ReplicationDeletionStrategy,
-    VectorDistances,
-    VectorFilterStrategy,
+    VectorDistances
 )
 
-import weaviate.classes as wvc
 from weaviate.classes.query import Filter
+from weaviate.util import generate_uuid5 
 
+from weaviate.agents.query import QueryAgent
 
 from typing import List, Dict, Any, Optional
 import logging
@@ -58,19 +55,13 @@ class WeaviateSemanticEngine:
         limit: int = 10, 
         distance_threshold: float = 0.7,
         properties: List[str] = None
-    ) -> List[Dict[str, Any]]:
+    ):
         """
         Esegue una ricerca semantica nella collection
         
-        Args:
-            query: Testo della query per la ricerca semantica
-            limit: Numero massimo di risultati da restituire
-            distance_threshold: Soglia di distanza per filtrare risultati (0-1, più basso = più simile)
-            properties: Lista delle proprietà da includere nei risultati
-            
-        Returns:
-            Lista di dizionari contenenti i risultati della ricerca
-        """
+       """
+        system_prompt="you are an RAG search agent, jut must search the correct answer in the collection and response in the same format of the collection" 
+        
         try:
             # Proprietà di default se non specificate
             if properties is None:
@@ -81,23 +72,16 @@ class WeaviateSemanticEngine:
                 logger.error(f"Collection '{WCD_COLLECTION_NAME}' non esiste")
                 return False
             
-            collection = self.client.collections.use(WCD_COLLECTION_NAME)
+            #collection = self.client.collections.use(WCD_COLLECTION_NAME)
             
-            
-            result = collection.query.near_text(
-                      query=query,
-                      limit=limit,
-                      distance=distance_threshold,
-                      return_metadata=wvc.query.MetadataQuery(distance=True)
-                     )
-            
-
-            if result.objects:
-                return result.objects
-            else:
-                logger.warning("Nessun risultato trovato")
-                return []
-                
+            agent = QueryAgent(
+                client=self.client,
+                collections=[WCD_COLLECTION_NAME],
+                system_prompt=system_prompt
+                )
+            response = agent.ask(query)
+            return response
+         
         except Exception as e:
             logger.error(f"Errore durante la ricerca semantica: {e}")
             raise
@@ -243,7 +227,7 @@ class WeaviateSemanticEngine:
         
             # Crea la collection
             self.client.collections.create( collection_name, vector_config=Configure.Vectors.text2vec_openai(
-        vector_index_config=Configure.VectorIndex.hnsw(
+            vector_index_config=Configure.VectorIndex.hnsw(
             distance_metric=VectorDistances.COSINE
         ),
     ),  )
@@ -347,7 +331,7 @@ class WeaviateSemanticEngine:
                 collection.data.update(recipe_uuid, recipe_object)
                 logger.info(f"✅ Ricetta {recipe.shortcode} aggiornata")
             else:
-                collection.data.insert(recipe_object)
+                collection.data.insert(properties=recipe_object, uuid=recipe_uuid)
                 logger.info(f"✅ Ricetta {recipe.shortcode} inserita")
             
             return True
@@ -373,14 +357,15 @@ class WeaviateSemanticEngine:
         try:
             # Verifica che la collection esista una sola volta
             if not self.client.collections.exists(collection_name):
-                logger.error(f"Collection '{collection_name}' non esiste")
-                return False
-            
+              logger.error(f"Collection '{collection_name}' non esiste")
+              self.create_collection(collection_name)
+                
             collection = self.client.collections.use(collection_name)
             success_count = 0
             
-            # Prepara tutti gli oggetti per l'inserimento batch
-            batch_objects = []
+            # Prepara raccolte distinte per inserimenti e aggiornamenti
+            batch_to_insert = []
+            batch_to_update = []
             
             for index, recipe in enumerate(recipes):
                 try:
@@ -401,6 +386,7 @@ class WeaviateSemanticEngine:
                         tags = recipe.get('tags', [])
                         nutritional_info = recipe.get('nutritional_info', [])
                         recipe_step = recipe.get('recipe_step', [])
+                        images = recipe.get('images', [])
                     else:
                         shortcode = recipe.shortcode
                         title = recipe.title
@@ -417,6 +403,7 @@ class WeaviateSemanticEngine:
                         tags = recipe.tags
                         nutritional_info = recipe.nutritional_info
                         recipe_step = recipe.recipe_step
+                        images = recipe.images
                     
                     print(f"Preparando ricetta {index + 1}/{len(recipes)}: {shortcode}")
                     
@@ -453,14 +440,22 @@ class WeaviateSemanticEngine:
                         "chef_advise": chef_advise or "",
                         "tags": tags or [],
                         "nutritional_info": nutritional_info or [],
-                        "recipe_step": recipe_step
+                        "recipe_step": recipe_step,
+                        "images": images or [],
                     }
                     
                     # Genera UUID deterministico dal shortcode
-                    recipe_uuid = str(uuid_lib.uuid5(uuid_lib.NAMESPACE_DNS, shortcode))
-                    
-                    # Aggiungi alla lista batch
-                    batch_objects.append({
+                    recipe_uuid = generate_uuid5(shortcode)
+
+                    try:
+                        exists = collection.data.exists(recipe_uuid)
+                        
+                    except Exception as exists_err:
+                        logger.error(f"❌ Errore verifica esistenza {shortcode}: {exists_err}")
+                        continue
+
+                    target_batch = batch_to_update if exists else batch_to_insert
+                    target_batch.append({
                         "uuid": recipe_uuid,
                         "properties": recipe_object
                     })
@@ -469,31 +464,30 @@ class WeaviateSemanticEngine:
                     logger.error(f"❌ Errore preparazione ricetta {shortcode}: {e}")
                     continue
             
-            # Inserimento batch
-            if batch_objects:
+            if batch_to_update:
+                logger.info(f"Aggiornamento di {len(batch_to_update)} ricette esistenti")
+                for obj in batch_to_update:
+                    shortcode = obj["properties"].get("shortcode", "unknown")
+                    try:
+                        collection.data.update(obj["uuid"], obj["properties"])
+                        success_count += 1
+                    except Exception as update_err:
+                        logger.error(f"❌ Errore aggiornamento {shortcode}: {update_err}")
+
+            if batch_to_insert:
                 try:
-                    # Usa insert_many per inserimento batch efficiente
-                    result = collection.data.insert_many(batch_objects)
-                    success_count = len(batch_objects)
-                    logger.info(f"✅ Inserimento batch completato: {success_count} ricette")
+                 with collection.batch.dynamic() as batch:
+                    for data_row in batch_to_insert:
+                        batch.add_object(
+                            properties=data_row["properties"],
+                            uuid=data_row["uuid"]
+                        )
+                        success_count += 1
                 except Exception as e:
-                    logger.error(f"❌ Errore inserimento batch: {e}")
-                    # Fallback: inserimento singolo
-                    logger.info("Tentativo inserimento singolo...")
-                    for obj in batch_objects:
-                        try:
-                            exists = collection.data.exists(obj["uuid"])
-                            if exists:
-                                collection.data.update(obj["uuid"], obj["properties"])
-                            else:
-                                collection.data.insert(obj["properties"])
-                            success_count += 1
-                        except Exception as single_e:
-                            shortcode = obj['properties'].get('shortcode', 'unknown')
-                            logger.error(f"❌ Errore inserimento singolo {shortcode}: {single_e}")
-                            continue
+                  logger.error(f"❌ Errore generale batch: {e}")
+                          
+            logger.info(f"✅ Processate {success_count}/{len(recipes)} ricette")
             
-            logger.info(f"✅ Aggiunte {success_count}/{len(recipes)} ricette")
             return success_count == len(recipes)
             
         except Exception as e:

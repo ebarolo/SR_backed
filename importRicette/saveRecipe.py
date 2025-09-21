@@ -222,9 +222,8 @@ async def _process_video_internal(
                 else:
                     images_recipe = []
                 
-                # Aggiungi immagini generate
-                if images_recipe:
-                    ricetta_dict["images"] = images_recipe
+                # Aggiungi immagini generate (o lista vuota)
+                ricetta_dict["images"] = images_recipe or []
                 
                 # Assicura che tutti i campi lista siano inizializzati
                 ricetta_dict["ingredients"] = ricetta_dict.get("ingredients", [])
@@ -239,10 +238,8 @@ async def _process_video_internal(
                 ricetta_dict["shortcode"] = shortcode
                 
                 # Imposta URL immagine principale se presente
-                if images_recipe:
-                    ricetta_dict["images"] = images_recipe
-                    if not ricetta_dict.get("image_url"):
-                        ricetta_dict["image_url"] = images_recipe[0]
+                if images_recipe and not ricetta_dict.get("image_url"):
+                    ricetta_dict["image_url"] = images_recipe[0]
 
                 # Processing completato con successo
                 logging.getLogger(__name__).info(

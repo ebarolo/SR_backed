@@ -16,9 +16,9 @@ from pydantic import BaseModel, HttpUrl, field_validator
 from typing import List, Optional, Dict, Any
 
 # Import moduli interni
-from config import BASE_FOLDER_RICETTE, EMBEDDING_MODEL
+from config import BASE_FOLDER_RICETTE, EMBEDDING_MODEL, WCD_COLLECTION_NAME
 from models import RecipeDBSchema, JobStatus, Ingredient
-from RAG._elysia import search_recipes_elysia
+from RAG._elysia import search_recipes_elysia, _preprocess_collection
 from RAG._weaviate import WeaviateSemanticEngine
 from importRicette.saveRecipe import process_video
 from utility import (
@@ -322,6 +322,7 @@ async def _ingest_folder_job(job_id: str, dir_list: List[str]):
                 logging.getLogger(__name__).info("call add_recipes_batch")
                 if indexing_engine.add_recipes_batch(metadatas):
                     logging.getLogger(__name__).info("ricette inserite con successo")
+                    _preprocess_collection(WCD_COLLECTION_NAME)
                 else:
                     logging.getLogger(__name__).error("errore nell'inserimento delle ricette")
         
@@ -509,6 +510,11 @@ def job_status(job_id: str):
     progress = job.get("progress") or {}
     return JobStatus(job_id=job_id, status=job.get("status"), detail=job.get("detail"), result=job.get("result"), progress_percent=progress.get("percentage"), progress=progress)
 
+@app.get("/recipes/ingest/preprocess")
+def preprocess_collection(collection_name: str):
+    
+    return _preprocess_collection(collection_name)
+
 @app.get("/recipes/search/")
 def search_recipes(
     query: str,
@@ -518,50 +524,7 @@ def search_recipes(
     diet: Optional[str] = None,
     cuisine: Optional[str] = None
 ):
-    """
-    Endpoint principale per ricerca semantica ricette.
-    
-    Utilizza Weaviate/Elysia per ricerca vettoriale semantica
-    con supporto per filtri multipli.
-    
-    Args:
-        query: Testo di ricerca
-        limit: Numero massimo risultati (default 12)
-        max_time: Tempo massimo preparazione in minuti
-        difficulty: Livello difficoltà ricetta
-        diet: Tipo di dieta (vegan, vegetarian, etc.)
-        cuisine: Tipo di cucina
-        
-    Returns:
-        Lista ricette ordinate per rilevanza
-    """
-    try:
-        #db_engine = WeaviateSemanticEngine()
-        # Costruisci filtri da parametri query
-        filters = {}
-        if max_time is not None:
-            filters["max_time"] = max_time
-        if difficulty:
-            filters["difficulty"] = difficulty
-        if diet:
-            filters["diet"] = diet  
-        if cuisine:
-            filters["cuisine"] = cuisine
-        
-        # Usa il sistema Elysia/Weaviate
-        results, oggetti = search_recipes_elysia(query, limit)
-        #oggetti = db_engine.semantic_search(query, limit)
-        
-        # Gestisce il caso in cui la ricerca fallisce
-        if oggetti is None:
-            oggetti = []
-            
-        logging.info(f"✅ Ricerca semantica con Elysia/Weaviate completata con successo: {len(oggetti)} risultati")
-        return oggetti
-        
-    except Exception as e:
-        error_logger.log_exception("search", e, {"query": query[:50]})
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Errore in ricerca semantica")
+     return search_recipes_elysia(query, limit)
 
 @app.get("/recipes/delete/")
 def delete_recipe(shortcode: str):
