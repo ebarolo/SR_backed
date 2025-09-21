@@ -23,6 +23,7 @@ from utility.utility import (
     update_url_progress,
     save_recipe_metadata
 )
+from utility.path_utils import ensure_media_web_paths, ensure_media_web_path
 
 # Setup logging
 setup_logging()
@@ -87,7 +88,9 @@ async def _ingest_urls_job(app: FastAPI, job_id: str, urls: List[str]):
                     
                     if not recipe_data:
                         raise ValueError("Recipe data is empty")
-                    
+
+                    recipe_data.images = ensure_media_web_paths(recipe_data.images)
+
                     # Salva metadati
                     if not save_recipe_metadata(recipe_data, BASE_FOLDER_RICETTE):
                         continue
@@ -234,17 +237,22 @@ async def _ingest_folder_job(app: FastAPI, job_id: str, dir_list: List[str]):
                     with open(metadata_path, "r") as f:
                         recipe_data = json.load(f)
 
-                    images = recipe_data.get("images") or []
-                    if not isinstance(images, list):
-                        images = [images]
+                    raw_images = recipe_data.get("images") or []
+                    if not isinstance(raw_images, list):
+                        raw_images = [raw_images]
+                    images = ensure_media_web_paths(raw_images)
 
                     if not NO_IMAGE and len(images) == 0:
                         generated_images = await generateRecipeImages(recipe_data, recipe_data.get("shortcode", dir_name))
+                        generated_images = ensure_media_web_paths(generated_images)
                         recipe_data["images"] = generated_images or []
                         if generated_images and not recipe_data.get("image_url"):
                             recipe_data["image_url"] = generated_images[0]
                     else:
                         recipe_data["images"] = images
+
+                    if recipe_data.get("image_url"):
+                        recipe_data["image_url"] = ensure_media_web_path(recipe_data["image_url"])
 
                     metadatas.append(recipe_data)
                     success += 1

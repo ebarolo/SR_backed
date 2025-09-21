@@ -6,8 +6,10 @@ from dotenv import load_dotenv
 # -------------------------------
 load_dotenv()
 
-BASE_FOLDER_RICETTE = os.path.join(os.getcwd(), "static","mediaRicette")
-BASE_FOLDER_PREPROCESS_VIDEO = os.path.join(os.getcwd(), "static/preprocess_video")
+STATIC_DIR = os.path.join(os.getcwd(), "static")
+BASE_FOLDER_RICETTE = os.path.join(STATIC_DIR, "mediaRicette")
+BASE_FOLDER_PREPROCESS_VIDEO = os.path.join(STATIC_DIR, "preprocess_video")
+MEDIA_RICETTE_WEB_PREFIX = "/static/mediaRicette"
 
 ISTA_USERNAME = os.getenv("ISTA_USERNAME")
 ISTA_PASSWORD = os.getenv("ISTA_PASSWORD")
