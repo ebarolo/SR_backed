@@ -1,0 +1,82 @@
+{
+ "title": "Cacio e Pepe Estiva",
+ "category": [
+  "primo"
+ ],
+ "preparation_time": 15,
+ "cooking_time": 12,
+ "ingredients": [
+  {
+   "name": "pecorino romano",
+   "qt": 200.0,
+   "um": "g"
+  },
+  {
+   "name": "pepe in grani",
+   "qt": 5.0,
+   "um": "g"
+  },
+  {
+   "name": "scorza di lime",
+   "qt": 1.0,
+   "um": "pz"
+  },
+  {
+   "name": "gamberi",
+   "qt": 200.0,
+   "um": "g"
+  },
+  {
+   "name": "spaghetti",
+   "qt": 180.0,
+   "um": "g"
+  },
+  {
+   "name": "aglio",
+   "qt": 1.0,
+   "um": "spicchio"
+  },
+  {
+   "name": "menta fresca",
+   "qt": 6.0,
+   "um": "foglie"
+  },
+  {
+   "name": "sale fino",
+   "qt": 1.0,
+   "um": "g"
+  }
+ ],
+ "recipe_step": [
+  "1. Metti sul fuoco una pentola di acqua non salata.",
+  "2. Grattugia il pecorino romano e trasferiscilo in una ciotola; aggiungi un mestolo di acqua calda e mescola con una frusta fino a ottenere una crema liscia.",
+  "3. Quando l’acqua ha raggiunto il bollore, cala la pasta.",
+  "4. Marina i gamberi con la scorza di lime grattugiata, l’aglio tritato, un pizzico di sale e la menta. Quando si saranno insaporiti, rosolali in padella per 1–2 minuti per lato.",
+  "5. Scalda una padella antiaderente, macina il pepe grossolanamente e tostalo per un paio di minuti; sfuma con un paio di mestoli di acqua di cottura. Scola la pasta al dente direttamente nella padella e completa la cottura.",
+  "6. Spegni il fuoco e lascia intiepidire; aggiungi la crema di pecorino ed emulsiona, regolando con poca acqua di cottura. Completa con scorza di lime grattugiata."
+ ],
+ "description": "Pasta cacio e pepe in versione estiva, mantecata a freddo con pecorino e completata da gamberi marinati al lime, pepe tostato e profumo di menta.",
+ "diet": "mediterranea",
+ "technique": "mantecatura a fuoco spento e tostatura del pepe",
+ "language": "italiano",
+ "chef_advise": "Per una crema liscia usa pecorino ben stagionato (12–18 mesi) e acqua di cottura non bollente (circa 60–70 °C). Manteca sempre a fuoco spento per evitare che il formaggio si stracci. Macina il pepe al momento e tostalo brevemente per estrarne gli oli essenziali. I gamberi cuociono pochissimo: 1–2 minuti per lato bastano.",
+ "tags": [
+  "pasta",
+  "cacio e pepe",
+  "gamberi",
+  "estiva",
+  "veloce",
+  "primo piatto",
+  "romana rivisitata"
+ ],
+ "nutritional_info": [
+  "Allergeni: latte, crostacei, glutine",
+  "Ricca di proteine e calcio; moderato contenuto di grassi saturi",
+  "Sodio presente per via del pecorino e del sale",
+  "Adatta a dieta mediterranea con consumo occasionale"
+ ],
+ "cuisine_type": "italiana",
+ "ricetta_audio": "",
+ "ricetta_caption": "CACIO E PEPE ESTIVA \n\nPer questa ricetta super fast ci serviranno:\n\n-200 gr di pecorino romano\n-Pepe in grani\n-Scorza di lime \n-Gamberi q.b.\n\n1. Per prima cosa mettiamo sul fuoco una pentola di acqua non salata.\n2. Nel frattempo grattuggiamo il pecorino romano e trasferiamolo in una ciotola, aggiungiamo a questo un mestolo di acqua calda e mescoliamo con una frusta fino ad ottenere una crema.\n3. Quando l'acqua avr raggiunto il bollore caliamo la pasta.\n4. Facciamo poi marinare i gamberi con la scorza del lime grattuggiato, aglio sale e menta. Quando si saranno insaporire li facciamo rosolare in padella qualche minuto per lato. \n5. Scaldiamo poi una padella antiaderente dove andiamo a macinare del pepe grossolanamente e lo facciamo tostare per un paio di minuti, sfumiamo poi con un paio di mestoli di acqua di cottura, scoliamo nella padella la pasta al dente direttamente in padella e ultimiamo la cottura.\n6. Spegnamo il fuoco e lasciamo intiepidire, aggiungiamo la crema di pecorino, irroriamo con acqua di cottura. Ultimiamo con della scorza di lime  grattugiata.",
+ "shortcode": "DKwe7sIIRNd"
+}

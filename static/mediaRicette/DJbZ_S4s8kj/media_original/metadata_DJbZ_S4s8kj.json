@@ -1,0 +1,66 @@
+{
+ "title": "Asparagi con guanciale e fontina",
+ "category": [
+  "antipasto",
+  "contorno"
+ ],
+ "preparation_time": 5,
+ "cooking_time": 10,
+ "ingredients": [
+  {
+   "name": "asparagi",
+   "qt": 500.0,
+   "um": "g"
+  },
+  {
+   "name": "guanciale",
+   "qt": 100.0,
+   "um": "g"
+  },
+  {
+   "name": "fontina",
+   "qt": 100.0,
+   "um": "g"
+  },
+  {
+   "name": "sale",
+   "qt": 0.0,
+   "um": "q.b."
+  },
+  {
+   "name": "pepe",
+   "qt": 0.0,
+   "um": "q.b."
+  }
+ ],
+ "recipe_step": [
+  "Lavare gli asparagi e privarli della parte più dura.",
+  "Salare e pepare, quindi avvolgere ogni asparago prima con una fettina di fontina e poi con il guanciale.",
+  "Cuocere in friggitrice ad aria a 180 °C per circa 10 minuti, o finché dorati e croccanti."
+ ],
+ "description": "Asparagi croccanti avvolti in fontina e guanciale, cotti velocemente in friggitrice ad aria fino a doratura.",
+ "diet": "gluten-free",
+ "technique": "friggitrice ad aria",
+ "language": "Italiano",
+ "chef_advise": "Usa asparagi di calibro medio, asciugali molto bene prima di avvolgerli e non esagerare col sale: guanciale e fontina sono già sapidi. Avvolgi stretto e, se necessario, ferma con uno stuzzicadenti. Pre-riscalda la friggitrice ad aria e gira gli asparagi a metà cottura per una doratura uniforme.",
+ "tags": [
+  "asparagi",
+  "guanciale",
+  "fontina",
+  "friggitrice ad aria",
+  "senza glutine",
+  "antipasto",
+  "contorno",
+  "veloce"
+ ],
+ "nutritional_info": [
+  "Senza glutine",
+  "Ricco di proteine e calcio (fontina)",
+  "Fonte di fibre (asparagi)",
+  "Più leggero grazie alla cottura in friggitrice ad aria"
+ ],
+ "cuisine_type": "italiana",
+ "ricetta_audio": "In soli 15 minuti puoi ottenere questi asparagi croccanti e con un ripieno di formaggio davvero goloso. Per prepararli basterà pulire gli asparagi e avvolgerli nella fontina e nel guanciale, per poi cuocerli in friggitrice ad aria a 180 gradi per circa 10 minuti.",
+ "ricetta_caption": "ASPARAGI CON GUANCIALE E FONTINA\n\n500gr di asparagi \n100gr di gunaciale affettato fine \n100gr di fontina affettata \nQ.b sale\nQ.b pepe \n\nLavare gli asparagi e privarli della parte pi dura. \nSalarli e peparli, avvolgerli prima nella fettina di fontina e poi nel guanciale.\nCuocere in friggitrice ad aria a 180 gradi per circa 10 minuti o fino a doratura.",
+ "shortcode": "DJbZ_S4s8kj"
+}

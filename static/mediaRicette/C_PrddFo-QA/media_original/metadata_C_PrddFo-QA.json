@@ -1,0 +1,61 @@
+{
+ "title": "Burrata con Pesche Grigliate, Sambuco e Dragoncello",
+ "category": [
+  "antipasto"
+ ],
+ "preparation_time": 10,
+ "cooking_time": 6,
+ "ingredients": [
+  {
+   "name": "burrata",
+   "qt": 200.0,
+   "um": "g"
+  },
+  {
+   "name": "pesche (da grigliare)",
+   "qt": 2.0,
+   "um": "pezzi"
+  },
+  {
+   "name": "sciroppo di fiori di sambuco",
+   "qt": 30.0,
+   "um": "ml"
+  },
+  {
+   "name": "dragoncello (foglie)",
+   "qt": 4.0,
+   "um": "g"
+  }
+ ],
+ "recipe_step": [
+  "Scalda una griglia o una padella rigata a fuoco medio-alto.",
+  "Taglia le pesche a spicchi e grigliale 2–3 minuti per lato finché ben marcate e leggermente caramellate.",
+  "Disponi la burrata (a temperatura ambiente) nei piatti.",
+  "Condisci le pesche grigliate con lo sciroppo di fiori di sambuco e adagiale accanto alla burrata.",
+  "Completa con foglie di dragoncello spezzettate e servi subito."
+ ],
+ "description": "Antipasto fresco e moderno: burrata cremosa con pesche grigliate, profumata al sambuco e rifinita con dragoncello.",
+ "diet": "vegetarian",
+ "technique": "grigliatura",
+ "language": "italiano",
+ "chef_advise": "Porta la burrata a temperatura ambiente 15–20 minuti prima di servire per esaltarne cremosità e profumi. Usa pesche mature ma sode così da grigliarle senza sfaldarle. Lo sciroppo di fiori di sambuco va dosato con misura: deve profumare, non coprire. Finisci con dragoncello appena spezzettato per liberarne gli oli essenziali.",
+ "tags": [
+  "burrata",
+  "pesca",
+  "fiori di sambuco",
+  "dragoncello",
+  "estivo",
+  "veloce",
+  "antipasto"
+ ],
+ "nutritional_info": [
+  "Ricca di calcio e proteine dalla burrata",
+  "Fonte di vitamine A e C dalle pesche",
+  "Senza glutine",
+  "Indicata per dieta vegetariana"
+ ],
+ "cuisine_type": "italiana",
+ "ricetta_audio": "Hm...",
+ "ricetta_caption": "Burrata/Grilled peach/Elderflower/Tarragon\n\n\n\nBy: \n\n\n\nAll rights reserved to the respective owners",
+ "shortcode": "C_PrddFo-QA"
+}

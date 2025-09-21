@@ -1,0 +1,83 @@
+{
+ "title": "Fichi con ricotta e tartare di gambero",
+ "category": [
+  "antipasto"
+ ],
+ "preparation_time": 20,
+ "cooking_time": 0,
+ "ingredients": [
+  {
+   "name": "fichi",
+   "qt": 4.0,
+   "um": "pz"
+  },
+  {
+   "name": "ricotta vaccina (ben scolata)",
+   "qt": 120.0,
+   "um": "g"
+  },
+  {
+   "name": "lime (solo la scorza)",
+   "qt": 0.5,
+   "um": "pz"
+  },
+  {
+   "name": "gamberi freschissimi (per tartare, abbattuti)",
+   "qt": 120.0,
+   "um": "g"
+  },
+  {
+   "name": "olio extravergine di oliva",
+   "qt": 15.0,
+   "um": "ml"
+  },
+  {
+   "name": "sale fino",
+   "qt": 2.0,
+   "um": "g"
+  },
+  {
+   "name": "pepe nero",
+   "qt": 0.5,
+   "um": "g"
+  },
+  {
+   "name": "pistacchi in granella",
+   "qt": 20.0,
+   "um": "g"
+  }
+ ],
+ "recipe_step": [
+  "Tagliare i fichi a croce senza arrivare alla base.",
+  "Preparare una crema lavorando la ricotta con la scorza grattugiata del lime (a piacere un pizzico di sale e pepe).",
+  "Ridurre i gamberi in tartare a coltello e condirli con olio, sale e pepe.",
+  "Aprire delicatamente i fichi e riempirli con la crema di ricotta al lime.",
+  "Completare con la tartare di gambero e rifinire con granella di pistacchio. Servire subito."
+ ],
+ "description": "Antipasto a crudo: fichi incisi a croce e farciti con crema di ricotta al lime, completati da tartare di gambero con olio, sale, pepe e granella di pistacchio.",
+ "diet": "gluten-free",
+ "technique": "crudo",
+ "language": "italiano",
+ "chef_advise": "Usa gamberi abbattuti o precedentemente congelati per la massima sicurezza alimentare. Scola bene la ricotta e montala con una frusta per ottenere una crema liscia; scegli fichi maturi ma sodi per evitare che si sfaldino. Tosta leggermente i pistacchi per un aroma più intenso e rifinisci con altra scorza di lime appena grattugiata al momento del servizio.",
+ "tags": [
+  "antipasto",
+  "senza cottura",
+  "estivo",
+  "mare",
+  "frutta",
+  "gluten-free",
+  "raffinato"
+ ],
+ "nutritional_info": [
+  "Calorie per porzione: circa 330 kcal",
+  "Proteine per porzione: ~22 g",
+  "Carboidrati per porzione: ~22 g",
+  "Grassi per porzione: ~20 g",
+  "Fibre per porzione: ~5 g",
+  "Allergeni: crostacei, frutta a guscio (pistacchio), latticini"
+ ],
+ "cuisine_type": "italiana",
+ "ricetta_audio": "",
+ "ricetta_caption": "Fichi con ricotta e tartare di gambero.\nRICETTA:\nTagliare i fichi a croce, riempire con una crema di ricotta e scorza di lime, e tartare di gambero condita olio, sale , pepe e granella di pistacchio.",
+ "shortcode": "DNfuP81s6D8"
+}

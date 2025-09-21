@@ -1,0 +1,621 @@
+{
+    "instaloader": {
+        "node_type": "Post",
+        "version": "4.14.2"
+    },
+    "node": {
+        "__isXDTGraphMediaInterface": "XDTGraphVideo",
+        "__typename": "GraphVideo",
+        "accessibility_caption": null,
+        "can_see_insights_as_brand": false,
+        "caption_is_edited": false,
+        "clips_music_attribution_info": {
+            "artist_name": "Melly Mike",
+            "audio_id": "2750602741779792",
+            "should_mute_audio": false,
+            "should_mute_audio_reason": "",
+            "song_name": "Young Black & Rich",
+            "uses_original_audio": false
+        },
+        "coauthor_producers": [],
+        "commenting_disabled_for_viewer": false,
+        "comments_disabled": false,
+        "dash_info": {
+            "is_dash_eligible": false,
+            "number_of_qualities": 0,
+            "video_dash_manifest": null
+        },
+        "dimensions": {
+            "height": 1920,
+            "width": 1080
+        },
+        "display_resources": [
+            {
+                "config_height": 1137,
+                "config_width": 640,
+                "src": "https://scontent-mxp2-1.cdninstagram.com/v/t51.2885-15/518739673_18518023417024481_7105684858315796318_n.jpg?stp=dst-jpg_e35_p640x640_sh0.08_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6ImltYWdlX3VybGdlbi4yMjY4eDQwMzIuc2RyLmY4Mjc4Ny5kZWZhdWx0X2NvdmVyX2ZyYW1lLmMyIn0&_nc_ht=scontent-mxp2-1.cdninstagram.com&_nc_cat=105&_nc_oc=Q6cZ2QEFZoU5ZcULQT07gEc8KzzfXUfAUmf7NamQsGDkIgNTNn6xmK751O97UtB-_rd2nBE&_nc_ohc=tJD0QMtqAg8Q7kNvwEQN8BU&_nc_gid=GR_Y2vq7VjDctGIOBcfvVg&edm=ANTKIIoBAAAA&ccb=7-5&oh=00_AfazymyRjNCCUgWyjN76bSukoXT8VdEv2uQ1gI6AFClkeg&oe=68D49146&_nc_sid=d885a2"
+            },
+            {
+                "config_height": 1333,
+                "config_width": 750,
+                "src": "https://scontent-mxp2-1.cdninstagram.com/v/t51.2885-15/518739673_18518023417024481_7105684858315796318_n.jpg?stp=dst-jpg_e35_p750x750_sh0.08_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6ImltYWdlX3VybGdlbi4yMjY4eDQwMzIuc2RyLmY4Mjc4Ny5kZWZhdWx0X2NvdmVyX2ZyYW1lLmMyIn0&_nc_ht=scontent-mxp2-1.cdninstagram.com&_nc_cat=105&_nc_oc=Q6cZ2QEFZoU5ZcULQT07gEc8KzzfXUfAUmf7NamQsGDkIgNTNn6xmK751O97UtB-_rd2nBE&_nc_ohc=tJD0QMtqAg8Q7kNvwEQN8BU&_nc_gid=GR_Y2vq7VjDctGIOBcfvVg&edm=ANTKIIoBAAAA&ccb=7-5&oh=00_AfbVNKbcIyAwZhYRjmR3x6JFU8Upam9rj8u48TgLlYGx_Q&oe=68D49146&_nc_sid=d885a2"
+            },
+            {
+                "config_height": 1920,
+                "config_width": 1080,
+                "src": "https://scontent-mxp2-1.cdninstagram.com/v/t51.2885-15/518739673_18518023417024481_7105684858315796318_n.jpg?stp=dst-jpg_e35_p1080x1080_sh0.08_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6ImltYWdlX3VybGdlbi4yMjY4eDQwMzIuc2RyLmY4Mjc4Ny5kZWZhdWx0X2NvdmVyX2ZyYW1lLmMyIn0&_nc_ht=scontent-mxp2-1.cdninstagram.com&_nc_cat=105&_nc_oc=Q6cZ2QEFZoU5ZcULQT07gEc8KzzfXUfAUmf7NamQsGDkIgNTNn6xmK751O97UtB-_rd2nBE&_nc_ohc=tJD0QMtqAg8Q7kNvwEQN8BU&_nc_gid=GR_Y2vq7VjDctGIOBcfvVg&edm=ANTKIIoBAAAA&ccb=7-5&oh=00_AfarKdy_JAXvyYr-cHJGRHPkcU_VUkyX_yNicFn_Pwp12w&oe=68D49146&_nc_sid=d885a2"
+            }
+        ],
+        "display_url": "https://scontent-mxp2-1.cdninstagram.com/v/t51.2885-15/518739673_18518023417024481_7105684858315796318_n.jpg?stp=dst-jpg_e35_p1080x1080_sh0.08_tt6&_nc_ht=scontent-mxp2-1.cdninstagram.com&_nc_cat=105&_nc_oc=Q6cZ2QEFZoU5ZcULQT07gEc8KzzfXUfAUmf7NamQsGDkIgNTNn6xmK751O97UtB-_rd2nBE&_nc_ohc=tJD0QMtqAg8Q7kNvwEQN8BU&_nc_gid=GR_Y2vq7VjDctGIOBcfvVg&edm=ANTKIIoBAAAA&ccb=7-5&oh=00_AfarKdy_JAXvyYr-cHJGRHPkcU_VUkyX_yNicFn_Pwp12w&oe=68D49146&_nc_sid=d885a2",
+        "edge_media_preview_comment": {
+            "count": 643,
+            "edges": [
+                {
+                    "node": {
+                        "created_at": 1758194604,
+                        "did_report_as_spam": false,
+                        "edge_liked_by": {
+                            "count": 1
+                        },
+                        "id": "17893387986317420",
+                        "is_restricted_pending": false,
+                        "owner": {
+                            "id": "145768565",
+                            "is_verified": false,
+                            "profile_pic_url": "https://scontent-mxp2-1.cdninstagram.com/v/t51.2885-19/14582224_324643361251588_6967558155324620800_a.jpg?stp=dst-jpg_s150x150_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLmRqYW5nby42MTcuYzIifQ&_nc_ht=scontent-mxp2-1.cdninstagram.com&_nc_cat=104&_nc_oc=Q6cZ2QEFZoU5ZcULQT07gEc8KzzfXUfAUmf7NamQsGDkIgNTNn6xmK751O97UtB-_rd2nBE&_nc_ohc=_bVrCrDwNe4Q7kNvwEN98Ek&_nc_gid=GR_Y2vq7VjDctGIOBcfvVg&edm=ANTKIIoBAAAA&ccb=7-5&oh=00_AfbfnNXrN2ufnvwH0dGjZMc8Eb5aQF4IgHc1dqC3G7pNmw&oe=68D4A140&_nc_sid=d885a2",
+                            "username": "max1x63"
+                        },
+                        "text": "Un mappazxone costoso, mah io ci aggiungerei due uova di gallo nero della Boemia",
+                        "viewer_has_liked": false
+                    }
+                },
+                {
+                    "node": {
+                        "created_at": 1758245061,
+                        "did_report_as_spam": false,
+                        "edge_liked_by": {
+                            "count": 0
+                        },
+                        "id": "18014146877787351",
+                        "is_restricted_pending": false,
+                        "owner": {
+                            "id": "183832480",
+                            "is_verified": true,
+                            "profile_pic_url": "https://scontent-mxp1-1.cdninstagram.com/v/t51.2885-19/359752383_652494483464342_1302067852563608374_n.jpg?stp=dst-jpg_s150x150_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLmRqYW5nby4xMDgwLmMyIn0&_nc_ht=scontent-mxp1-1.cdninstagram.com&_nc_cat=102&_nc_oc=Q6cZ2QEFZoU5ZcULQT07gEc8KzzfXUfAUmf7NamQsGDkIgNTNn6xmK751O97UtB-_rd2nBE&_nc_ohc=d2s0M5lv_p8Q7kNvwG_bqpF&_nc_gid=GR_Y2vq7VjDctGIOBcfvVg&edm=ANTKIIoBAAAA&ccb=7-5&oh=00_AfbW9CQyivYrj7BcQx7mkzg1gPvW_FGvNBmF5CHehdXNQw&oe=68D48D94&_nc_sid=d885a2",
+                            "username": "chefgiovanniricciardella"
+                        },
+                        "text": "@max1x63 no grazie",
+                        "viewer_has_liked": false
+                    }
+                }
+            ]
+        },
+        "edge_media_preview_like": {
+            "count": 3345,
+            "edges": []
+        },
+        "edge_media_to_caption": {
+            "edges": [
+                {
+                    "node": {
+                        "created_at": "1752423209",
+                        "id": "18050129384627043",
+                        "text": "Chiamatelo piatto svuota frigo\u2026ma solo se il frigorifero \u00e8 quello dello Chef. Perch\u00e9 qui non c\u2019\u00e8 nulla di casuale: ogni ingrediente ha il pedigree. Lo Zafferano d\u00e0 colore e sapore, il Patanegra, la Ventresca, il Wagy\u016b. Bottarga, Tartufo, Caviale? Non si buttano, si elevano. Lo sciso? Era l\u00ec che aspettava la sua occasione.\n\nE cos\u00ec nasce una pasta fredda che non spreca nulla, ma racconta tutto. Un piatto che gioca con il lusso, ma senza prendersi troppo sul serio. Si veste d\u2019estate, ma non rinuncia alla poesia.\n\n\u2192 Setup cucina by @imaestridellecucine \n\n#chefgiovanniricciardella\n\u2022\n\u2022\n\u2022\n\u2022\n\u2022\n#cascinavittoria #chef #ricetta #ricettadelgiorno #recipeoftheday #pasta #pastaaddict #pastalover #pastalovers #pastafredda #fusilli #patanegra #ventresca #bluefintuna #wagyu #wagyubeef #caviale #caviar #tartufonero #blacktruffle #bottarga #zafferano #saffron #oro #gold #luxury #luxuryfood #gourmet #gourmetfood."
+                    }
+                }
+            ]
+        },
+        "edge_media_to_hoisted_comment": {
+            "edges": []
+        },
+        "edge_media_to_parent_comment": {
+            "count": 643,
+            "edges": [
+                {
+                    "node": {
+                        "created_at": 1758194604,
+                        "did_report_as_spam": false,
+                        "edge_liked_by": {
+                            "count": 1
+                        },
+                        "edge_threaded_comments": {
+                            "count": 1,
+                            "edges": [
+                                {
+                                    "node": {
+                                        "created_at": 1758245061,
+                                        "did_report_as_spam": false,
+                                        "edge_liked_by": {
+                                            "count": 0
+                                        },
+                                        "id": "18014146877787351",
+                                        "is_restricted_pending": false,
+                                        "owner": {
+                                            "id": "183832480",
+                                            "is_verified": true,
+                                            "profile_pic_url": "https://scontent-mxp1-1.cdninstagram.com/v/t51.2885-19/359752383_652494483464342_1302067852563608374_n.jpg?stp=dst-jpg_s150x150_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLmRqYW5nby4xMDgwLmMyIn0&_nc_ht=scontent-mxp1-1.cdninstagram.com&_nc_cat=102&_nc_oc=Q6cZ2QEFZoU5ZcULQT07gEc8KzzfXUfAUmf7NamQsGDkIgNTNn6xmK751O97UtB-_rd2nBE&_nc_ohc=d2s0M5lv_p8Q7kNvwG_bqpF&_nc_gid=GR_Y2vq7VjDctGIOBcfvVg&edm=ANTKIIoBAAAA&ccb=7-5&oh=00_AfbW9CQyivYrj7BcQx7mkzg1gPvW_FGvNBmF5CHehdXNQw&oe=68D48D94&_nc_sid=d885a2",
+                                            "username": "chefgiovanniricciardella"
+                                        },
+                                        "text": "@max1x63 no grazie",
+                                        "viewer_has_liked": false
+                                    }
+                                }
+                            ],
+                            "page_info": {
+                                "end_cursor": null,
+                                "has_next_page": false
+                            }
+                        },
+                        "id": "17893387986317420",
+                        "is_restricted_pending": false,
+                        "owner": {
+                            "id": "145768565",
+                            "is_verified": false,
+                            "profile_pic_url": "https://scontent-mxp2-1.cdninstagram.com/v/t51.2885-19/14582224_324643361251588_6967558155324620800_a.jpg?stp=dst-jpg_s150x150_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLmRqYW5nby42MTcuYzIifQ&_nc_ht=scontent-mxp2-1.cdninstagram.com&_nc_cat=104&_nc_oc=Q6cZ2QEFZoU5ZcULQT07gEc8KzzfXUfAUmf7NamQsGDkIgNTNn6xmK751O97UtB-_rd2nBE&_nc_ohc=_bVrCrDwNe4Q7kNvwEN98Ek&_nc_gid=GR_Y2vq7VjDctGIOBcfvVg&edm=ANTKIIoBAAAA&ccb=7-5&oh=00_AfbfnNXrN2ufnvwH0dGjZMc8Eb5aQF4IgHc1dqC3G7pNmw&oe=68D4A140&_nc_sid=d885a2",
+                            "username": "max1x63"
+                        },
+                        "text": "Un mappazxone costoso, mah io ci aggiungerei due uova di gallo nero della Boemia",
+                        "viewer_has_liked": false
+                    }
+                },
+                {
+                    "node": {
+                        "created_at": 1757887529,
+                        "did_report_as_spam": false,
+                        "edge_liked_by": {
+                            "count": 2
+                        },
+                        "edge_threaded_comments": {
+                            "count": 1,
+                            "edges": [
+                                {
+                                    "node": {
+                                        "created_at": 1757888511,
+                                        "did_report_as_spam": false,
+                                        "edge_liked_by": {
+                                            "count": 1
+                                        },
+                                        "id": "17892094137324497",
+                                        "is_restricted_pending": false,
+                                        "owner": {
+                                            "id": "183832480",
+                                            "is_verified": true,
+                                            "profile_pic_url": "https://scontent-mxp1-1.cdninstagram.com/v/t51.2885-19/359752383_652494483464342_1302067852563608374_n.jpg?stp=dst-jpg_s150x150_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLmRqYW5nby4xMDgwLmMyIn0&_nc_ht=scontent-mxp1-1.cdninstagram.com&_nc_cat=102&_nc_oc=Q6cZ2QEFZoU5ZcULQT07gEc8KzzfXUfAUmf7NamQsGDkIgNTNn6xmK751O97UtB-_rd2nBE&_nc_ohc=d2s0M5lv_p8Q7kNvwG_bqpF&_nc_gid=GR_Y2vq7VjDctGIOBcfvVg&edm=ANTKIIoBAAAA&ccb=7-5&oh=00_AfbW9CQyivYrj7BcQx7mkzg1gPvW_FGvNBmF5CHehdXNQw&oe=68D48D94&_nc_sid=d885a2",
+                                            "username": "chefgiovanniricciardella"
+                                        },
+                                        "text": "@rischiakatia \ud83d\ude0d",
+                                        "viewer_has_liked": false
+                                    }
+                                }
+                            ],
+                            "page_info": {
+                                "end_cursor": null,
+                                "has_next_page": false
+                            }
+                        },
+                        "id": "17921499615115481",
+                        "is_restricted_pending": false,
+                        "owner": {
+                            "id": "7472062677",
+                            "is_verified": false,
+                            "profile_pic_url": "https://scontent-mxp2-1.cdninstagram.com/v/t51.2885-19/448468021_995816698520153_5468431186369259188_n.jpg?stp=dst-jpg_s150x150_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLmRqYW5nby42NDAuYzIifQ&_nc_ht=scontent-mxp2-1.cdninstagram.com&_nc_cat=105&_nc_oc=Q6cZ2QEFZoU5ZcULQT07gEc8KzzfXUfAUmf7NamQsGDkIgNTNn6xmK751O97UtB-_rd2nBE&_nc_ohc=8Uv2HGvGjH0Q7kNvwGI7pnU&_nc_gid=GR_Y2vq7VjDctGIOBcfvVg&edm=ANTKIIoBAAAA&ccb=7-5&oh=00_AfZpwI1HcPZU8trkKbZq4EmSKq42sqFEcKeXHzOj2kUFyw&oe=68D49156&_nc_sid=d885a2",
+                            "username": "rischiakatia"
+                        },
+                        "text": "Buon appetito \u2764\ufe0f\ud83d\ude4c",
+                        "viewer_has_liked": false
+                    }
+                },
+                {
+                    "node": {
+                        "created_at": 1757857637,
+                        "did_report_as_spam": false,
+                        "edge_liked_by": {
+                            "count": 1
+                        },
+                        "edge_threaded_comments": {
+                            "count": 1,
+                            "edges": [
+                                {
+                                    "node": {
+                                        "created_at": 1757888719,
+                                        "did_report_as_spam": false,
+                                        "edge_liked_by": {
+                                            "count": 0
+                                        },
+                                        "id": "18090975979819292",
+                                        "is_restricted_pending": false,
+                                        "owner": {
+                                            "id": "183832480",
+                                            "is_verified": true,
+                                            "profile_pic_url": "https://scontent-mxp1-1.cdninstagram.com/v/t51.2885-19/359752383_652494483464342_1302067852563608374_n.jpg?stp=dst-jpg_s150x150_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLmRqYW5nby4xMDgwLmMyIn0&_nc_ht=scontent-mxp1-1.cdninstagram.com&_nc_cat=102&_nc_oc=Q6cZ2QEFZoU5ZcULQT07gEc8KzzfXUfAUmf7NamQsGDkIgNTNn6xmK751O97UtB-_rd2nBE&_nc_ohc=d2s0M5lv_p8Q7kNvwG_bqpF&_nc_gid=GR_Y2vq7VjDctGIOBcfvVg&edm=ANTKIIoBAAAA&ccb=7-5&oh=00_AfbW9CQyivYrj7BcQx7mkzg1gPvW_FGvNBmF5CHehdXNQw&oe=68D48D94&_nc_sid=d885a2",
+                                            "username": "chefgiovanniricciardella"
+                                        },
+                                        "text": "@maio_gigi esatto andrebbe assaggiata \ud83d\ude43",
+                                        "viewer_has_liked": false
+                                    }
+                                }
+                            ],
+                            "page_info": {
+                                "end_cursor": null,
+                                "has_next_page": false
+                            }
+                        },
+                        "id": "18093725845736180",
+                        "is_restricted_pending": false,
+                        "owner": {
+                            "id": "56992448649",
+                            "is_verified": false,
+                            "profile_pic_url": "https://scontent-mxp1-1.cdninstagram.com/v/t51.2885-19/318622317_650220340184958_3099778931646759633_n.jpg?stp=dst-jpg_s150x150_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLmRqYW5nby4xMDgwLmMyIn0&_nc_ht=scontent-mxp1-1.cdninstagram.com&_nc_cat=106&_nc_oc=Q6cZ2QEFZoU5ZcULQT07gEc8KzzfXUfAUmf7NamQsGDkIgNTNn6xmK751O97UtB-_rd2nBE&_nc_ohc=tizX3V6fbuYQ7kNvwGr4YoI&_nc_gid=GR_Y2vq7VjDctGIOBcfvVg&edm=ANTKIIoBAAAA&ccb=7-5&oh=00_AfalNvOpGNNOMgwJ85akJmFVw8HQp_IlEG6oA1yk1UQUTw&oe=68D4A6E0&_nc_sid=d885a2",
+                            "username": "maio_gigi"
+                        },
+                        "text": "Diversi sapori principe insieme,  non lo so finch\u00e9 non provo!",
+                        "viewer_has_liked": false
+                    }
+                }
+            ],
+            "page_info": {
+                "end_cursor": "{\"server_cursor\": \"QVFBNVlGUWtIZ2hRaHVvSVFSWmdzN05LSmJRM3BWNjBodjItakZxTk91ZzZkZ2VXZ184N0R2blhfd08wd3Y3ZTVoU3ZwSXQwQnhQOFN0TlB4bW1Dd0k5Zg==\", \"is_server_cursor_inverse\": true}",
+                "has_next_page": true
+            }
+        },
+        "edge_media_to_sponsor_user": {
+            "edges": []
+        },
+        "edge_media_to_tagged_user": {
+            "edges": [
+                {
+                    "node": {
+                        "id": "3675912040409963418@17322554",
+                        "user": {
+                            "followed_by_viewer": false,
+                            "full_name": "\u265b \ud835\ude11\ud835\ude08\ud835\ude20 \u265b \ud835\ude1a\ud835\ude16\ud835\ude0a\ud835\ude10\ud835\ude08\ud835\ude13 \ud835\ude14\ud835\ude0c\ud835\ude0b\ud835\ude10\ud835\ude08 \ud835\ude14\ud835\ude08\ud835\ude15\ud835\ude08\ud835\ude0e\ud835\ude0c\ud835\ude19",
+                            "id": "17322554",
+                            "is_verified": false,
+                            "profile_pic_url": "https://scontent-mxp1-1.cdninstagram.com/v/t51.2885-19/274060575_5272715212762671_7635767481417262798_n.jpg?stp=dst-jpg_s150x150_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLmRqYW5nby4xMDgwLmMyIn0&_nc_ht=scontent-mxp1-1.cdninstagram.com&_nc_cat=103&_nc_oc=Q6cZ2QEFZoU5ZcULQT07gEc8KzzfXUfAUmf7NamQsGDkIgNTNn6xmK751O97UtB-_rd2nBE&_nc_ohc=-c_Vs56_w5EQ7kNvwHHLPDm&_nc_gid=GR_Y2vq7VjDctGIOBcfvVg&edm=ANTKIIoBAAAA&ccb=7-5&oh=00_AfaSUzpJCjp9ucVH-kZsLb49BjQYhle1eLGkONGwnM3CSg&oe=68D48803&_nc_sid=d885a2",
+                            "username": "jaybi_official"
+                        },
+                        "x": 0.0,
+                        "y": 0.0
+                    }
+                },
+                {
+                    "node": {
+                        "id": "3675912040409963418@1412097839",
+                        "user": {
+                            "followed_by_viewer": false,
+                            "full_name": "JOSPER Charcoal Equipment",
+                            "id": "1412097839",
+                            "is_verified": true,
+                            "profile_pic_url": "https://scontent-mxp2-1.cdninstagram.com/v/t51.2885-19/62457869_611544572658833_7484153115130724352_n.jpg?stp=dst-jpg_s150x150_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLmRqYW5nby42ODcuYzIifQ&_nc_ht=scontent-mxp2-1.cdninstagram.com&_nc_cat=105&_nc_oc=Q6cZ2QEFZoU5ZcULQT07gEc8KzzfXUfAUmf7NamQsGDkIgNTNn6xmK751O97UtB-_rd2nBE&_nc_ohc=dJpR2xQgB2YQ7kNvwGubg5x&_nc_gid=GR_Y2vq7VjDctGIOBcfvVg&edm=ANTKIIoBAAAA&ccb=7-5&oh=00_Afb7GWPmgRM5os9-le8NEtFdJcqIGDOYbezTy51-J_O2SA&oe=68D47D48&_nc_sid=d885a2",
+                            "username": "josperofficial"
+                        },
+                        "x": 0.0,
+                        "y": 0.0
+                    }
+                },
+                {
+                    "node": {
+                        "id": "3675912040409963418@3038770600",
+                        "user": {
+                            "followed_by_viewer": false,
+                            "full_name": "Longino & Cardenal",
+                            "id": "3038770600",
+                            "is_verified": false,
+                            "profile_pic_url": "https://scontent-mxp1-1.cdninstagram.com/v/t51.2885-19/283486816_547171456911728_1422307297391496996_n.jpg?stp=dst-jpg_s150x150_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLmRqYW5nby4xNjAuYzIifQ&_nc_ht=scontent-mxp1-1.cdninstagram.com&_nc_cat=108&_nc_oc=Q6cZ2QEFZoU5ZcULQT07gEc8KzzfXUfAUmf7NamQsGDkIgNTNn6xmK751O97UtB-_rd2nBE&_nc_ohc=8oUiR01jf2QQ7kNvwE7ddwC&_nc_gid=GR_Y2vq7VjDctGIOBcfvVg&edm=ANTKIIoBAAAA&ccb=7-5&oh=00_AfYIMMnezqKH02GSk4V0exhEieeTZBKc-WtlpRtA1U0oiA&oe=68D4A4A7&_nc_sid=d885a2",
+                            "username": "longinocardenal"
+                        },
+                        "x": 0.0,
+                        "y": 0.0
+                    }
+                },
+                {
+                    "node": {
+                        "id": "3675912040409963418@22378596289",
+                        "user": {
+                            "followed_by_viewer": false,
+                            "full_name": "\ud83d\udd25\ud83c\uddee\ud83c\uddf9PYROS\ud83d\udd2a\ud83d\udd25",
+                            "id": "22378596289",
+                            "is_verified": false,
+                            "profile_pic_url": "https://scontent-mxp2-1.cdninstagram.com/v/t51.2885-19/469075399_542789258585004_475126186218287350_n.jpg?stp=dst-jpg_s150x150_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLmRqYW5nby4xMDgwLmMyIn0&_nc_ht=scontent-mxp2-1.cdninstagram.com&_nc_cat=100&_nc_oc=Q6cZ2QEFZoU5ZcULQT07gEc8KzzfXUfAUmf7NamQsGDkIgNTNn6xmK751O97UtB-_rd2nBE&_nc_ohc=-BezBi9Qu5EQ7kNvwEM_nyY&_nc_gid=GR_Y2vq7VjDctGIOBcfvVg&edm=ANTKIIoBAAAA&ccb=7-5&oh=00_AfafYScppCu5Jj6s50H-zeITaQfFa2F1PZvyUDJtIlQX_A&oe=68D4A5BA&_nc_sid=d885a2",
+                            "username": "pyros_italia"
+                        },
+                        "x": 0.0,
+                        "y": 0.0
+                    }
+                },
+                {
+                    "node": {
+                        "id": "3675912040409963418@42248344114",
+                        "user": {
+                            "followed_by_viewer": false,
+                            "full_name": "Fuentes El Atu\u0301n Rojo",
+                            "id": "42248344114",
+                            "is_verified": false,
+                            "profile_pic_url": "https://scontent-mxp1-1.cdninstagram.com/v/t51.2885-19/137058107_1352658488466092_6352621377828844335_n.jpg?stp=dst-jpg_s150x150_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLmRqYW5nby44MDAuYzIifQ&_nc_ht=scontent-mxp1-1.cdninstagram.com&_nc_cat=108&_nc_oc=Q6cZ2QEFZoU5ZcULQT07gEc8KzzfXUfAUmf7NamQsGDkIgNTNn6xmK751O97UtB-_rd2nBE&_nc_ohc=-M_H680CubEQ7kNvwH0zS0F&_nc_gid=GR_Y2vq7VjDctGIOBcfvVg&edm=ANTKIIoBAAAA&ccb=7-5&oh=00_AfbE3KcavadTwnIRSuoGzuzgEA_3C5aPOJb9nY086L9vcQ&oe=68D47E41&_nc_sid=d885a2",
+                            "username": "atunrojofuentes"
+                        },
+                        "x": 0.0,
+                        "y": 0.0
+                    }
+                },
+                {
+                    "node": {
+                        "id": "3675912040409963418@2879875553",
+                        "user": {
+                            "followed_by_viewer": false,
+                            "full_name": "Cascina Vittoria | Restaurant Lab & Rooms",
+                            "id": "2879875553",
+                            "is_verified": false,
+                            "profile_pic_url": "https://scontent-mxp1-1.cdninstagram.com/v/t51.2885-19/297476484_768954124228003_3652690754543859301_n.jpg?stp=dst-jpg_s150x150_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLmRqYW5nby4xMDgwLmMyIn0&_nc_ht=scontent-mxp1-1.cdninstagram.com&_nc_cat=107&_nc_oc=Q6cZ2QEFZoU5ZcULQT07gEc8KzzfXUfAUmf7NamQsGDkIgNTNn6xmK751O97UtB-_rd2nBE&_nc_ohc=jp7V77dclSkQ7kNvwGGiq7-&_nc_gid=GR_Y2vq7VjDctGIOBcfvVg&edm=ANTKIIoBAAAA&ccb=7-5&oh=00_AfZPTXNeCwvjyNFxsk09JFEafHTHM05xtDvY2IxqXHiALg&oe=68D47FCB&_nc_sid=d885a2",
+                            "username": "ristocascinavittoria"
+                        },
+                        "x": 0.0,
+                        "y": 0.0
+                    }
+                },
+                {
+                    "node": {
+                        "id": "3675912040409963418@7239003305",
+                        "user": {
+                            "followed_by_viewer": false,
+                            "full_name": "Goeldlin Collection",
+                            "id": "7239003305",
+                            "is_verified": false,
+                            "profile_pic_url": "https://scontent-mxp1-1.cdninstagram.com/v/t51.2885-19/200687154_1171289523365799_1253819236190953706_n.jpg?stp=dst-jpg_s150x150_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLmRqYW5nby4xMDgwLmMyIn0&_nc_ht=scontent-mxp1-1.cdninstagram.com&_nc_cat=103&_nc_oc=Q6cZ2QEFZoU5ZcULQT07gEc8KzzfXUfAUmf7NamQsGDkIgNTNn6xmK751O97UtB-_rd2nBE&_nc_ohc=cs47c_VwLZ0Q7kNvwG8CUr2&_nc_gid=GR_Y2vq7VjDctGIOBcfvVg&edm=ANTKIIoBAAAA&ccb=7-5&oh=00_AfYPE3Z35zxPiDT0j4Qlq-kQGhb8TNv-ES6LicZXsjXsXw&oe=68D48A0A&_nc_sid=d885a2",
+                            "username": "goeldlincollectionofficial"
+                        },
+                        "x": 0.0,
+                        "y": 0.0
+                    }
+                },
+                {
+                    "node": {
+                        "id": "3675912040409963418@4116461256",
+                        "user": {
+                            "followed_by_viewer": false,
+                            "full_name": "Longino & Cardenal UAE",
+                            "id": "4116461256",
+                            "is_verified": false,
+                            "profile_pic_url": "https://scontent-mxp1-1.cdninstagram.com/v/t51.2885-19/283782926_558496115800371_4307071359641591149_n.jpg?stp=dst-jpg_s150x150_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLmRqYW5nby4xNjAuYzIifQ&_nc_ht=scontent-mxp1-1.cdninstagram.com&_nc_cat=103&_nc_oc=Q6cZ2QEFZoU5ZcULQT07gEc8KzzfXUfAUmf7NamQsGDkIgNTNn6xmK751O97UtB-_rd2nBE&_nc_ohc=bXMd3yBi-wYQ7kNvwEqylDO&_nc_gid=GR_Y2vq7VjDctGIOBcfvVg&edm=ANTKIIoBAAAA&ccb=7-5&oh=00_AfZzkik7FoSzwk1i40l4RVYzkHt_UQWBvC3V5rxNZB-tag&oe=68D4A59C&_nc_sid=d885a2",
+                            "username": "longinouae"
+                        },
+                        "x": 0.0,
+                        "y": 0.0
+                    }
+                },
+                {
+                    "node": {
+                        "id": "3675912040409963418@2266874815",
+                        "user": {
+                            "followed_by_viewer": false,
+                            "full_name": "Jay Communication | Social Media & Digital Agency",
+                            "id": "2266874815",
+                            "is_verified": false,
+                            "profile_pic_url": "https://scontent-mxp2-1.cdninstagram.com/v/t51.2885-19/459742755_1244021546769249_735570069955103768_n.jpg?stp=dst-jpg_s150x150_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLmRqYW5nby4xMDgwLmMyIn0&_nc_ht=scontent-mxp2-1.cdninstagram.com&_nc_cat=109&_nc_oc=Q6cZ2QEFZoU5ZcULQT07gEc8KzzfXUfAUmf7NamQsGDkIgNTNn6xmK751O97UtB-_rd2nBE&_nc_ohc=_KsRFrKE10EQ7kNvwHdzPtt&_nc_gid=GR_Y2vq7VjDctGIOBcfvVg&edm=ANTKIIoBAAAA&ccb=7-5&oh=00_Afb2lranYZ8M9XKlST8AD5Dc2pHerW7B3grt6O4uMZkLzQ&oe=68D4848A&_nc_sid=d885a2",
+                            "username": "jay_communication"
+                        },
+                        "x": 0.0,
+                        "y": 0.0
+                    }
+                },
+                {
+                    "node": {
+                        "id": "3675912040409963418@3033487753",
+                        "user": {
+                            "followed_by_viewer": false,
+                            "full_name": "Hideki Onishi / \u5927\u897f\u82f1\u6bc5",
+                            "id": "3033487753",
+                            "is_verified": true,
+                            "profile_pic_url": "https://scontent-mxp1-1.cdninstagram.com/v/t51.2885-19/130307589_2634509976839083_2112682232699397302_n.jpg?stp=dst-jpg_s150x150_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLmRqYW5nby4xMDgwLmMyIn0&_nc_ht=scontent-mxp1-1.cdninstagram.com&_nc_cat=107&_nc_oc=Q6cZ2QEFZoU5ZcULQT07gEc8KzzfXUfAUmf7NamQsGDkIgNTNn6xmK751O97UtB-_rd2nBE&_nc_ohc=hI6tMVshATsQ7kNvwGKmn22&_nc_gid=GR_Y2vq7VjDctGIOBcfvVg&edm=ANTKIIoBAAAA&ccb=7-5&oh=00_Afbh7JW-NuYK4uKOWSZ3JdK8t1aHxuAnF9iOSDvAch-LSA&oe=68D4AE59&_nc_sid=d885a2",
+                            "username": "kyoto_onishi"
+                        },
+                        "x": 0.0,
+                        "y": 0.0
+                    }
+                },
+                {
+                    "node": {
+                        "id": "3675912040409963418@71879504813",
+                        "user": {
+                            "followed_by_viewer": false,
+                            "full_name": "LestoGroup",
+                            "id": "71879504813",
+                            "is_verified": false,
+                            "profile_pic_url": "https://scontent-mxp2-1.cdninstagram.com/v/t51.2885-19/473625939_1082432880566573_2825533096548530992_n.jpg?stp=dst-jpg_s150x150_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLmRqYW5nby43MDMuYzIifQ&_nc_ht=scontent-mxp2-1.cdninstagram.com&_nc_cat=105&_nc_oc=Q6cZ2QEFZoU5ZcULQT07gEc8KzzfXUfAUmf7NamQsGDkIgNTNn6xmK751O97UtB-_rd2nBE&_nc_ohc=LP60dG5CnnoQ7kNvwGCUbYO&_nc_gid=GR_Y2vq7VjDctGIOBcfvVg&edm=ANTKIIoBAAAA&ccb=7-5&oh=00_AfY8CWzBDYwOjqkKFhaKKp5XBVJGk4atUf9G3jn5c_ZXkg&oe=68D49282&_nc_sid=d885a2",
+                            "username": "imaestridellecucine"
+                        },
+                        "x": 0.0,
+                        "y": 0.0
+                    }
+                },
+                {
+                    "node": {
+                        "id": "3675912040409963418@50012895102",
+                        "user": {
+                            "followed_by_viewer": false,
+                            "full_name": "Scopriamo Milano Food",
+                            "id": "50012895102",
+                            "is_verified": false,
+                            "profile_pic_url": "https://scontent-mxp2-1.cdninstagram.com/v/t51.2885-19/260916896_1799822686885369_4279660683909894770_n.jpg?stp=dst-jpg_s150x150_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLmRqYW5nby4zMjAuYzIifQ&_nc_ht=scontent-mxp2-1.cdninstagram.com&_nc_cat=101&_nc_oc=Q6cZ2QEFZoU5ZcULQT07gEc8KzzfXUfAUmf7NamQsGDkIgNTNn6xmK751O97UtB-_rd2nBE&_nc_ohc=WJ93fvubRvwQ7kNvwEx0gKS&_nc_gid=GR_Y2vq7VjDctGIOBcfvVg&edm=ANTKIIoBAAAA&ccb=7-5&oh=00_AfbT9ZdbJ0iHn8Xlp1sjTDPkW7DS1e6Ft_XqjvrZVI6hUw&oe=68D4A2C7&_nc_sid=d885a2",
+                            "username": "scopriamomilanofood"
+                        },
+                        "x": 0.0,
+                        "y": 0.0
+                    }
+                },
+                {
+                    "node": {
+                        "id": "3675912040409963418@3113866049",
+                        "user": {
+                            "followed_by_viewer": false,
+                            "full_name": "CAPA NEGRA",
+                            "id": "3113866049",
+                            "is_verified": false,
+                            "profile_pic_url": "https://scontent-mxp2-1.cdninstagram.com/v/t51.2885-19/115332992_322676312241804_1588541086369123895_n.jpg?stp=dst-jpg_s150x150_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLmRqYW5nby4xMDgwLmMyIn0&_nc_ht=scontent-mxp2-1.cdninstagram.com&_nc_cat=100&_nc_oc=Q6cZ2QEFZoU5ZcULQT07gEc8KzzfXUfAUmf7NamQsGDkIgNTNn6xmK751O97UtB-_rd2nBE&_nc_ohc=8Ih1rnL7GZgQ7kNvwHd8i99&_nc_gid=GR_Y2vq7VjDctGIOBcfvVg&edm=ANTKIIoBAAAA&ccb=7-5&oh=00_AfblPZ3739Rr_vKdlStD-WOqRcZ1b7hDJCfaESohQu0ZJQ&oe=68D489AF&_nc_sid=d885a2",
+                            "username": "capanegra_"
+                        },
+                        "x": 0.0,
+                        "y": 0.0
+                    }
+                },
+                {
+                    "node": {
+                        "id": "3675912040409963418@42682393015",
+                        "user": {
+                            "followed_by_viewer": false,
+                            "full_name": "Trikalinos Bottarga",
+                            "id": "42682393015",
+                            "is_verified": false,
+                            "profile_pic_url": "https://scontent-mxp2-1.cdninstagram.com/v/t51.2885-19/120737489_160212849087448_2027790342496987351_n.jpg?stp=dst-jpg_s150x150_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLmRqYW5nby4zMDAuYzIifQ&_nc_ht=scontent-mxp2-1.cdninstagram.com&_nc_cat=104&_nc_oc=Q6cZ2QEFZoU5ZcULQT07gEc8KzzfXUfAUmf7NamQsGDkIgNTNn6xmK751O97UtB-_rd2nBE&_nc_ohc=VENnI3D9bmgQ7kNvwHiULCD&_nc_gid=GR_Y2vq7VjDctGIOBcfvVg&edm=ANTKIIoBAAAA&ccb=7-5&oh=00_AfZjAqYJZZ5e-dLO_5po8JtBxSZb1_vUuzJ6aa3IHW3aiw&oe=68D48930&_nc_sid=d885a2",
+                            "username": "trikalinosbottarga"
+                        },
+                        "x": 0.0,
+                        "y": 0.0
+                    }
+                },
+                {
+                    "node": {
+                        "id": "3675912040409963418@1207829157",
+                        "user": {
+                            "followed_by_viewer": false,
+                            "full_name": "Paolo Tucci",
+                            "id": "1207829157",
+                            "is_verified": false,
+                            "profile_pic_url": "https://scontent-mxp1-1.cdninstagram.com/v/t51.2885-19/532562493_18521570386021158_7948782471542543949_n.jpg?stp=dst-jpg_s150x150_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLmRqYW5nby4xMDgwLmMyIn0&_nc_ht=scontent-mxp1-1.cdninstagram.com&_nc_cat=106&_nc_oc=Q6cZ2QEFZoU5ZcULQT07gEc8KzzfXUfAUmf7NamQsGDkIgNTNn6xmK751O97UtB-_rd2nBE&_nc_ohc=2vIS-xpBl8oQ7kNvwEPRgnS&_nc_gid=GR_Y2vq7VjDctGIOBcfvVg&edm=ANTKIIoBAAAA&ccb=7-5&oh=00_AfZdtsynxq2gy6ZJip8mFeJIPyUnY7mfwArXw0a91RU0KA&oe=68D4AF47&_nc_sid=d885a2",
+                            "username": "wagyuambassador"
+                        },
+                        "x": 0.0,
+                        "y": 0.0
+                    }
+                },
+                {
+                    "node": {
+                        "id": "3675912040409963418@3262960895",
+                        "user": {
+                            "followed_by_viewer": false,
+                            "full_name": "Silko",
+                            "id": "3262960895",
+                            "is_verified": false,
+                            "profile_pic_url": "https://scontent-mxp2-1.cdninstagram.com/v/t51.2885-19/365134063_315447287610712_807043321627733220_n.jpg?stp=dst-jpg_s150x150_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLmRqYW5nby4zMjAuYzIifQ&_nc_ht=scontent-mxp2-1.cdninstagram.com&_nc_cat=104&_nc_oc=Q6cZ2QEFZoU5ZcULQT07gEc8KzzfXUfAUmf7NamQsGDkIgNTNn6xmK751O97UtB-_rd2nBE&_nc_ohc=KJ9Ch3FXuU8Q7kNvwGmZFv_&_nc_gid=GR_Y2vq7VjDctGIOBcfvVg&edm=ANTKIIoBAAAA&ccb=7-5&oh=00_AfZ29RQleEHN8P8BXdrIeJmOayUbhJIkIfusZRCzYNQIJQ&oe=68D49853&_nc_sid=d885a2",
+                            "username": "silko_ali"
+                        },
+                        "x": 0.0,
+                        "y": 0.0
+                    }
+                },
+                {
+                    "node": {
+                        "id": "3675912040409963418@49591414484",
+                        "user": {
+                            "followed_by_viewer": false,
+                            "full_name": "\ud83d\udc03WAGYU SELECTORS SINCE 1953\ud83d\udc03",
+                            "id": "49591414484",
+                            "is_verified": false,
+                            "profile_pic_url": "https://scontent-mxp1-1.cdninstagram.com/v/t51.2885-19/329244787_128235696826784_5027799204318485247_n.jpg?stp=dst-jpg_s150x150_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLmRqYW5nby4xMDM5LmMyIn0&_nc_ht=scontent-mxp1-1.cdninstagram.com&_nc_cat=108&_nc_oc=Q6cZ2QEFZoU5ZcULQT07gEc8KzzfXUfAUmf7NamQsGDkIgNTNn6xmK751O97UtB-_rd2nBE&_nc_ohc=2pUBAxXJvPMQ7kNvwHMuN-U&_nc_gid=GR_Y2vq7VjDctGIOBcfvVg&edm=ANTKIIoBAAAA&ccb=7-5&oh=00_AfbesDeGIaOY1C2j0uMPqkxXPZLYkD_L_VG8w_5Dq2sdGA&oe=68D47C07&_nc_sid=d885a2",
+                            "username": "meatjapan_onishi"
+                        },
+                        "x": 0.0,
+                        "y": 0.0
+                    }
+                },
+                {
+                    "node": {
+                        "id": "3675912040409963418@13337075267",
+                        "user": {
+                            "followed_by_viewer": false,
+                            "full_name": "Longino&Cardenal Hong Kong",
+                            "id": "13337075267",
+                            "is_verified": false,
+                            "profile_pic_url": "https://scontent-mxp2-1.cdninstagram.com/v/t51.2885-19/316362441_6479278378765600_2910930498840950170_n.jpg?stp=dst-jpg_s150x150_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLmRqYW5nby4xODAuYzIifQ&_nc_ht=scontent-mxp2-1.cdninstagram.com&_nc_cat=104&_nc_oc=Q6cZ2QEFZoU5ZcULQT07gEc8KzzfXUfAUmf7NamQsGDkIgNTNn6xmK751O97UtB-_rd2nBE&_nc_ohc=mLeQMraL70YQ7kNvwFqmxrw&_nc_gid=GR_Y2vq7VjDctGIOBcfvVg&edm=ANTKIIoBAAAA&ccb=7-5&oh=00_Afb0fDi0O8-qhYSrMM-jrnKis9mKgzBWpNj8DNhEe27m6w&oe=68D48F90&_nc_sid=d885a2",
+                            "username": "longinocardenalhk"
+                        },
+                        "x": 0.0,
+                        "y": 0.0
+                    }
+                },
+                {
+                    "node": {
+                        "id": "3675912040409963418@15635412",
+                        "user": {
+                            "followed_by_viewer": false,
+                            "full_name": "Sal Di Mento",
+                            "id": "15635412",
+                            "is_verified": false,
+                            "profile_pic_url": "https://scontent-mxp2-1.cdninstagram.com/v/t51.2885-19/482731985_661167546341699_3465831134281053486_n.jpg?stp=dst-jpg_s150x150_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLmRqYW5nby44MDAuYzIifQ&_nc_ht=scontent-mxp2-1.cdninstagram.com&_nc_cat=111&_nc_oc=Q6cZ2QEFZoU5ZcULQT07gEc8KzzfXUfAUmf7NamQsGDkIgNTNn6xmK751O97UtB-_rd2nBE&_nc_ohc=tmPi5zz5C-QQ7kNvwEdF3BU&_nc_gid=GR_Y2vq7VjDctGIOBcfvVg&edm=ANTKIIoBAAAA&ccb=7-5&oh=00_AfbxIhIfvqqyeNRCBx0qt7AVUy0zOtkVXYn2Rsl5bVonrA&oe=68D4A7AF&_nc_sid=d885a2",
+                            "username": "sal_di_mento"
+                        },
+                        "x": 0.0,
+                        "y": 0.0
+                    }
+                }
+            ]
+        },
+        "edge_web_media_to_related_media": {
+            "edges": []
+        },
+        "encoding_status": null,
+        "fact_check_information": null,
+        "fact_check_overall_rating": null,
+        "gating_info": null,
+        "has_audio": true,
+        "has_ranked_comments": false,
+        "id": "3675912040409963418",
+        "is_ad": false,
+        "is_affiliate": false,
+        "is_paid_partnership": false,
+        "is_published": true,
+        "is_video": true,
+        "like_and_view_counts_disabled": false,
+        "location": {
+            "address_json": "{\"street_address\": \"Via Roma 26\", \"zip_code\": \"27100\", \"city_name\": \"Rognano\", \"region_name\": \"\", \"country_code\": \"\", \"exact_city_match\": false, \"exact_region_match\": false, \"exact_country_match\": false}",
+            "has_public_page": true,
+            "id": "653206149",
+            "name": "Cascina Vittoria",
+            "slug": "cascina-vittoria"
+        },
+        "media_overlay_info": null,
+        "media_preview": "ABgq1D5UYycD8Kie6iXgc9+nT61meb5rFW6Y69AO/wCdRIoA+fqeevH5e/WsnN3sjRR6s2Vkil44z6Ef5zRWPCPU4wCR6/QdfrxRT52LlGxDKkqc8cr0JHTj0wP1qWN4jgIORxzz9PwoeIxgEc7uAB0A64z7+nSnwvtTafvHpx1/xFc036+l/wAzdDNjSOSwwMY46/X+gPHFFRi4yc52/nxjtn0/CiqSl6E3LJj+cEE/L27c9atSRFxgcenr/nFNFSA1u6UW030MudpWKH2DHOcn1orQorfkXYy52f/Z",
+        "nft_asset_info": null,
+        "owner": {
+            "blocked_by_viewer": false,
+            "edge_followed_by": {
+                "count": 113566
+            },
+            "followed_by_viewer": false,
+            "full_name": "Giovanni Ricciardella",
+            "has_blocked_viewer": false,
+            "id": "183832480",
+            "is_embeds_disabled": false,
+            "is_private": false,
+            "is_unpublished": false,
+            "is_verified": true,
+            "pass_tiering_recommendation": true,
+            "profile_pic_url": "https://scontent-mxp1-1.cdninstagram.com/v/t51.2885-19/359752383_652494483464342_1302067852563608374_n.jpg?stp=dst-jpg_s150x150_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLmRqYW5nby4xMDgwLmMyIn0&_nc_ht=scontent-mxp1-1.cdninstagram.com&_nc_cat=102&_nc_oc=Q6cZ2QEFZoU5ZcULQT07gEc8KzzfXUfAUmf7NamQsGDkIgNTNn6xmK751O97UtB-_rd2nBE&_nc_ohc=d2s0M5lv_p8Q7kNvwG_bqpF&_nc_gid=GR_Y2vq7VjDctGIOBcfvVg&edm=ANTKIIoBAAAA&ccb=7-5&oh=00_AfbW9CQyivYrj7BcQx7mkzg1gPvW_FGvNBmF5CHehdXNQw&oe=68D48D94&_nc_sid=d885a2",
+            "requested_by_viewer": false,
+            "restricted_by_viewer": null,
+            "username": "chefgiovanniricciardella"
+        },
+        "pinned_for_users": [],
+        "product_type": "clips",
+        "sensitivity_friction_info": null,
+        "sharing_friction_info": {
+            "bloks_app_url": null,
+            "should_have_sharing_friction": false
+        },
+        "shortcode": "DMDdoZiN5ua",
+        "taken_at_timestamp": 1752423207,
+        "thumbnail_src": "https://scontent-mxp2-1.cdninstagram.com/v/t51.2885-15/518739673_18518023417024481_7105684858315796318_n.jpg?stp=c0.882.2268.2268a_dst-jpg_e35_s640x640_sh0.08_tt6&_nc_ht=scontent-mxp2-1.cdninstagram.com&_nc_cat=105&_nc_oc=Q6cZ2QEFZoU5ZcULQT07gEc8KzzfXUfAUmf7NamQsGDkIgNTNn6xmK751O97UtB-_rd2nBE&_nc_ohc=tJD0QMtqAg8Q7kNvwEQN8BU&_nc_gid=GR_Y2vq7VjDctGIOBcfvVg&edm=ANTKIIoBAAAA&ccb=7-5&oh=00_Afb2JvPuG0scGYnn9DBB_jmBb7xGLOgWZSvuUYe-5O5MDA&oe=68D49146&_nc_sid=d885a2",
+        "title": "",
+        "tracking_token": "eyJ2ZXJzaW9uIjo1LCJwYXlsb2FkIjp7ImlzX2FuYWx5dGljc190cmFja2VkIjp0cnVlLCJ1dWlkIjoiNjI3NzAzNTVlY2FlNGNlN2JmYjI0YTM4MDA3OTVkNGUzNjc1OTEyMDQwNDA5OTYzNDE4In0sInNpZ25hdHVyZSI6IiJ9",
+        "upcoming_event": null,
+        "video_duration": 53.685,
+        "video_play_count": 112895,
+        "video_url": "https://scontent-mxp2-1.cdninstagram.com/o1/v/t16/f2/m86/AQP5aPKi_3k2ET9MchBUUHEvF_BppK4dSBBmcR-6g7ZjeucTXnkyAyML43zKSruZSlC2cMuX0bm_7QZGlaHJP8z_u4E1aik1FeaaJOE.mp4?stp=dst-mp4&efg=eyJxZV9ncm91cHMiOiJbXCJpZ193ZWJfZGVsaXZlcnlfdnRzX290ZlwiXSIsInZlbmNvZGVfdGFnIjoidnRzX3ZvZF91cmxnZW4uY2xpcHMuYzIuNzIwLmJhc2VsaW5lIn0&_nc_cat=101&vs=1067101895017740_1794306201&_nc_vs=HBksFQIYUmlnX3hwdl9yZWVsc19wZXJtYW5lbnRfc3JfcHJvZC8yQTRDMjQzNjQ3QUZBMTYyRjc4QkJCRUM5QzlGNkZBNF92aWRlb19kYXNoaW5pdC5tcDQVAALIARIAFQIYOnBhc3N0aHJvdWdoX2V2ZXJzdG9yZS9HRlk2OGg3V2ppZjRqUDBFQVBlV1ROMUZtQzVoYnFfRUFBQUYVAgLIARIAKAAYABsAFQAAJqbkt4TmqppAFQIoAkMzLBdAStU%2FfO2RaBgSZGFzaF9iYXNlbGluZV8xX3YxEQB1%2Fgdl5p0BAA%3D%3D&ccb=9-4&oh=00_Afbv0IMXDYLpcR3kjgi0NeAfT_Y-O9KnLrOok596yuYizg&oe=68D0927C&_nc_sid=d885a2",
+        "video_view_count": 18085,
+        "viewer_can_reshare": true,
+        "viewer_has_liked": false,
+        "viewer_has_saved": false,
+        "viewer_has_saved_to_collection": false,
+        "viewer_in_photo_of_you": false
+    }
+}

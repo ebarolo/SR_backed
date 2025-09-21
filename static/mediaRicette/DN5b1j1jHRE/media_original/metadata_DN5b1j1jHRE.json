@@ -1,0 +1,77 @@
+{
+ "title": "Spaghetto alle vongole",
+ "category": [
+  "primo"
+ ],
+ "preparation_time": 130,
+ "cooking_time": 15,
+ "ingredients": [
+  {
+   "name": "Spaghettoni XXL (Pasta Garofalo)",
+   "qt": 220.0,
+   "um": "g"
+  },
+  {
+   "name": "Vongole veraci",
+   "qt": 500.0,
+   "um": "g"
+  },
+  {
+   "name": "Prezzemolo",
+   "qt": 1.0,
+   "um": "ciuffo"
+  },
+  {
+   "name": "Aglio",
+   "qt": 1.0,
+   "um": "spicchio"
+  },
+  {
+   "name": "Olio extravergine di oliva",
+   "qt": 30.0,
+   "um": "ml"
+  },
+  {
+   "name": "Sale (per spurgatura: 30 g per 1 L d’acqua, e per aggiustare)",
+   "qt": 30.0,
+   "um": "g"
+  }
+ ],
+ "recipe_step": [
+  "Lasciare spurgare le vongole per almeno 2 ore in una soluzione di acqua e sale (circa 30 g di sale per ogni litro d’acqua), cambiando l’acqua una volta.",
+  "Dopo la spurgatura, battere le vongole una a una e scartare quelle rotte o piene di sabbia; sciacquare bene.",
+  "In una padella ampia preparare un soffritto leggero con olio extravergine, 1 spicchio d’aglio schiacciato e i gambi del prezzemolo; aggiungere le vongole, coprire e cuocere a fiamma vivace per pochi minuti finché iniziano ad aprirsi.",
+  "Appena si aprono, toglierle dalla padella e tenerle da parte; filtrare il fondo di cottura con un colino fine o garza.",
+  "Lessare gli spaghettoni in acqua bollente salata per circa 1/3 del tempo di cottura indicato.",
+  "Trasferire la pasta nella padella con il fondo filtrato e proseguire la cottura per risottatura, aggiungendo poca acqua calda al bisogno, così che la pasta rilasci amido e formi una crema.",
+  "A pochi minuti dalla fine, unire le vongole, spegnere la fiamma e mantecare con olio extravergine e prezzemolo tritato. Aggiustare di sale se necessario e servire subito."
+ ],
+ "description": "Classico primo piatto di mare: spaghettoni risottati nel fondo delle vongole per ottenere una crema ricca di amido, profumata da aglio e prezzemolo.",
+ "diet": "mediterranea",
+ "technique": "risottatura in padella",
+ "language": "Italiano",
+ "chef_advise": "Per una spurgatura efficace usa acqua fredda leggermente salata (circa 30 g di sale grosso per ogni litro) e cambia l’acqua almeno una volta. Scarta le vongole rotte o che non si aprono in cottura. Mantieni la risottatura vivace ma controllata: aggiungi poca acqua calda alla volta per favorire il rilascio dell’amido senza “lessare” la pasta. Non eccedere col sale: il fondo delle vongole è già sapido.",
+ "tags": [
+  "pasta",
+  "vongole",
+  "mare",
+  "spaghettoni",
+  "primo piatto",
+  "risottatura",
+  "campania",
+  "senza lattosio"
+ ],
+ "nutritional_info": [
+  "Valori per porzione (stima):",
+  "Energia ~650 kcal",
+  "Carboidrati ~85 g",
+  "Proteine ~28 g",
+  "Grassi ~20 g",
+  "Fibre ~4 g",
+  "Sodio: moderato (dipende dalla salatura)"
+ ],
+ "cuisine_type": "italiana",
+ "ricetta_audio": "",
+ "ricetta_caption": "Salva la ricetta di:  in collaborazione con  \n\nSPAGHETTO ALLE VONGOLE \n\nIngredienti per due persone:\n220 g di Spaghettoni XXL Pasta Garofalo\n\n500 g di vongole veraci\n1 ciuffo prezzemolo\nAglio\nOlio q.b.\n\nSale qb\n\nProcedimento:\nLasciar spurgare le vongole per almeno 2 ore in una soluzione di acqua e sale (circa 30g sale ogni litro dacqua) . Una volta spurgate batterle una ad una per individuare le vongole morte piene di sabbia. Cuocerle per pochi minuti in un soffritto di aglio olio e gambi di prezzemolo.\n\nAppena iniziando ad aprirsi toglierle dalla padella e filtrare il sugo dove risottare gli Spaghettoni xxl Garofalo precedentemente cotti per 1/3 del tempo di cottura in acqua.\n\nLa risottatura  fondamentale per far s che gli Spaghettoni xxl assorbano il sapore delle vongole e soprattutto rilascino il loro amido, che andr a formare una crema densa e saporita. Aggiungere le vongole a pochi minuti dalla fine e mantecare a fiamma spenta con olio evo e prezzemolo",
+ "shortcode": "DN5b1j1jHRE"
+}

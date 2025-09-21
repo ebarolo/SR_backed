@@ -1,0 +1,55 @@
+{
+ "title": "Spaghetti gamberi rossi e lime",
+ "category": [
+  "primo"
+ ],
+ "preparation_time": 15,
+ "cooking_time": 10,
+ "ingredients": [
+  {
+   "name": "spaghetti",
+   "qt": 180.0,
+   "um": "g"
+  },
+  {
+   "name": "gamberi rossi medi",
+   "qt": 10.0,
+   "um": "pezzi"
+  },
+  {
+   "name": "scorza di lime",
+   "qt": 1.0,
+   "um": "lime (solo scorza)"
+  },
+  {
+   "name": "sale fino",
+   "qt": 2.0,
+   "um": "g"
+  },
+  {
+   "name": "olio extravergine di oliva",
+   "qt": 20.0,
+   "um": "ml"
+  }
+ ],
+ "recipe_step": [],
+ "description": "Spaghetti con gamberi rossi e scorza di lime, conditi con olio extravergine di oliva.",
+ "diet": "mediterranea",
+ "technique": "bollitura",
+ "language": "italiano",
+ "chef_advise": "Usa solo la parte verde della scorza di lime per evitare note amare. Sguscia i gamberi e, se li salti, cuocili pochissimi secondi per mantenerli succosi. Emulsiona l’olio con poca acqua di cottura della pasta per legare meglio il condimento.",
+ "tags": [
+  "pasta",
+  "gamberi",
+  "lime",
+  "mare",
+  "veloce",
+  "italiana",
+  "primo"
+ ],
+ "nutritional_info": [],
+ "cuisine_type": "italiana",
+ "ricetta_audio": "하나 둘 셋",
+ "ricetta_caption": "Spaghetti gamberi rossi e lime\n\nIngredienti x2\n180g spaghetti \n10 gamberi rossi medi\nscorza lime q.b.\nsale q.b.\nolio evo q.b.\n\nIngredients x2\n180g spaghetti\n10 medium red prawns\nlime zest to taste\nSalt to taste.\nextra virgin olive oil to taste\n.\n.\n.",
+ "shortcode": "CvhFG8QIVjT"
+}

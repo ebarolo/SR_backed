@@ -1,0 +1,79 @@
+{
+ "title": "Pasta cozze e pecorino",
+ "category": [
+  "primo"
+ ],
+ "preparation_time": 15,
+ "cooking_time": 15,
+ "ingredients": [
+  {
+   "name": "Pecorino Romano DOP (scorza nera)",
+   "qt": 70.0,
+   "um": "g"
+  },
+  {
+   "name": "Cozze fresche",
+   "qt": 1.0,
+   "um": "kg"
+  },
+  {
+   "name": "Olio extravergine di oliva",
+   "qt": 20.0,
+   "um": "ml"
+  },
+  {
+   "name": "Pasta secca (formato a scelta)",
+   "qt": 150.0,
+   "um": "g"
+  },
+  {
+   "name": "Acqua di apertura delle cozze (filtrata)",
+   "qt": 200.0,
+   "um": "ml"
+  },
+  {
+   "name": "Acqua calda per la crema di pecorino",
+   "qt": 60.0,
+   "um": "ml"
+  },
+  {
+   "name": "Limone non trattato (solo la scorza)",
+   "qt": 0.5,
+   "um": "pezzo"
+  }
+ ],
+ "recipe_step": [
+  "Grattugia finemente il Pecorino Romano.",
+  "Apri le cozze in padella con un filo di olio; appena si aprono, toglile dalla padella per non farle asciugare. Filtra il liquido di cottura.",
+  "Calare la pasta in acqua bollente (poco salata o non salata, considerando l’acqua delle cozze).",
+  "Prepara una pomata mescolando pecorino con poca acqua calda fino a ottenere una crema liscia.",
+  "Trasferisci la pasta in padella e completa gli ultimi 4 minuti di cottura con l’acqua filtrata delle cozze, mescolando.",
+  "Spegni il fuoco, lascia scendere leggermente la temperatura, aggiungi le cozze.",
+  "Profuma con scorza di limone grattugiata e un giro d’olio a crudo.",
+  "Unisci la crema di pecorino e manteca delicatamente fino a ottenere una salsa cremosa. Servi subito."
+ ],
+ "description": "Pasta alle cozze mantecata con crema di pecorino romano e profumata con scorza di limone: cremosa, saporita e bilanciata.",
+ "diet": "mediterranea",
+ "technique": "risottatura e mantecatura a fuoco spento",
+ "language": "Italiano",
+ "chef_advise": "Filtra sempre l’acqua di apertura delle cozze per rimuovere sabbia e impurità. Spegni il fuoco prima di aggiungere il pecorino e manteca a temperatura moderata per evitare grumi o stracciature. Aggiungi la scorza di limone solo alla fine per mantenere il profumo fresco. Attenzione al sale: tra acqua delle cozze e pecorino potrebbe non servire aggiungerne.",
+ "tags": [
+  "cozze",
+  "pecorino",
+  "primo",
+  "mare",
+  "senza pomodoro",
+  "mantecatura"
+ ],
+ "nutritional_info": [
+  "Energia: ~560 kcal a porzione",
+  "Carboidrati: ~70 g a porzione",
+  "Proteine: ~35 g a porzione",
+  "Grassi: ~20 g a porzione",
+  "Sale: medio-alto (dipende dall’acqua delle cozze e dal pecorino)"
+ ],
+ "cuisine_type": "italiana",
+ "ricetta_audio": "Cozze e pecorino e per chi me dice che il formaggio col pesce non ce va o schippi il video o continui a andare a zio Peppino a magnatte il riso alla crema di scampi a 12 euro con la panna dentro. Quindi, prova cozze e pecorino fatta ad o. Con la santa pazienza del mondo come prima cosa grattugiamo il pecorino scorza nera romano. Apriamo le cozze, padella, goccio d'olio. Serve che ve lo dico che l'olio è quello buono? Monocultivar di leccino 100% olio nostro fatto da noi della villetta. Appena si aprono le cozze le dovete levare perché sennò si asciugano. Quindi, cozza aperte e le vado. Se le levate appena si sono aperte rimangono belle succose, non si asciugano. Mò andiamo a calare la pasta. 150 grammi e ditemi che è poca. L'acqua d'apertura delle cozze la dobbiamo filtrare per forza. Mò facciamo la pasta di pecorino. Pecorino e acqua. Ed ecco a voi la pomata di pecorino romano. Facciamo fare gli ultimi 4 minuti dentro l'acqua delle cozze. Allora, la pasta così è pronta. Spengiamo il fuoco, iniziamo a far abbassare un po' la temperatura. Guarda la cremosità già. Questa è pasta super. Come prima cosa ci riaggiungiamo dentro le cozze. Poi ci mettiamo un po' di scorza di limone. Le zest. Bello profumato che ci aiuta a dare un po' di freschezza e un po' a sgrassare il pecorino. Un giro d'olio a crudo alla fine così. Cozze e pecorino manca solo il pecorino. Lo mettiamo dentro e adesso piano piano lo andiamo a stemperare, a sciogliere. E ricorda, si è fatto un buon lavoro, il suono è questo. Cozze e pecorino, ma fatta a mestiere però. Fate la casa e fatemi sapere che ne pensate.",
+ "ricetta_caption": "Cozze e Pecorino fatto cos lo mangerei TUTTI I GIORNI  tagga un amico/a che non mangia il pesce col formaggio e faglielo provare",
+ "shortcode": "DKhCawvoAoC"
+}

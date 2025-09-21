@@ -1,0 +1,73 @@
+{
+ "title": "Insalata di Avocado e Pompelmo con Salmone",
+ "category": [
+  "secondo"
+ ],
+ "preparation_time": 15,
+ "cooking_time": 0,
+ "ingredients": [
+  {
+   "name": "pompelmo rosa",
+   "qt": 1.0,
+   "um": "pz"
+  },
+  {
+   "name": "avocado maturo",
+   "qt": 1.0,
+   "um": "pz"
+  },
+  {
+   "name": "salmone affumicato a fette",
+   "qt": 120.0,
+   "um": "g"
+  },
+  {
+   "name": "olio extravergine di oliva",
+   "qt": 30.0,
+   "um": "ml"
+  },
+  {
+   "name": "sale fino",
+   "qt": 2.0,
+   "um": "g"
+  },
+  {
+   "name": "pepe nero macinato",
+   "qt": 1.0,
+   "um": "g"
+  }
+ ],
+ "recipe_step": [
+  "Pela a vivo il pompelmo, ricavando gli spicchi e raccogliendo il succo che cola in una ciotolina.",
+  "Sbuccia l’avocado, elimina il nocciolo e taglia la polpa a fette; irrorala con un po’ di succo di pompelmo per evitare che annerisca.",
+  "Emulsiona l’olio con 1-2 cucchiai di succo di pompelmo, aggiungi sale e pepe.",
+  "Disponi nei piatti le fette di avocado e gli spicchi di pompelmo, poi adagia il salmone affumicato a striscioline.",
+  "Condisci con l’emulsione e servi subito."
+ ],
+ "description": "Insalata fresca e leggera di avocado e pompelmo con salmone affumicato, condita con una semplice emulsione di olio e succo di pompelmo.",
+ "diet": "gluten-free",
+ "technique": "crudo",
+ "language": "Italiano",
+ "chef_advise": "Pelare a vivo il pompelmo per eliminare l’amaro della pellicina. Se preferisci, sostituisci il salmone affumicato con salmone cotto a vapore e raffreddato; aggiungi qualche foglia di rucola o finocchio affettato finissimo per maggiore croccantezza.",
+ "tags": [
+  "insalata",
+  "salmone",
+  "avocado",
+  "pompelmo",
+  "senza cottura",
+  "rapido",
+  "gluten-free"
+ ],
+ "nutritional_info": [
+  "Energia: ~400 kcal a porzione",
+  "Proteine: ~14 g a porzione",
+  "Grassi: ~30 g a porzione",
+  "Carboidrati: ~12 g a porzione",
+  "Fibre: ~7 g a porzione",
+  "Senza glutine"
+ ],
+ "cuisine_type": "internazionale",
+ "ricetta_audio": "Si te quieres divertir",
+ "ricetta_caption": "Avocado-Grapefruit Salad with Salmon",
+ "shortcode": "DKsE7-XKY4J"
+}

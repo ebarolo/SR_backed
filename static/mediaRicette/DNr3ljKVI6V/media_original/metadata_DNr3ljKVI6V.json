@@ -1,0 +1,102 @@
+{
+ "title": "Il risotto, lo zafferano ed i fichi bianchi.",
+ "category": [
+  "primo"
+ ],
+ "preparation_time": 15,
+ "cooking_time": 18,
+ "ingredients": [
+  {
+   "name": "Riso Carnaroli",
+   "qt": 160.0,
+   "um": "g"
+  },
+  {
+   "name": "Zafferano",
+   "qt": 1.0,
+   "um": "bustina"
+  },
+  {
+   "name": "Fichi bianchi maturi",
+   "qt": 4.0,
+   "um": "n"
+  },
+  {
+   "name": "Scalogno",
+   "qt": 1.0,
+   "um": "n"
+  },
+  {
+   "name": "Brodo vegetale caldo",
+   "qt": 600.0,
+   "um": "ml"
+  },
+  {
+   "name": "Vino bianco secco",
+   "qt": 60.0,
+   "um": "ml"
+  },
+  {
+   "name": "Burro",
+   "qt": 30.0,
+   "um": "g"
+  },
+  {
+   "name": "Parmigiano Reggiano grattugiato",
+   "qt": 40.0,
+   "um": "g"
+  },
+  {
+   "name": "Olio extravergine di oliva",
+   "qt": 1.0,
+   "um": "cucchiaio"
+  },
+  {
+   "name": "Sale fino",
+   "qt": 4.0,
+   "um": "g"
+  },
+  {
+   "name": "Pepe bianco macinato",
+   "qt": 1.0,
+   "um": "g"
+  }
+ ],
+ "recipe_step": [
+  "Porta a ebollizione un brodo vegetale leggero e mantienilo sobbollente. Metti lo zafferano in infusione in una tazza di brodo caldo per 10 minuti.",
+  "Monda e trita finemente lo scalogno. Lava e asciuga i fichi: tagliane due a pezzetti e due a spicchi per la finitura.",
+  "Scalda una casseruola larga, aggiungi l’olio e tosta il riso a fuoco medio per 2 minuti, mescolando.",
+  "Unisci lo scalogno tritato e fallo appassire dolcemente senza colorirlo.",
+  "Sfumare con il vino bianco e lasciare evaporare l’alcol.",
+  "Cuoci il riso aggiungendo il brodo caldo poco alla volta, mescolando; a metà cottura incorpora l’infusione di zafferano.",
+  "A 1-2 minuti dal termine, aggiungi i fichi a pezzetti e mescola delicatamente.",
+  "Togli dal fuoco e manteca con burro freddo e Parmigiano. Regola di sale e pepe, quindi lascia riposare 1 minuto.",
+  "Impiatta il risotto e completa con gli spicchi di fico rimanenti."
+ ],
+ "description": "Risotto allo zafferano con fichi bianchi freschi, mantecato con burro e Parmigiano per un equilibrio tra sapidità e dolcezza della frutta.",
+ "diet": "vegetarian",
+ "technique": "risottatura",
+ "language": "Italiano",
+ "chef_advise": "Metti i pistilli di zafferano in infusione in una tazza di brodo caldo per 10 minuti: estrarrà colore e aroma più rotondi rispetto all’aggiunta diretta. Mantieni il brodo sempre sobbollente per non bloccare la cottura del riso. Aggiungi i fichi freschi solo alla fine per preservarli: una parte a pezzetti in mantecatura, il resto a spicchi per finire il piatto. Se desideri maggiore contrasto, usa un vino con buona acidità e completa con una macinata di pepe bianco.",
+ "tags": [
+  "risotto",
+  "zafferano",
+  "fichi bianchi",
+  "primo piatto",
+  "cucina italiana",
+  "vegetariano",
+  "autunno"
+ ],
+ "nutritional_info": [
+  "Per porzione (~1/2 ricetta): ~600 kcal",
+  "Carboidrati: ~85 g",
+  "Proteine: ~20 g",
+  "Grassi: ~22 g",
+  "Fibre: ~5 g",
+  "Sale: ~2 g"
+ ],
+ "cuisine_type": "italiana",
+ "ricetta_audio": "",
+ "ricetta_caption": "Il risotto, lo zafferano ed i fichi bianchi.",
+ "shortcode": "DNr3ljKVI6V"
+}

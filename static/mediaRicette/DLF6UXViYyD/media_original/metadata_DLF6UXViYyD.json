@@ -1,0 +1,90 @@
+{
+ "title": "Carpaccio di fichi e prosciutto crudo",
+ "category": [
+  "antipasto"
+ ],
+ "preparation_time": 10,
+ "cooking_time": 0,
+ "ingredients": [
+  {
+   "name": "fichi",
+   "qt": 6.0,
+   "um": "pezzi"
+  },
+  {
+   "name": "olio extravergine di oliva",
+   "qt": 1.0,
+   "um": "cucchiaio"
+  },
+  {
+   "name": "aceto balsamico IGP",
+   "qt": 1.0,
+   "um": "cucchiaio"
+  },
+  {
+   "name": "miele al timo",
+   "qt": 1.0,
+   "um": "cucchiaino"
+  },
+  {
+   "name": "sale fino",
+   "qt": 1.0,
+   "um": "pizzico"
+  },
+  {
+   "name": "pepe nero",
+   "qt": 1.0,
+   "um": "pizzico"
+  },
+  {
+   "name": "formaggio grana",
+   "qt": 20.0,
+   "um": "g"
+  },
+  {
+   "name": "noci tostate",
+   "qt": 20.0,
+   "um": "g"
+  },
+  {
+   "name": "prosciutto crudo",
+   "qt": 12.0,
+   "um": "fette"
+  },
+  {
+   "name": "basilico fresco",
+   "qt": 6.0,
+   "um": "foglie"
+  }
+ ],
+ "recipe_step": [
+  "Affetta i fichi in rondelle o spicchi sottili.",
+  "Prepara un’emulsione mescolando olio extravergine, aceto balsamico e miele; aggiungi sale e pepe.",
+  "Disponi le fette di prosciutto crudo nei piatti, adagia sopra i fichi.",
+  "Condisci con l’emulsione preparata.",
+  "Completa con grana a scaglie, noci tostate spezzettate e foglie di basilico. Servi subito."
+ ],
+ "description": "Antipasto a crudo con fichi e prosciutto crudo, condito con una leggera emulsione di olio extravergine, aceto balsamico e miele, completato da grana, noci tostate e basilico.",
+ "diet": "gluten-free",
+ "technique": "a crudo",
+ "language": "it",
+ "chef_advise": "Usa fichi maturi ma sodi; affettali delicatamente per non schiacciarli. Emulsiona olio, aceto e miele finché la salsa è lucida; aggiungi il sale solo alla fine per non spaccare il condimento. Tosta brevemente le noci se non sono già tostate e completa con grana in scaglie sottili. Servi ben fresco.",
+ "tags": [
+  "carpaccio",
+  "fichi",
+  "prosciutto crudo",
+  "antipasto",
+  "senza cottura",
+  "gluten-free",
+  "estivo"
+ ],
+ "nutritional_info": [
+  "Senza glutine",
+  "Contiene lattosio",
+  "Contiene frutta a guscio"
+ ],
+ "cuisine_type": "italiana",
+ "ricetta_audio": "La legge della giungla.",
+ "ricetta_caption": "Carpaccio di fichi e prosciutto crudo \n\nIngredienti x2\n6 fichi\n1 cucchiaio di olio evo\n1 cucchiaio di aceto balsamico IGP\n1 cucchiaino di miele al timo\npoco sale\npepe q.b.\nGrana q.b.\n20g noci tostate\n12 fette di un ottimo prosciutto crudo\nbasilico q.b.\n\nBuon Appetito!\n\nFig and Prosciutto Crudo Carpaccio\n\nIngredients for 2\n-6 figs\n- 1 tablespoon of extra virgin olive oil\n- 1 tablespoon of IGP balsamic vinegar\n- 1 teaspoon of thyme honey\n- a pinch of salt\n- pepper to taste\n- Grana cheese to taste\n- 20g roasted walnuts\n- 12 slices of high-quality prosciutto crudo\n- basil to taste\n\nEnjoy your meal!\n.\n.\n.",
+ "shortcode": "DLF6UXViYyD"
+}

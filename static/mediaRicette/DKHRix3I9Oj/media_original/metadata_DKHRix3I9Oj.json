@@ -1,0 +1,88 @@
+{
+ "title": "Chitarra con broccoli, ricotta e pinoli",
+ "category": [
+  "primo"
+ ],
+ "preparation_time": 15,
+ "cooking_time": 20,
+ "ingredients": [
+  {
+   "name": "Broccolo verde",
+   "qt": 300.0,
+   "um": "g"
+  },
+  {
+   "name": "Ricotta vaccina",
+   "qt": 3.0,
+   "um": "cucchiai"
+  },
+  {
+   "name": "Parmigiano Reggiano grattugiato",
+   "qt": 100.0,
+   "um": "g"
+  },
+  {
+   "name": "Pinoli",
+   "qt": 20.0,
+   "um": "g"
+  },
+  {
+   "name": "Pasta alla chitarra",
+   "qt": 180.0,
+   "um": "g"
+  },
+  {
+   "name": "Aglio",
+   "qt": 1.0,
+   "um": "spicchio"
+  },
+  {
+   "name": "Peperoncino (secco o fresco)",
+   "qt": 1.0,
+   "um": "pizzico"
+  },
+  {
+   "name": "Olio extravergine di oliva",
+   "qt": 2.0,
+   "um": "cucchiai"
+  },
+  {
+   "name": "Sale fino",
+   "qt": 5.0,
+   "um": "g"
+  }
+ ],
+ "recipe_step": [
+  "Tagliare il broccolo a pezzi e bollirlo in acqua non salata finché tenero.",
+  "In un pentolino scaldare l’olio e rosolare lo spicchio d’aglio con il peperoncino.",
+  "Unire i broccoli sbollentati, aggiustare di sale e far insaporire a fuoco vivace.",
+  "Frullare i broccoli con 2 cucchiai di ricotta e parte del parmigiano fino a ottenere una crema liscia.",
+  "Cuocere la pasta in acqua salata; nel frattempo tostare i pinoli in una padella a fuoco medio finché dorati.",
+  "Scolare la pasta e amalgamarla con la crema di broccolo, completare con i pinoli tostati e il parmigiano rimasto (regolare con poca acqua di cottura se necessario)."
+ ],
+ "description": "Pasta alla chitarra con crema liscia di broccoli, ricotta e parmigiano, rifinita con pinoli tostati.",
+ "diet": "vegetarian",
+ "technique": "saltare in padella",
+ "language": "Italiano",
+ "chef_advise": "- Lessare i broccoli in acqua non salata per mantenere il colore e gestire la sapidità con formaggi e sale finale. - Tenere da parte un po’ di acqua di cottura della pasta per regolare la consistenza della crema. - Tostare i pinoli a fuoco medio, senza grassi, muovendo spesso la padella per evitare che brucino. - Aggiungere il parmigiano fuori dal fuoco per una mantecatura più cremosa senza stracciare la crema.",
+ "tags": [
+  "pasta",
+  "chitarra",
+  "broccoli",
+  "ricotta",
+  "pinoli",
+  "primo",
+  "vegetariano"
+ ],
+ "nutritional_info": [
+  "Valori indicativi per porzione: ~800 kcal",
+  "Carboidrati: ~65 g",
+  "Proteine: ~33 g",
+  "Grassi: ~38 g",
+  "Allergeni: latte, frutta a guscio (pinoli), glutine"
+ ],
+ "cuisine_type": "italiana",
+ "ricetta_audio": "",
+ "ricetta_caption": "Chitarra con BROCCOLI, RICOTTA E PINOLI\n\n-BROCCOLO VERDE\n-3 CUCCHIAI DI RICOTTA \n-100 GR DI PARMIGIANO\nPINOLI \n\nPer prima cosa tagliamo il broccolo a pezzi e lo facciamo bollire in acqua non salata. \nNel frattempo in un pentolino facciamo rosolare uno spicchio di aglio e del peperoncino, una volta pronto caliamo i broccoli sbollentati, aggiustiamo di sale e facciamo insaporire a fuoco vivace. Passiamo il broccolo con due cucchiai di ricotta e del parmigiano per ottenere una crema liscia. \nMentre cuociamo il formato di pasta che piu ci piace, facciamo tostare in una padella i pinoli.\nUna volta cotta la pasta l'amalgamiamo con la crema di broccolo e i pinoli tostati.",
+ "shortcode": "DKHRix3I9Oj"
+}

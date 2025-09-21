@@ -1,0 +1,101 @@
+{
+ "title": "Cream cheese con gamberi e zucca arrosto alle erbe e miele",
+ "category": [
+  "antipasto"
+ ],
+ "preparation_time": 15,
+ "cooking_time": 40,
+ "ingredients": [
+  {
+   "name": "Zucca a cubetti",
+   "qt": 1.0,
+   "um": "vassoio"
+  },
+  {
+   "name": "Gamberi sgusciati pre cotti",
+   "qt": 1.0,
+   "um": "confezione"
+  },
+  {
+   "name": "Cream cheese",
+   "qt": 350.0,
+   "um": "g"
+  },
+  {
+   "name": "Sale fino",
+   "qt": 2.0,
+   "um": "g"
+  },
+  {
+   "name": "Pepe nero macinato",
+   "qt": 1.0,
+   "um": "g"
+  },
+  {
+   "name": "Olio extravergine di oliva",
+   "qt": 2.0,
+   "um": "cucchiai"
+  },
+  {
+   "name": "Timo fresco",
+   "qt": 1.0,
+   "um": "rametto"
+  },
+  {
+   "name": "Scorza di limone non trattato",
+   "qt": 1.0,
+   "um": "cucchiaio"
+  },
+  {
+   "name": "Mandorle a lamelle",
+   "qt": 2.0,
+   "um": "cucchiai"
+  },
+  {
+   "name": "Aglio",
+   "qt": 1.0,
+   "um": "spicchio"
+  },
+  {
+   "name": "Prezzemolo tritato",
+   "qt": 1.0,
+   "um": "cucchiaio"
+  },
+  {
+   "name": "Miele",
+   "qt": 2.0,
+   "um": "cucchiaini"
+  }
+ ],
+ "recipe_step": [
+  "Preriscaldare il forno a 200°C. Condire i cubi di zucca con aglio, sale, pepe, olio e timo.",
+  "Disporre la zucca su una teglia e arrostire per circa 35 minuti a 200°C, finché dorata e tenera.",
+  "Condire i gamberi con sale, prezzemolo, pepe e la scorza di limone. Scaldare un filo d’olio in padella e rosolarli per circa 5 minuti, finché dorati.",
+  "Impiattare: spalmare il cream cheese sul fondo del piatto/ciotoline, aggiungere la zucca arrosto, poi i gamberi; cospargere con mandorle a lamelle e completare con un filo di miele.",
+  "Servire subito come antipasto agrodolce."
+ ],
+ "description": "Antipasto agrodolce con base di cream cheese, zucca arrosto alle erbe, gamberi saltati, mandorle a lamelle e miele.",
+ "diet": "gluten-free",
+ "technique": "arrosto",
+ "language": "italiano",
+ "chef_advise": "Per un contrasto perfetto, arrostisci la zucca finché è ben caramellata ai bordi. Se usi gamberi crudi, cuocili 2-3 minuti per lato finché appena rosa. Regola il miele a filo in base alla dolcezza della zucca. Raffredda leggermente la zucca prima di impiattare sul cream cheese per evitare che si sciolga troppo. Usa timo fresco e limone non trattato per una resa aromatica migliore.",
+ "tags": [
+  "aperitivo",
+  "antipasto",
+  "senza glutine",
+  "gamberi",
+  "zucca",
+  "agrodolce",
+  "facile"
+ ],
+ "nutritional_info": [
+  "Senza glutine",
+  "Contiene latticini e frutta a guscio",
+  "Ricco di proteine (gamberi)",
+  "Piatto moderatamente calorico per via di cream cheese, olio e miele"
+ ],
+ "cuisine_type": "internazionale",
+ "ricetta_audio": "Um aperitivo muito saboroso e diferente com camarões, bora fazer?\nVamos começar temperando os cubos de abóbora com alho, sal, pimenta, azeite e tomilho.\nLeve para assar por 35 minutos a 200 graus.\nTempere os camarões com sal, salsinha, pimenta e raspas de limão siciliano e em seguida doure por 5 minutinhos no azeite bem quente.\nVamos começar a montar nosso prato colocando o cream cheese, a abóbora assada por cima, os camarões, amêndoas laminadas e finalizando com mel.\nEssa entrada fica muito diferente com um sabor agridoce delicioso.\nEspero que tenham gostado e até a próxima pessoal!",
+ "ricetta_caption": "Cream cheese, camares e abbora assada com ervas e mel \n\nIngredientes:\n\nUma bandeija de abbora em cubos\n1 pacote de camares pr cozidos\n350 g de cream cheese\nSal, pimenta, azeite e tomilho a gosto.\n1 colher de sopa de raspas de limo siciliano\nAmndoas laminadas",
+ "shortcode": "DCSFaZ7vpN1"
+}

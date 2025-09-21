@@ -1,0 +1,85 @@
+{
+ "title": "Risotto agli scampi al mojito",
+ "category": [
+  "primo"
+ ],
+ "preparation_time": 20,
+ "cooking_time": 18,
+ "ingredients": [
+  {
+   "name": "riso carnaroli",
+   "qt": 160.0,
+   "um": "g"
+  },
+  {
+   "name": "scampi freschi",
+   "qt": 4.0,
+   "um": "pezzi"
+  },
+  {
+   "name": "lime",
+   "qt": 2.0,
+   "um": "pezzi"
+  },
+  {
+   "name": "menta fresca (foglie)",
+   "qt": 10.0,
+   "um": "g"
+  },
+  {
+   "name": "olio extravergine di oliva",
+   "qt": 30.0,
+   "um": "ml"
+  },
+  {
+   "name": "zucchero di canna",
+   "qt": 40.0,
+   "um": "g"
+  },
+  {
+   "name": "rum bianco",
+   "qt": 50.0,
+   "um": "ml"
+  },
+  {
+   "name": "gelatina in fogli",
+   "qt": 2.0,
+   "um": "g"
+  },
+  {
+   "name": "burro freddissimo",
+   "qt": 40.0,
+   "um": "g"
+  }
+ ],
+ "recipe_step": [
+  "Spremi il succo di 1 lime e tienilo da parte; preleva anche la zest (solo la parte verde) dall’altro lime.",
+  "Prepara un olio alla menta e lime: frulla le foglie di menta con l’olio e una striscia di zest; filtra finemente.",
+  "Scalda una casseruola e tosta il riso a secco finché è caldo e perlato.",
+  "Bagna il riso con il succo di lime e prosegui la cottura aggiungendo poco alla volta il liquido acido (se necessario, completa con poca acqua calda) fino ad arrivare al dente.",
+  "Pulisci gli scampi e asciugali bene; impanali leggermente nello zucchero di canna.",
+  "Caramella gli scampi in padella antiaderente calda per pochi secondi per lato, senza bruciare lo zucchero; tieni in caldo.",
+  "Prepara il jelly di rum: scalda appena il rum, sciogli la gelatina ammollata e strizzata, versa in un contenitore basso e lascia gelificare; poi taglia a piccoli cubi.",
+  "Togli il riso dal fuoco e manteca con il burro freddissimo fino a ottenere una consistenza all’onda; regola la sapidità se necessario.",
+  "Impiatta il risotto, adagia gli scampi caramellati, aggiungi i cubetti di jelly al rum, qualche fogliolina di menta, condisci con l’olio menta e lime e completa con zest di lime a pioggia."
+ ],
+ "description": "Risotto contemporaneo agli scampi aromatizzato al mojito, con olio alla menta e lime, scampi caramellati allo zucchero di canna e gelatina di rum bianco.",
+ "diet": "",
+ "technique": "risottatura",
+ "language": "Italiano",
+ "chef_advise": "Manteca il risotto con burro freddissimo per ottenere una cremosità setosa. Caramella gli scampi con lo zucchero di canna a fuoco medio e toglili appena dorati: se lo zucchero scurisce troppo diventa amaro.",
+ "tags": [
+  "risotto",
+  "scampi",
+  "mojito",
+  "lime",
+  "menta",
+  "creativo",
+  "contemporaneo"
+ ],
+ "nutritional_info": [],
+ "cuisine_type": "italiana",
+ "ricetta_audio": "Un risotto con lo scampo e il mojito. L'hai mai assaggiato? Adesso andiamo a estrarre il succo di un lime. Con la menta abbiamo fatto un olio menta e lime. Adesso pentola rovente, tostiamo il riso. Bagniamolo con lime. Nel frattempo il nostro riso cuoce, andiamo a scolpare lo scampo. Il mojito vuole lo zucchero di canna e noi andremo a impanare il nostro scampo. Cosa manca nel mojito adesso? Il rum bianco e noi abbiamo fatto un jelly. E ricordatevi, quando lo zucchero viene bruciato non è dolce. Aggiungiamo burro a 0 gradi, mi raccomando, freddissimo. Impiattiamo il risotto. Mettiamo la nostra caramella di scampo, un po' di mentuccia fresca e poi il nostro olio menta e lime. E rinfreschiamo tutto un po' di zest di lime. È ubriacante sto piatto!",
+ "ricetta_caption": "Un risotto con lo scampo e il mojito, l'hai mai assaggiato? \n\nLa Chicca Boutique Restaurant\n Via dei Macci 79 R, Firenze\n 055 051 7094",
+ "shortcode": "DLZ1E4Yiv8t"
+}

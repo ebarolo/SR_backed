@@ -1,0 +1,82 @@
+{
+ "title": "Mezze maniche fredde con crema di burrata, pesca grigliata e speck",
+ "category": [
+  "primo"
+ ],
+ "preparation_time": 10,
+ "cooking_time": 15,
+ "ingredients": [
+  {
+   "name": "mezze maniche",
+   "qt": 200.0,
+   "um": "g"
+  },
+  {
+   "name": "burrata",
+   "qt": 250.0,
+   "um": "g"
+  },
+  {
+   "name": "pesca noce",
+   "qt": 0.5,
+   "um": "pezzo"
+  },
+  {
+   "name": "basilico fresco",
+   "qt": 5.0,
+   "um": "g"
+  },
+  {
+   "name": "pecorino romano grattugiato",
+   "qt": 25.0,
+   "um": "g"
+  },
+  {
+   "name": "sale fino",
+   "qt": 4.0,
+   "um": "g"
+  },
+  {
+   "name": "pepe nero",
+   "qt": 1.0,
+   "um": "g"
+  },
+  {
+   "name": "olio extravergine d'oliva",
+   "qt": 30.0,
+   "um": "ml"
+  },
+  {
+   "name": "speck",
+   "qt": 50.0,
+   "um": "g"
+  }
+ ],
+ "recipe_step": [
+  "Griglia la pesca noce: lavala, tagliala a spicchi e grigliala 2–3 minuti per lato finché leggermente caramellata.",
+  "Cuoci lo speck in padella finché croccante, scolalo su carta e tritalo al coltello.",
+  "In un mixer unisci burrata, basilico, le fette di pesca grigliate, pecorino, olio, un pizzico di sale e pepe; frulla fino a ottenere una crema liscia.",
+  "Cuoci le mezze maniche in abbondante acqua salata; scola al dente e raffredda rapidamente sotto acqua fredda o stendile su una teglia per intiepidirle.",
+  "Amalgama la pasta con la crema di burrata, regolando la consistenza con un po’ di acqua di cottura se necessario.",
+  "Impiatta e completa con lo speck tritato. Servi subito."
+ ],
+ "description": "Pasta fredda con crema di burrata, basilico e pesca grigliata, rifinita con speck croccante e pecorino: un primo estivo fresco e saporito.",
+ "diet": "",
+ "technique": "mantecatura a freddo",
+ "language": "it",
+ "chef_advise": "- Griglia la pesca a fiamma viva per pochi minuti: deve caramellare senza sfaldarsi.\n- Trita lo speck solo dopo averlo reso croccante: resterà separato e darà contrasto.\n- Non eccedere con il sale nella crema: pecorino e speck sono sapidi.\n- Regola la densità della crema con poca acqua di cottura fredda o tiepida della pasta.\n- Se vuoi un piatto davvero freddo, raffredda la pasta sotto acqua corrente e condiscila a temperatura ambiente.",
+ "tags": [
+  "primo",
+  "pasta fredda",
+  "estate",
+  "burrata",
+  "pesca",
+  "speck",
+  "veloce"
+ ],
+ "nutritional_info": [],
+ "cuisine_type": "italiana",
+ "ricetta_audio": "Sapevi che se grigli una pesca, cuoci lo speck e poi lo triti con un coltello? In un mixer unisci la burrata, il basilico, le pesche grigliate, il pecorino grattugiato, olio, pepe e un pizzico di sale e frulli tutto. Amalgami la crema con la pasta e poi impiatti aggiungendo lo speck precedentemente tritato. Otterrai un primo piatto fresco e delizioso, perfetto per l'estate e vedrai che questo piacerà proprio a tutti!",
+ "ricetta_caption": "EP. 2| PRIMI PIATTI FREDDI\nSegui  \n\nSALVA LA RICETTA \n\nPer 2 persone hai bisogno di:\n- Mezze maniche 200g \n- Burrata 250g\n- Pesca noce 1/2\n- Basilico qb\n- Pecorino grattugiato qb\n- Sale e pepe qb\n- Olio extravergine doliva qb\n- Speck 50g",
+ "shortcode": "DKSNANktWh2"
+}
