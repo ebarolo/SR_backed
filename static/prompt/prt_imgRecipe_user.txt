@@ -1,0 +1,7 @@
+Crea un immagine fotorealistica che rapresenti chiaramente la ricetta del seguente testo: {testo}
+Stile reallistico. Soggetto principale in primo piano, con forti contrasti.
+La paletta dei colori deve rispecchiare il testo dai cui hai preso ispirazione, sfondo semplice.
+Composizione ordinato e proporzionalmente accurata, visivamente accattivante, che attiri l'attenzione dell'utente.
+Nessun testo nell'immagine.
+Nessun logotipo.
+Nessuna cornice.

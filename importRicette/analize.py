@@ -21,6 +21,7 @@ from config import (
     OPENAI_IMAGE_MODEL,
 )
 from utility.models import recipe_schema
+from utility.path_utils import ensure_media_web_path
 
 def read_prompt_files(file_name: str, **kwargs) -> str:
     """
@@ -370,7 +371,7 @@ async def generateRecipeImages(ricetta: dict, shortcode: str):
                 out_path = os.path.join(image_folder, f"image_{img['type']}_{idx+1}.jpg")
                 with open(out_path, "wb") as f:
                     f.write(image_bytes)
-                saved_paths.append(out_path)
+                saved_paths.append(ensure_media_web_path(out_path))
                 # Log successful image save (info level)
                 import logging
                 logging.getLogger(__name__).info(f"Image saved successfully", extra={

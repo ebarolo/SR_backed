@@ -1,6 +1,8 @@
 # Import FastAPI e middleware
 from fastapi import FastAPI, HTTPException, status, BackgroundTasks, Request
 from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 
 # Import standard library
@@ -13,7 +15,7 @@ from pydantic import BaseModel, HttpUrl, field_validator
 from typing import List, Optional, Dict, Any
 
 # Import moduli interni
-from config import BASE_FOLDER_RICETTE, EMBEDDING_MODEL, WCD_COLLECTION_NAME
+from config import BASE_FOLDER_RICETTE, EMBEDDING_MODEL, WCD_COLLECTION_NAME, STATIC_DIR
 from utility.models import JobStatus
 from rag._elysia import search_recipes_elysia, _preprocess_collection
 from rag._weaviate import WeaviateSemanticEngine
@@ -82,6 +84,22 @@ app = FastAPI(
     description="API per gestione ricette con ricerca semantica basata su Weaviate/Elysia",
     lifespan=lifespan
 )
+
+# Abilita CORS per consentire chiamate dal frontend o da domini esterni
+_cors_origins = os.getenv("CORS_ALLOW_ORIGINS", "*")
+_parsed_origins = [origin.strip() for origin in _cors_origins.split(",") if origin.strip()]
+if "*" in _parsed_origins or not _parsed_origins:
+    _parsed_origins = ["*"]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_parsed_origins,
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 @app.post("/recipes/ingest", response_model=JobStatus, status_code=status.HTTP_202_ACCEPTED)
 async def enqueue_ingest(videos: VideoURLs, background_tasks: BackgroundTasks):
