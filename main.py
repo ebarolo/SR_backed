@@ -3,6 +3,7 @@ from fastapi import FastAPI, HTTPException, status, BackgroundTasks, Request
 from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+import mimetypes
 from contextlib import asynccontextmanager
 
 # Import standard library
@@ -80,7 +81,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Smart Recipe",
-    version="0.8",
+    version="0.9",
     description="API per gestione ricette con ricerca semantica basata su Weaviate/Elysia",
     lifespan=lifespan
 )
@@ -99,7 +100,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Configurazione MIME types per assicurarsi che i CSS vengano serviti correttamente
+mimetypes.add_type('text/css', '.css')
+mimetypes.add_type('application/javascript', '.js')
+
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+# Mount per servire gli asset del frontend direttamente dalla radice (deve essere prima di /frontend)
+app.mount("/asset", StaticFiles(directory=os.path.join(DIST_DIR, "asset")), name="frontend-assets")
+# Mount per servire i file del frontend
+app.mount("/import", StaticFiles(directory=DIST_DIR), name="frontend")
 
 @app.post("/recipes/ingest", response_model=JobStatus, status_code=status.HTTP_202_ACCEPTED)
 async def enqueue_ingest(videos: VideoURLs, background_tasks: BackgroundTasks):
@@ -380,6 +389,20 @@ def embeddings_preview3d_with_query(q: str, limit: int = 1000, with_meta: bool =
         "message": "Embeddings 3D view con query non supportata con Elysia"
     }
  
+# ===============================
+# ENDPOINTS FRONTEND
+# ===============================
+
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
+async def serve_frontend():
+    """
+    Serve la pagina principale del frontend.
+    """
+    index_path = os.path.join(DIST_DIR, "index.html")
+    if os.path.isfile(index_path):
+        return FileResponse(index_path)
+    return JSONResponse({"detail": "Frontend non trovato"}, status_code=404)
+
 # ===============================
 # ENDPOINTS DI SISTEMA
 # ===============================

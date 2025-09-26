@@ -180,7 +180,8 @@ class ImportManager {
     }
 
     async startImport(urls) {
-        const response = await fetch(`${this.apiBaseUrl}/ingest/recipes`, {
+        console.log('startImport', `${this.apiBaseUrl}/recipes/ingest`);
+        const response = await fetch(`${this.apiBaseUrl}/recipes/ingest`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -200,7 +201,7 @@ class ImportManager {
     async loadJobs() {
         try {
             this.setRefreshLoading(true);
-            const response = await fetch(`${this.apiBaseUrl}/ingest/status`);
+            const response = await fetch(`${this.apiBaseUrl}/recipes/ingest/status`);
             
             if (!response.ok) {
                 if (response.status === 404) {
