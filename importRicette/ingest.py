@@ -4,6 +4,7 @@ import logging
 from typing import List
 
 from fastapi import FastAPI
+from colorgram import colorgram
 
 from utility.logging_config import (
     setup_logging, 
@@ -21,7 +22,8 @@ from utility.utility import (
     calculate_job_percentage,
     create_progress_callback,
     update_url_progress,
-    save_recipe_metadata
+    save_recipe_metadata,
+    rgb_to_hex
 )
 from utility.path_utils import ensure_media_web_paths, ensure_media_web_path
 
@@ -88,6 +90,11 @@ async def _ingest_urls_job(app: FastAPI, job_id: str, urls: List[str]):
                     
                     if not recipe_data:
                         raise ValueError("Recipe data is empty")
+
+                    if not NO_IMAGE and len(recipe_data.images) > 0:
+                        palette_colors = colorgram.extract(recipe_data.images[0], 4)
+                        palette_hex = [rgb_to_hex(color.rgb.r, color.rgb.g, color.rgb.b) for color in palette_colors]
+                        recipe_data["palette_hex"] = palette_hex
 
                     recipe_data.images = ensure_media_web_paths(recipe_data.images)
 
@@ -244,6 +251,10 @@ async def _ingest_folder_job(app: FastAPI, job_id: str, dir_list: List[str]):
 
                     if not NO_IMAGE and len(images) == 0:
                         generated_images = await generateRecipeImages(recipe_data, recipe_data.get("shortcode", dir_name))
+                        palette_colors = colorgram.extract(generated_images, 4)
+                        palette_hex = [rgb_to_hex(color.rgb.r, color.rgb.g, color.rgb.b) for color in palette_colors]
+                        recipe_data["palette_hex"] = palette_hex
+
                         generated_images = ensure_media_web_paths(generated_images)
                         recipe_data["images"] = generated_images or []
                         if generated_images and not recipe_data.get("image_url"):
