@@ -1,22 +1,15 @@
 
 # FastAPI and web server
-fastapi[standard]==0.116.1
-uvicorn[standard]==0.29.0
-pydantic==2.11.7
+fastapi[standard]==0.117.1
+uvicorn[standard]==0.37.0
+pydantic==2.11.9
 
 # AI/LLM
-openai>=1.107.1
+openai>=1.109.1
 tenacity==9.1.2
 
-# NLP (opzionale, per fallback)
-spacy==3.8.7
-# Nota: dopo l'installazione, esegui: python -m spacy download it_core_news_sm
-
-# Tokenizzazione e stopwords NLTK
-nltk>=3.9.1
-
 # Utilities
-python-dotenv>=1.1.0
+python-dotenv>=1.1.1
 requests==2.32.5
 yt-dlp>=2025.8.20
 
@@ -24,7 +17,7 @@ yt-dlp>=2025.8.20
 python-json-logger==3.3.0
 
 # Additional dependencies
-numpy==2.3.2
+numpy==2.3.3
 scikit-learn==1.7.1
 instaloader==4.14.2
 matplotlib==3.10.5
@@ -36,6 +29,6 @@ grpcio==1.74.0
 grpcio-tools==1.74.0
 grpcio-status==1.74.0
 protobuf==6.32.0
-elysia-ai==0.2.6
+elysia-ai==0.2.7
 weaviate-client==4.16.10
 weaviate-agents==1.0.1
