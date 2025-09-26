@@ -16,7 +16,7 @@ from pydantic import BaseModel, HttpUrl, field_validator
 from typing import List, Optional, Dict, Any
 
 # Import moduli interni
-from config import BASE_FOLDER_RICETTE, EMBEDDING_MODEL, WCD_COLLECTION_NAME, STATIC_DIR
+from config import BASE_FOLDER_RICETTE, EMBEDDING_MODEL, STATIC_DIR
 from utility.models import JobStatus
 from rag._elysia import search_recipes_elysia, _preprocess_collection
 from rag._weaviate import WeaviateSemanticEngine
@@ -32,7 +32,7 @@ import uvicorn
 
 # Directory base e frontend
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DIST_DIR = os.path.join(BASE_DIR, "frontend")
+DIST_DIR = os.path.join(BASE_DIR, "importFrontend")
 
 # Setup logging
 setup_logging()
@@ -108,7 +108,7 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 # Mount per servire gli asset del frontend direttamente dalla radice (deve essere prima di /frontend)
 app.mount("/asset", StaticFiles(directory=os.path.join(DIST_DIR, "asset")), name="frontend-assets")
 # Mount per servire i file del frontend
-app.mount("/import", StaticFiles(directory=DIST_DIR), name="frontend")
+app.mount("/import", StaticFiles(directory=DIST_DIR), name="importFrontend")
 
 @app.post("/recipes/ingest", response_model=JobStatus, status_code=status.HTTP_202_ACCEPTED)
 async def enqueue_ingest(videos: VideoURLs, background_tasks: BackgroundTasks):

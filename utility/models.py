@@ -37,6 +37,7 @@ class RecipeDBSchema(BaseModel):
     tags: Optional[List[str]]                 # Tag per ricerca
     nutritional_info: Optional[List[str]]     # Informazioni nutrizionali
     images: Optional[List[str]] = None        # Percorsi immagini generate
+    palette_hex: Optional[List[str]] = None   # Palette colori esadecimali estratti dall'immagine
     cuisine_type: Optional[str]               # Tipo di cucina (italiana, indiana, etc.)
     ricetta_audio: Optional[str]              # Path file audio ricetta
     ricetta_caption: Optional[str]            # Trascrizione/caption dal video
