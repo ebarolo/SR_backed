@@ -318,7 +318,9 @@ class WeaviateSemanticEngine:
                 "chef_advise": recipe.chef_advise or "",
                 "tags": recipe.tags or [],
                 "nutritional_info": recipe.nutritional_info or [],
-                "recipe_step": recipe.recipe_step
+                "recipe_step": recipe.recipe_step,
+                "images": recipe.images or [],
+                "color_palette": recipe.palette_hex or []
             }
             
             # Genera UUID deterministico dal shortcode
@@ -387,6 +389,7 @@ class WeaviateSemanticEngine:
                         nutritional_info = recipe.get('nutritional_info', [])
                         recipe_step = recipe.get('recipe_step', [])
                         images = recipe.get('images', [])
+                        color_palette = recipe.get('palette_hex', [])
                     else:
                         shortcode = recipe.shortcode
                         title = recipe.title
@@ -404,6 +407,7 @@ class WeaviateSemanticEngine:
                         nutritional_info = recipe.nutritional_info
                         recipe_step = recipe.recipe_step
                         images = recipe.images
+                        color_palette = recipe.palette_hex
                     
                     print(f"Preparando ricetta {index + 1}/{len(recipes)}: {shortcode}")
                     
@@ -442,6 +446,7 @@ class WeaviateSemanticEngine:
                         "nutritional_info": nutritional_info or [],
                         "recipe_step": recipe_step,
                         "images": images or [],
+                        "color_palette": color_palette or []
                     }
                     
                     # Genera UUID deterministico dal shortcode
