@@ -26,6 +26,9 @@ from utility.logging_config import get_error_logger
 # Inizializzazioni
 error_logger = get_error_logger(__name__)
 
+def rgb_to_hex(r, g, b):
+    return '#{:02x}{:02x}{:02x}'.format(r, g, b)
+    
 def sanitize_text(text: str) -> str:
     """
     Sanitizza il testo rimuovendo caratteri problematici.

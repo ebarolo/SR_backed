@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Import Ricette - Smart Recipe</title>
-    <link rel="stylesheet" href="asset/shadcn-styles.css">
+    <title>Backend import ricette - Smart Recipe</title>
+    <link rel="stylesheet" href="/asset/shadcn-styles.css">
     <style>
         /* Stili personalizzati specifici per l'applicazione */
         .bg-gradient-to-br {
@@ -45,18 +45,12 @@
     <header class="header">
         <div class="container flex items-center justify-between py-4">
             <div class="flex items-center space-x-4">
-                <div class="h-8 w-8 rounded-md bg-primary flex items-center justify-center text-primary-foreground font-bold">
-                    SR
-                </div>
                 <div>
-                    <h1 class="text-xl font-semibold">Import Ricette</h1>
-                    <p class="text-sm text-muted-foreground">
-                        Carica ricette da URL social media
-                    </p>
+                    <h1 class="text-xl font-semibold">Backend import ricette - Smart Recipe</h1>
                 </div>
             </div>
             <nav class="flex items-center space-x-2">
-                <button onclick="location.href='index.html'" class="btn btn-secondary">
+                <button onclick="location.href='/'" class="btn btn-secondary">
                     Viewer semantico Ricette
                 </button>
             </nav>
@@ -96,10 +90,7 @@
                                     placeholder="Inserisci gli URL uno per riga o separati da virgole, o incolla direttamente dal tuo clipboard..."
                                     class="input textarea min-h-32"
                                     rows="6"></textarea>
-                                <p class="text-xs text-muted-foreground">
-                                    Esempi: https://youtube.com/watch?v=...,
-                                    https://instagram.com/p/..., https://facebook.com/...
-                                </p>
+                               
                             </div>
 
                             <div class="flex items-center space-x-2">
@@ -259,16 +250,6 @@
                     </div>
                     
                     <div class="flex items-center space-x-3">
-                        <button id="recalculateBtn" onclick="importManager.handleRecalculateEmbeddings()"
-                            class="btn bg-gradient-to-r from-material-primary to-oneui-blue text-white hover:from-material-primary/90 hover:to-oneui-blue/90 shadow-lg hover:shadow-xl">
-                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
-                                </path>
-                            </svg>
-                            Avvia Ricalcolo Completo
-                        </button>
-                        
                         <div id="recalculateStatus" class="hidden">
                             <div class="flex items-center space-x-2">
                                 <svg class="w-5 h-5 text-oneui-blue animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -300,7 +281,7 @@
         </div>
     </main>
 
-    <script src="asset/import.js"></script>
+    <script src="/asset/import.js"></script>
 </body>
 
 </html>

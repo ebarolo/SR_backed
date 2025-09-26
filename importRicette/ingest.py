@@ -4,6 +4,7 @@ import logging
 from typing import List
 
 from fastapi import FastAPI
+from colorgram import colorgram
 
 from utility.logging_config import (
     setup_logging, 
@@ -21,9 +22,10 @@ from utility.utility import (
     calculate_job_percentage,
     create_progress_callback,
     update_url_progress,
-    save_recipe_metadata
+    save_recipe_metadata,
+    rgb_to_hex
 )
-from utility.path_utils import ensure_media_web_paths, ensure_media_web_path
+from utility.path_utils import ensure_media_web_paths, ensure_media_web_path, web_path_to_filesystem_path
 
 # Setup logging
 setup_logging()
@@ -88,6 +90,13 @@ async def _ingest_urls_job(app: FastAPI, job_id: str, urls: List[str]):
                     
                     if not recipe_data:
                         raise ValueError("Recipe data is empty")
+
+                    if not NO_IMAGE and len(recipe_data.images) > 0:
+                        # Converti percorso web in percorso filesystem per colorgram
+                        image_path = web_path_to_filesystem_path(recipe_data.images[0])
+                        palette_colors = colorgram.extract(image_path, 4)
+                        palette_hex = [rgb_to_hex(color.rgb.r, color.rgb.g, color.rgb.b) for color in palette_colors]
+                        recipe_data.palette_hex = palette_hex
 
                     recipe_data.images = ensure_media_web_paths(recipe_data.images)
 
@@ -244,6 +253,13 @@ async def _ingest_folder_job(app: FastAPI, job_id: str, dir_list: List[str]):
 
                     if not NO_IMAGE and len(images) == 0:
                         generated_images = await generateRecipeImages(recipe_data, recipe_data.get("shortcode", dir_name))
+                        # Converti percorso web in percorso filesystem per colorgram (usa prima immagine se è lista)
+                        first_image = generated_images[0] if isinstance(generated_images, list) and generated_images else generated_images
+                        image_path = web_path_to_filesystem_path(first_image)
+                        palette_colors = colorgram.extract(image_path, 4)
+                        palette_hex = [rgb_to_hex(color.rgb.r, color.rgb.g, color.rgb.b) for color in palette_colors]
+                        recipe_data["palette_hex"] = palette_hex
+
                         generated_images = ensure_media_web_paths(generated_images)
                         recipe_data["images"] = generated_images or []
                         if generated_images and not recipe_data.get("image_url"):
