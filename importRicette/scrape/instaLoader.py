@@ -79,11 +79,12 @@ async def scarica_contenuto_reel(url: str) -> Dict[str, Any]:
             BASE_FOLDER_RICETTE, shortcode
         )
         
-        # Check if the folder already exists and contains files
-        if os.path.exists(shortcode_folder) and os.listdir(shortcode_folder):
-            error_logger.log_error("content_already_exists", f"Folder {shortcode_folder} already exists and contains files", {"shortcode": shortcode, "url": url})
-
-            raise ValueError(f"Content for shortcode {shortcode} already downloaded")
+        # Check if the folder already exists and contains the metadata file
+        metadata_file_path = os.path.join(shortcode_folder, "media_original", f"metadata_{shortcode}.json")
+        if os.path.exists(metadata_file_path):
+            error_logger.log_error("content_already_exists", f"Content for shortcode {shortcode} already exists - metadata file found at {metadata_file_path}", {"shortcode": shortcode, "url": url, "metadata_file": metadata_file_path})
+            
+            raise ValueError(f"Content for shortcode {shortcode} already downloaded - metadata file exists")
 
         else:
             downloadFolder = os.path.join(shortcode_folder, "media_original")
