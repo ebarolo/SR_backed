@@ -225,33 +225,32 @@ async def _ingest_folder_job(app: FastAPI, job_id: str, dir_list: List[str]):
         # Ottieni il progresso dal job_entry
         current_progress = job_entry.get("progress", {})
         
-        with WeaviateSemanticEngine() as indexing_engine:
-            for i, dir_name in enumerate(dir_list, start=1):
-                dir_index = i - 1
+        for i, dir_name in enumerate(dir_list, start=1):
+            dir_index = i - 1
                 
-                # Aggiorna stato URL a running
-                update_url_progress(current_progress, dir_index, "running", "download")
+            # Aggiorna stato URL a running
+            update_url_progress(current_progress, dir_index, "running", "download")
                 
-                # Crea callback per progresso
-                progress_callback = create_progress_callback(current_progress, dir_index, total)
+            # Crea callback per progresso
+            progress_callback = create_progress_callback(current_progress, dir_index, total)
                 
-                try:
-                    # Usa dir_name invece di dir_list[i] per evitare errori di indicizzazione
-                    metadata_path = os.path.join(BASE_FOLDER_RICETTE, dir_name, "media_original", f"metadata_{dir_name}.json")
+            try:
+            # Usa dir_name invece di dir_list[i] per evitare errori di indicizzazione
+                metadata_path = os.path.join(BASE_FOLDER_RICETTE, dir_name, "media_original", f"metadata_{dir_name}.json")
                     
-                    # Controlla se il file esiste prima di aprirlo
-                    if not os.path.exists(metadata_path):
-                        raise FileNotFoundError(f"File metadata non trovato: {metadata_path}")
+                # Controlla se il file esiste prima di aprirlo
+                if not os.path.exists(metadata_path):
+                    raise FileNotFoundError(f"File metadata non trovato: {metadata_path}")
                     
-                    with open(metadata_path, "r") as f:
+                with open(metadata_path, "r") as f:
                         recipe_data = json.load(f)
 
-                    raw_images = recipe_data.get("images") or []
-                    if not isinstance(raw_images, list):
+                raw_images = recipe_data.get("images") or []
+                if not isinstance(raw_images, list):
                         raw_images = [raw_images]
-                    images = ensure_media_web_paths(raw_images)
+                images = ensure_media_web_paths(raw_images)
 
-                    if not NO_IMAGE and len(images) == 0:
+                if not NO_IMAGE and len(images) == 0:
                         generated_images = await generateRecipeImages(recipe_data, recipe_data.get("shortcode", dir_name))
                         # Converti percorso web in percorso filesystem per colorgram (usa prima immagine se è lista)
                         first_image = generated_images[0] if isinstance(generated_images, list) and generated_images else generated_images
@@ -264,19 +263,19 @@ async def _ingest_folder_job(app: FastAPI, job_id: str, dir_list: List[str]):
                         recipe_data["images"] = generated_images or []
                         if generated_images and not recipe_data.get("image_url"):
                             recipe_data["image_url"] = generated_images[0]
-                    else:
+                else:
                         recipe_data["images"] = images
 
-                    if recipe_data.get("image_url"):
+                if recipe_data.get("image_url"):
                         recipe_data["image_url"] = ensure_media_web_path(recipe_data["image_url"])
 
-                    metadatas.append(recipe_data)
-                    success += 1
+                metadatas.append(recipe_data)
+                success += 1
 
-                    update_url_progress(current_progress, dir_index, "success", "done", 100.0)
-                    current_progress["success"] = success
+                update_url_progress(current_progress, dir_index, "success", "done", 100.0)
+                current_progress["success"] = success
                     
-                except Exception as e:
+            except Exception as e:
                     failed += 1
                     error_message = str(e)
                     #shortcode = extract_shortcode_from_url(url)
@@ -288,13 +287,16 @@ async def _ingest_folder_job(app: FastAPI, job_id: str, dir_list: List[str]):
                     error_logger.log_exception("process_folder_job", e, {"dir_name": dir_name, "shortcode": dir_name})
                     continue
                 
-                # Ricalcola percentuale totale
-                current_progress["percentage"] = calculate_job_percentage(current_progress, total)
+            # Ricalcola percentuale totale
+            current_progress["percentage"] = calculate_job_percentage(current_progress, total)
             #print("fine process_dir_list", metadatas)    
             logging.getLogger(__name__).info(f"Loaded metadata")
 
             # Indicizza ricette se disponibili
-            if metadatas:
+        
+        if metadatas:
+             with WeaviateSemanticEngine() as indexing_engine:
+
                 current_progress["stage"] = "indexing"
                 current_progress["percentage"] = max(float(current_progress.get("percentage") or 0.0), 95.0)
                 

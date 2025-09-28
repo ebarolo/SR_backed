@@ -40,21 +40,14 @@ def get_instaloader():
 
     return L
 
-async def scarica_contenuto_reel(url: str) -> Dict[str, Any]:
-    # Clear error chain at start of new operation
-    clear_error_chain()
+def extract_shortcode_from_url(url: str) -> str:
+    # Extract shortcode from URL with improved handling for different URL formats
+    # Handle URLs like:
+    # - https://www.instagram.com/p/ABC123/
+    # - https://www.instagram.com/reel/ABC123/
+    # - https://www.instagram.com/tv/ABC123/
+    # - https://instagram.com/p/ABC123/
     
-    result = []
-    try:
-        L = get_instaloader()
-
-        # Extract shortcode from URL with improved handling for different URL formats
-        # Handle URLs like:
-        # - https://www.instagram.com/p/ABC123/
-        # - https://www.instagram.com/reel/ABC123/
-        # - https://www.instagram.com/tv/ABC123/
-        # - https://instagram.com/p/ABC123/
-
         logging.getLogger(__name__).info(f"Processing URL: {url}")
 
         # Clean URL by removing query parameters and trailing slashes
@@ -72,8 +65,24 @@ async def scarica_contenuto_reel(url: str) -> Dict[str, Any]:
 
         if not shortcode:
             raise ValueError(f"Could not extract shortcode from URL: {url}")
+     
+        return shortcode
 
-        logging.getLogger(__name__).info(f"Extracted shortcode: {shortcode}")
+async def scarica_contenuto_reel(url: str) -> Dict[str, Any]:
+    # Clear error chain at start of new operation
+    clear_error_chain()
+    
+    result = []
+    try:
+        L = get_instaloader()
+        if(url.startswith("https://www.instagram.com/")):
+         # Extract shortcode from URL
+         shortcode = extract_shortcode_from_url(url)
+         logging.getLogger(__name__).info(f"Extracted shortcode: {shortcode}")
+
+        else:
+            shortcode = url
+            
         # Create a folder named after the shortcode inside static/mediaRicette
         shortcode_folder = os.path.join(
             BASE_FOLDER_RICETTE, shortcode

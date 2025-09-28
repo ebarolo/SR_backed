@@ -4,7 +4,18 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Embeddings 3D Preview</title>
-    <script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.30.0.min.js" 
+            onerror="handlePlotlyLoadError()"></script>
+    <script>
+      function handlePlotlyLoadError() {
+        document.getElementById('plot').innerHTML = 
+          '<div style="display:flex;align-items:center;justify-content:center;height:100%;background:#f8f9fa;color:#666;text-align:center;">' +
+          '<div><h3>⚠️ Errore caricamento Plotly</h3><p>Impossibile caricare la libreria di visualizzazione dal CDN.<br>Verifica la connessione internet e riprova.</p>' +
+          '<button onclick="location.reload()" style="margin-top:1rem;padding:0.5rem 1rem;background:#007bff;color:white;border:none;border-radius:4px;cursor:pointer;">Ricarica Pagina</button></div>' +
+          '</div>';
+        console.error('Plotly CDN failed to load');
+      }
+    </script>
     <style>
       html, body { height: 100%; margin: 0; }
       #plot { width: 100%; height: 100%; }
@@ -28,11 +39,34 @@
     </div>
     <div id="plot"></div>
     <script>
+    // FIX: Enhanced error handling and input validation
     async function loadAndPlot(limit){
-      const res = await fetch(`/embeddings/preview3d?limit=${encodeURIComponent(limit)}&with_meta=1`);
-      const data = await res.json();
-      if(data.status !== 'ok' || !data.points || !data.points.length){
-        document.getElementById('plot').innerHTML = 'Nessun dato disponibile';
+      try {
+        // FIX: Input validation
+        limit = Math.max(10, Math.min(10000, parseInt(limit) || 1000));
+        
+        const res = await fetch(`/embeddings/preview3d?limit=${encodeURIComponent(limit)}&with_meta=1`);
+        
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+        
+        const data = await res.json();
+        
+        if(data.status !== 'ok' || !data.points || !data.points.length){
+          document.getElementById('plot').innerHTML = 
+            '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#666;text-align:center;">' +
+            '<div><h3>📊 Nessun dato disponibile</h3><p>Non ci sono embeddings da visualizzare.<br>Importa alcune ricette prima di visualizzare i dati.</p></div>' +
+            '</div>';
+          return;
+        }
+      } catch (error) {
+        console.error('Error loading embeddings:', error);
+        document.getElementById('plot').innerHTML = 
+          '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#d32f2f;text-align:center;">' +
+          '<div><h3>❌ Errore caricamento</h3><p>' + (error.message || 'Errore sconosciuto') + '</p>' +
+          '<button onclick="loadAndPlot(1000)" style="margin-top:1rem;padding:0.5rem 1rem;background:#007bff;color:white;border:none;border-radius:4px;cursor:pointer;">Riprova</button></div>' +
+          '</div>';
         return;
       }
       const xs = data.points.map(p => p.x);
@@ -54,11 +88,40 @@
       };
       Plotly.newPlot('plot', [trace], layout, {responsive: true});
     }
+    // FIX: Enhanced query function with validation and security
     async function loadWithQuery(limit, query){
-      const res = await fetch(`/embeddings/preview3d_with_query?q=${encodeURIComponent(query)}&limit=${encodeURIComponent(limit)}&with_meta=1`);
-      const data = await res.json();
-      if(data.status !== 'ok' || !data.points || !data.points.length){
-        document.getElementById('plot').innerHTML = 'Nessun dato disponibile';
+      try {
+        // FIX: Input validation and sanitization
+        limit = Math.max(10, Math.min(10000, parseInt(limit) || 1000));
+        query = (query || '').trim().substring(0, 200); // Limit query length for security
+        
+        if (!query) {
+          loadAndPlot(limit);
+          return;
+        }
+        
+        const res = await fetch(`/embeddings/preview3d_with_query?q=${encodeURIComponent(query)}&limit=${encodeURIComponent(limit)}&with_meta=1`);
+        
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+        
+        const data = await res.json();
+        
+        if(data.status !== 'ok' || !data.points || !data.points.length){
+          document.getElementById('plot').innerHTML = 
+            '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#666;text-align:center;">' +
+            '<div><h3>🔍 Nessun risultato</h3><p>Query: <strong>' + query.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</strong><br>Prova con termini diversi o riduci i filtri.</p></div>' +
+            '</div>';
+          return;
+        }
+      } catch (error) {
+        console.error('Error loading query embeddings:', error);
+        document.getElementById('plot').innerHTML = 
+          '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#d32f2f;text-align:center;">' +
+          '<div><h3>❌ Errore query</h3><p>' + (error.message || 'Errore sconosciuto') + '</p>' +
+          '<button onclick="loadAndPlot(' + limit + ')" style="margin-top:1rem;padding:0.5rem 1rem;background:#007bff;color:white;border:none;border-radius:4px;cursor:pointer;">Carica tutto</button></div>' +
+          '</div>';
         return;
       }
       const xs = data.points.map(p => p.x);
@@ -91,20 +154,50 @@
       const traces = traceQuery ? [traceDataset, traceQuery] : [traceDataset];
       Plotly.newPlot('plot', traces, layout, {responsive: true});
     }
+    // FIX: Enhanced event handlers with validation
     document.getElementById('reload').addEventListener('click', () => {
-      const limit = parseInt(document.getElementById('limit').value || '1000', 10);
+      const limitInput = document.getElementById('limit');
+      const limit = Math.max(10, Math.min(10000, parseInt(limitInput.value) || 1000));
+      limitInput.value = limit; // Update input with validated value
       loadAndPlot(limit);
     });
+    
     document.getElementById('plotQuery').addEventListener('click', () => {
-      const limit = parseInt(document.getElementById('limit').value || '1000', 10);
-      const q = (document.getElementById('query').value || '').trim();
+      const limitInput = document.getElementById('limit');
+      const queryInput = document.getElementById('query');
+      
+      const limit = Math.max(10, Math.min(10000, parseInt(limitInput.value) || 1000));
+      const q = (queryInput.value || '').trim().substring(0, 200);
+      
+      limitInput.value = limit; // Update with validated value
+      queryInput.value = q; // Update with sanitized value
+      
       if(!q){
         loadAndPlot(limit);
       } else {
         loadWithQuery(limit, q);
       }
     });
-    loadAndPlot(1000);
+    
+    // FIX: Input validation on form inputs
+    document.getElementById('limit').addEventListener('input', function(e) {
+      const value = parseInt(e.target.value);
+      if (value < 10) e.target.value = 10;
+      if (value > 10000) e.target.value = 10000;
+    });
+    
+    // FIX: Check Plotly availability before initial load
+    if (typeof Plotly !== 'undefined') {
+      loadAndPlot(1000);
+    } else {
+      setTimeout(() => {
+        if (typeof Plotly === 'undefined') {
+          handlePlotlyLoadError();
+        } else {
+          loadAndPlot(1000);
+        }
+      }, 1000);
+    }
     </script>
   </body>
   </html>

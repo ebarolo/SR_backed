@@ -218,20 +218,46 @@ def setup_logging(level: str | None = None, json_file_path: str | None = None, c
             json_ensure_ascii=False            # keep unicode as-is for readability
         )
     else:
-        file_handler = logging.FileHandler(json_path, encoding="utf-8")
-        json_fmt = JsonFormatter(
-            fmt=(
-                "%(asctime)s %(levelname)s %(name)s %(message)s "
-                "%(request_id)s %(job_id)s %(pathname)s %(lineno)d "
-                "%(source_file)s %(source_line)d %(source_func)s %(error_chain)s"
-            ),
-            json_indent=json_indent,           # pretty-print JSONL if requested (multi-line per record)
-            json_ensure_ascii=False            # keep unicode as-is for readability
-        )
+        # Crea il file handler con gestione esplicita della chiusura per evitare ResourceWarning
+        try:
+            # Prima chiudiamo eventuali handler esistenti per lo stesso file
+            for handler in list(root_logger.handlers):
+                if isinstance(handler, logging.FileHandler) and handler.baseFilename == os.path.abspath(json_path):
+                    handler.close()
+                    root_logger.removeHandler(handler)
+                    
+            file_handler = logging.FileHandler(json_path, mode="w", encoding="utf-8")
+            json_fmt = JsonFormatter(
+                fmt=(
+                    "%(asctime)s %(levelname)s %(name)s %(message)s "
+                    "%(request_id)s %(job_id)s %(pathname)s %(lineno)d "
+                    "%(source_file)s %(source_line)d %(source_func)s %(error_chain)s"
+                ),
+                json_indent=json_indent,           # pretty-print JSONL if requested (multi-line per record)
+                json_ensure_ascii=False            # keep unicode as-is for readability
+            )
+        except Exception as e:
+            # Fallback in caso di errore
+            import sys
+            sys.stderr.write(f"Warning: Unable to configure file logging: {e}\n")
+            file_handler = None
+            json_fmt = None
 
-    file_handler.setFormatter(json_fmt)
-    file_handler.addFilter(context_filter)
-    root_logger.addHandler(file_handler)
+    if file_handler and json_fmt:
+        file_handler.setFormatter(json_fmt)
+        file_handler.addFilter(context_filter)
+        root_logger.addHandler(file_handler)
+
+    # Assicura che i file handler vengano chiusi correttamente all'uscita
+    def cleanup_handlers():
+        for handler in root_logger.handlers:
+            if isinstance(handler, (logging.FileHandler, JSONArrayFileHandler)):
+                try:
+                    handler.close()
+                except Exception:
+                    pass
+    
+    atexit.register(cleanup_handlers)
 
     # Make module-level loggers propagate to root
     logging.captureWarnings(True)

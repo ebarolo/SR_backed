@@ -10,26 +10,47 @@ class ImportManager {
         this.shortcodes = []; // Lista shortcode disponibili
         this.selectedShortcodes = new Set(); // Shortcode selezionati
         
+        // FIX: Prevent race conditions e memory leaks
+        this._isRefreshing = false; // Prevent concurrent refreshes
+        this._cleanupTasks = []; // Track cleanup tasks for proper disposal
+        this._abortController = new AbortController(); // For cancelling requests
+        
         this.initializeElements();
         this.setupEventListeners();
         this.startPeriodicRefresh();
         this.loadInitialJobs();
     }
 
+    // FIX: Safe DOM initialization with error handling
     initializeElements() {
-        this.elements = {
-            form: document.getElementById('importForm'),
-            urlInput: document.getElementById('urlInput'),
-            submitBtn: document.getElementById('submitBtn'),
-            clearBtn: document.getElementById('clearBtn'),
-            pasteBtn: document.getElementById('pasteBtn'),
-            refreshBtn: document.getElementById('refreshBtn'),
-            jobsList: document.getElementById('jobsList'),
-            completedCount: document.getElementById('completedCount'),
-            runningCount: document.getElementById('runningCount'),
-            queuedCount: document.getElementById('queuedCount'),
-            databaseCount: document.getElementById('databaseCount')
-        };
+        this.elements = {};
+        
+        const elementIds = [
+            'importForm', 'urlInput', 'submitBtn', 'clearBtn', 'pasteBtn',
+            'refreshBtn', 'jobsList', 'completedCount', 'runningCount', 
+            'queuedCount', 'databaseCount'
+        ];
+        
+        elementIds.forEach(id => {
+            const element = document.getElementById(id);
+            if (!element) {
+                console.warn(`Element with ID '${id}' not found in DOM`);
+            }
+            this.elements[id.replace(/([A-Z])/g, (match, letter) => letter.toLowerCase())] = element;
+        });
+
+        // Map specific elements for backwards compatibility
+        this.elements.form = this.elements.importform;
+        this.elements.urlInput = this.elements.urlinput;
+        this.elements.submitBtn = this.elements.submitbtn;
+        this.elements.clearBtn = this.elements.clearbtn;
+        this.elements.pasteBtn = this.elements.pastebtn;
+        this.elements.refreshBtn = this.elements.refreshbtn;
+        this.elements.jobsList = this.elements.jobslist;
+        this.elements.completedCount = this.elements.completedcount;
+        this.elements.runningCount = this.elements.runningcount;
+        this.elements.queuedCount = this.elements.queuedcount;
+        this.elements.databaseCount = this.elements.databasecount;
     }
 
     setupEventListeners() {
@@ -199,9 +220,18 @@ class ImportManager {
     }
 
     async loadJobs() {
+        // FIX: Prevent race conditions
+        if (this._isRefreshing) {
+            return; // Skip if already refreshing
+        }
+        
         try {
+            this._isRefreshing = true;
             this.setRefreshLoading(true);
-            const response = await fetch(`${this.apiBaseUrl}/recipes/ingest/status`);
+            
+            const response = await fetch(`${this.apiBaseUrl}/recipes/ingest/status`, {
+                signal: this._abortController.signal // Allow cancellation
+            });
             
             if (!response.ok) {
                 if (response.status === 404) {
@@ -254,9 +284,13 @@ class ImportManager {
                 this.loadDatabaseStats();
             }
         } catch (error) {
-            console.error('Errore nel caricamento dei job:', error);
-            this.showNotification('Errore nel caricamento dei job', 'destructive');
+            // FIX: Better error handling
+            if (error.name !== 'AbortError') { // Don't log cancelled requests
+                console.error('Errore nel caricamento dei job:', error);
+                this.showNotification('Errore nel caricamento dei job', 'destructive');
+            }
         } finally {
+            this._isRefreshing = false; // FIX: Always reset the flag
             this.setRefreshLoading(false);
         }
     }
@@ -1062,17 +1096,31 @@ class ImportManager {
         }
     }
 
-    // Scheduling intelligente del ricalcolo accordion
+    // FIX: Scheduling intelligente del ricalcolo accordion (FIXED MEMORY LEAK)
     scheduleAccordionRecalculation(sectionId) {
-        // Evita chiamate multiple ravvicinate
+        // Evita chiamate multiple ravvicinate e memory leaks
         if (this.accordionRecalcTimeout) {
             clearTimeout(this.accordionRecalcTimeout);
+            this.accordionRecalcTimeout = null;
         }
         
         this.accordionRecalcTimeout = setTimeout(() => {
-            recalculateCollapsibleHeight(sectionId);
-            this.accordionRecalcTimeout = null;
+            try {
+                recalculateCollapsibleHeight(sectionId);
+            } catch (error) {
+                console.warn(`Error recalculating accordion height for ${sectionId}:`, error);
+            } finally {
+                this.accordionRecalcTimeout = null;
+            }
         }, 100);
+        
+        // Track for cleanup
+        this._cleanupTasks.push(() => {
+            if (this.accordionRecalcTimeout) {
+                clearTimeout(this.accordionRecalcTimeout);
+                this.accordionRecalcTimeout = null;
+            }
+        });
     }
 
     startPeriodicRefresh() {
@@ -1091,6 +1139,33 @@ class ImportManager {
             clearTimeout(this.accordionRecalcTimeout);
             this.accordionRecalcTimeout = null;
         }
+    }
+
+    // FIX: Complete cleanup method for memory leaks prevention
+    cleanup() {
+        // Stop all periodic operations
+        this.stopPeriodicRefresh();
+        
+        // Cancel any ongoing requests
+        this._abortController.abort();
+        
+        // Run all cleanup tasks
+        this._cleanupTasks.forEach(task => {
+            try {
+                task();
+            } catch (error) {
+                console.warn('Error during cleanup:', error);
+            }
+        });
+        this._cleanupTasks = [];
+        
+        // Clear maps and sets
+        this.activeJobs.clear();
+        this.selectedShortcodes.clear();
+        
+        // Reset state
+        this._isRefreshing = false;
+        this.lastJobsHash = null;
     }
 
     setSubmitLoading(loading) {
@@ -1441,9 +1516,16 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeCollapsibleState();
 });
 
-// Gestione cleanup quando la pagina viene chiusa
+// FIX: Gestione cleanup completa quando la pagina viene chiusa
 window.addEventListener('beforeunload', () => {
     if (importManager) {
-        importManager.stopPeriodicRefresh();
+        importManager.cleanup(); // Use complete cleanup method
+    }
+});
+
+// FIX: Also cleanup on page hide (mobile/tablet support)
+window.addEventListener('pagehide', () => {
+    if (importManager) {
+        importManager.cleanup();
     }
 });

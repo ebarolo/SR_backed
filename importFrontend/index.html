@@ -4,7 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Backend import ricette - Smart Recipe</title>
-    <link rel="stylesheet" href="/asset/shadcn-styles.css">
+    <link rel="stylesheet" href="./asset/shadcn-styles.css" onerror="console.error('CSS fallback needed')">
+    <meta name="description" content="Backend import ricette Smart Recipe - Gestione e monitoraggio importazioni">
     <style>
         /* Stili personalizzati specifici per l'applicazione */
         .bg-gradient-to-br {
@@ -60,7 +61,13 @@
     <main class="container py-8 max-w-full">
         <!-- Import Management Panel -->
         <div class="card card-elevated mb-8 w-full">
-            <div class="p-6 border-b border-border collapsible-header cursor-pointer" onclick="toggleCollapse('importPanel')">
+            <div class="p-6 border-b border-border collapsible-header cursor-pointer" 
+                 onclick="toggleCollapse('importPanel')" 
+                 role="button" 
+                 aria-expanded="true" 
+                 aria-controls="importPanel"
+                 tabindex="0"
+                 onkeydown="if(event.key==='Enter'||event.key===' '){toggleCollapse('importPanel'); event.preventDefault();}">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center space-x-3">
                             <div class="h-8 w-8 rounded-full bg-oneui-blue flex items-center justify-center">
@@ -73,7 +80,7 @@
                     </div>
                     <svg id="importPanelIcon"
                         class="w-5 h-5 text-muted-foreground transition-transform duration-200 collapsible-icon" fill="none"
-                        stroke="currentColor" viewBox="0 0 24 24">
+                        stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7">
                         </path>
                     </svg>
@@ -114,7 +121,13 @@
                 </div>
             </div>
             <!-- Jobs Monitoring Section -->
-            <div class="p-6 border-b border-border collapsible-header cursor-pointer" onclick="toggleCollapse('jobsList')">
+            <div class="p-6 border-b border-border collapsible-header cursor-pointer" 
+                 onclick="toggleCollapse('jobsList')"
+                 role="button" 
+                 aria-expanded="true" 
+                 aria-controls="jobsList"
+                 tabindex="0"
+                 onkeydown="if(event.key==='Enter'||event.key===' '){toggleCollapse('jobsList'); event.preventDefault();}">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center space-x-3">
                         <div class="h-8 w-8 rounded-full bg-material-primary flex items-center justify-center">
@@ -125,16 +138,16 @@
                         </h3>
                     </div>
                     <div class="flex items-center space-x-2">
-                        <button id="refreshBtn" class="btn btn-secondary h-9 px-3">
-                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <button id="refreshBtn" class="btn btn-secondary h-9 px-3" aria-label="Aggiorna lista job">
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                     d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
                                 </path>
                             </svg>
                             <span class="hidden sm:inline">Aggiorna</span>
                         </button>
-                        <button id="clearCompletedBtn" class="btn btn-outline h-9 px-3 text-red-600 border-red-300 hover:bg-red-50">
-                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <button id="clearCompletedBtn" class="btn btn-outline h-9 px-3 text-red-600 border-red-300 hover:bg-red-50" aria-label="Cancella job completati">
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                     d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
                                 </path>
@@ -143,7 +156,7 @@
                         </button>
                         <svg id="jobsListIcon"
                             class="w-5 h-5 text-muted-foreground transition-transform duration-200 collapsible-icon" fill="none"
-                            stroke="currentColor" viewBox="0 0 24 24">
+                            stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7">
                             </path>
                         </svg>
@@ -169,7 +182,13 @@
             </div>
             
             <!-- Recalculate Embeddings Section -->
-            <div class="p-6 border-b border-border collapsible-header cursor-pointer" onclick="toggleCollapse('embeddingPanel')">
+            <div class="p-6 border-b border-border collapsible-header cursor-pointer" 
+                 onclick="toggleCollapse('embeddingPanel')"
+                 role="button" 
+                 aria-expanded="false" 
+                 aria-controls="embeddingPanel"
+                 tabindex="0"
+                 onkeydown="if(event.key==='Enter'||event.key===' '){toggleCollapse('embeddingPanel'); event.preventDefault();}">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center space-x-3">
                         <div class="h-8 w-8 rounded-full bg-gradient-to-br from-material-primary to-oneui-blue flex items-center justify-center">
@@ -181,7 +200,7 @@
                     </div>
                     <svg id="embeddingPanelIcon"
                         class="w-5 h-5 text-muted-foreground transition-transform duration-200 collapsible-icon rotated" fill="none"
-                        stroke="currentColor" viewBox="0 0 24 24">
+                        stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7">
                         </path>
                     </svg>
@@ -281,7 +300,12 @@
         </div>
     </main>
 
-    <script src="/asset/import.js"></script>
+    <script src="./asset/import.js" onerror="console.error('JavaScript non caricato: fallback necessario'); document.body.innerHTML+='<div style=\"position:fixed;top:10px;left:10px;background:red;color:white;padding:10px;z-index:9999;\">⚠️ Errore caricamento JavaScript</div>';"></script>
+    <noscript>
+        <div style="position: fixed; top: 0; left: 0; width: 100%; background: #f56565; color: white; padding: 1rem; text-align: center; z-index: 9999;">
+            ⚠️ JavaScript è richiesto per questa applicazione. Abilitalo per utilizzare tutte le funzionalità.
+        </div>
+    </noscript>
 </body>
 
 </html>

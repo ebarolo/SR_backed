@@ -146,7 +146,7 @@ async def enqueue_ingest(videos: VideoURLs, background_tasks: BackgroundTasks):
     background_tasks.add_task(_ingest_urls_job, app, job_id, url_list)
     return JobStatus(job_id=job_id, status="queued", progress_percent=0.0, progress=app.state.jobs[job_id]["progress"])
 
-@app.post("/recipes/importFromFolder", response_model=JobStatus, status_code=status.HTTP_202_ACCEPTED)
+@app.post("/recipes/ingest/fromFolder", response_model=JobStatus, status_code=status.HTTP_202_ACCEPTED)
 async def enqueue_ingest_from_folder( background_tasks: BackgroundTasks):
     """
     Avvia l'importazione asincrona di ricette da cartella locale.
@@ -245,7 +245,60 @@ def search_recipes(
 ):
      return search_recipes_elysia(query, limit)
 
-@app.get("/recipes/delete/")
+def _is_folder_empty_or_contains_empty_folders(folder_path: str) -> bool:
+    """
+    Verifica se una cartella è vuota o contiene solo cartelle vuote.
+    """
+    try:
+        for root, dirs, files in os.walk(folder_path):
+            # Se ci sono file, la cartella non è considerata vuota
+            if files:
+                return False
+        return True
+    except Exception:
+        # In caso di errore, considera la cartella non vuota per sicurezza
+        return False
+
+@app.get("/recipes/delete/emptyFolder")
+def delete_emptyFolder():
+    """
+    Elimina tutte le cartelle vuote in BASE_FOLDER_RICETTE.
+    """
+    deleted_folders = []
+    errors = []
+    
+    try:
+        for dir_name in os.listdir(BASE_FOLDER_RICETTE):
+            dir_path = os.path.join(BASE_FOLDER_RICETTE, dir_name)
+            
+            # Verifica che sia effettivamente una cartella
+            if not os.path.isdir(dir_path):
+                continue
+                
+            metadata_path = os.path.join(dir_path, "media_original", f"metadata_{dir_name}.json")
+            
+            # Se il file metadata non esiste, prova ad eliminare la cartella
+            if not os.path.exists(metadata_path):
+                try:
+                    # Verifica se la cartella è vuota o contiene solo cartelle vuote
+                    if _is_folder_empty_or_contains_empty_folders(dir_path):
+                        import shutil
+                        shutil.rmtree(dir_path)  # Usa shutil.rmtree per rimuovere anche cartelle non vuote
+                        deleted_folders.append(dir_name)
+                except OSError as e:
+                    errors.append(f"Errore eliminando {dir_name}: {str(e)}")
+                    
+    except Exception as e:
+        error_logger.error(f"Errore generale in delete_emptyFolder: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Errore durante l'eliminazione delle cartelle: {str(e)}")
+    
+    return {
+        "message": f"Operazione completata. Cartelle eliminate: {len(deleted_folders)}",
+        "deleted_folders": deleted_folders,
+        "errors": errors
+    }
+                    
+@app.get("/recipes/delete/{shortcode}")
 def delete_recipe(shortcode: str):
     """
     Elimina una ricetta specifica tramite shortcode.
