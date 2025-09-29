@@ -376,9 +376,8 @@ async def _ingest_folder_job(app: FastAPI, job_id: str, dir_list: List[str]):
                 error_logger.log_exception("process_folder_job", e, {"dir_name": dir_name, "shortcode": dir_name})
                 continue
                 
-            # Ricalcola percentuale totale
+                # Ricalcola percentuale totale
             current_progress["percentage"] = calculate_job_percentage(current_progress, total)
-            #print("fine process_dir_list", metadatas)    
             logging.getLogger(__name__).info(f"Loaded metadata")
 
             # Indicizza ricette se disponibili

@@ -219,14 +219,21 @@ def setup_logging(level: str | None = None, json_file_path: str | None = None, c
         )
     else:
         # Crea il file handler con gestione esplicita della chiusura per evitare ResourceWarning
+        file_handler = None
+        json_fmt = None
         try:
             # Prima chiudiamo eventuali handler esistenti per lo stesso file
+            abs_json_path = os.path.abspath(json_path)
             for handler in list(root_logger.handlers):
-                if isinstance(handler, logging.FileHandler) and handler.baseFilename == os.path.abspath(json_path):
-                    handler.close()
-                    root_logger.removeHandler(handler)
+                if isinstance(handler, logging.FileHandler):
+                    try:
+                        if os.path.abspath(handler.baseFilename) == abs_json_path:
+                            handler.close()
+                            root_logger.removeHandler(handler)
+                    except (AttributeError, OSError):
+                        continue
                     
-            file_handler = logging.FileHandler(json_path, mode="w", encoding="utf-8")
+            file_handler = logging.FileHandler(json_path, mode="w", encoding="utf-8", delay=False)
             json_fmt = JsonFormatter(
                 fmt=(
                     "%(asctime)s %(levelname)s %(name)s %(message)s "
@@ -240,6 +247,11 @@ def setup_logging(level: str | None = None, json_file_path: str | None = None, c
             # Fallback in caso di errore
             import sys
             sys.stderr.write(f"Warning: Unable to configure file logging: {e}\n")
+            if file_handler:
+                try:
+                    file_handler.close()
+                except Exception:
+                    pass
             file_handler = None
             json_fmt = None
 

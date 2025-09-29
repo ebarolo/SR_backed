@@ -1,6 +1,6 @@
 # Import FastAPI e middleware
 from fastapi import FastAPI, HTTPException, status, BackgroundTasks, Request
-from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import mimetypes
@@ -56,24 +56,14 @@ class VideoURLs(BaseModel):
                 raise ValueError(f"URL non supportato: {v}. Dominio deve essere tra: {', '.join(allowed_domains)}")
         return vs
 
-class RecalcBody(BaseModel):
-    """Schema per richiesta di ricalcolo embeddings (deprecato)."""
-    model_name: Optional[str] = None
-    out_path: Optional[str] = None
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
     Gestisce il ciclo di vita dell'applicazione FastAPI.
-    
-    Inizializza lo stato dell'app all'avvio e gestisce la pulizia
-    allo shutdown.
+    Inizializza lo stato dell'app all'avvio.
     """
-    # Startup: inizializza il dizionario dei job
     app.state.jobs = {}
     yield
-    # Shutdown: pulizia risorse (se necessario in futuro)
-    pass
 
 
 # ===============================
@@ -396,8 +386,6 @@ def get_recipe_by_shortcode(shortcode: str):
     """
     Recupera una ricetta specifica tramite shortcode.
     
-    TODO: Implementare ricerca per shortcode in Weaviate.
-    
     Args:
         shortcode: Identificativo univoco della ricetta
         
@@ -408,129 +396,21 @@ def get_recipe_by_shortcode(shortcode: str):
         HTTPException 501: Funzionalità non ancora implementata
     """
     try:
-        # TODO: Implementare ricerca per shortcode specifico
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
             detail="Ricerca per shortcode non ancora implementata"
         )
-        
     except HTTPException:
         raise
     except Exception as e:
         error_logger.log_exception("get_recipe", e, {"shortcode": shortcode})
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Errore interno: {str(e)}")
 
-@app.get("/embeddings/preview3d")
-def embeddings_preview3d(limit: int = 1000, with_meta: bool = True):
-    """
-    Visualizzazione 3D degli embeddings (DEPRECATO).
-    
-    Questa funzionalità non è attualmente supportata con Weaviate/Elysia.
-    Mantenuta per compatibilità backward.
-    
-    Args:
-        limit: Numero massimo di punti da visualizzare
-        with_meta: Include metadati nei risultati
-        
-    Returns:
-        Dict vuoto con messaggio di non supportato
-    """
-    # TODO: Implementare visualizzazione embeddings con Weaviate
-    return {
-        "status": "ok", 
-        "n": 0, 
-        "points": [], 
-        "message": "Embeddings 3D view non supportata con Elysia"
-    }
-
-@app.get("/embeddings/3d", response_class=HTMLResponse)
-def embeddings_3d_page():
-    """
-    Serve pagina HTML per visualizzazione embeddings 3D (DEPRECATO).
-    
-    Mantenuto per compatibilità backward.
-    """
-    html_path = os.path.join(BASE_DIR, "static", "embeddings_3d.html")
-    if os.path.isfile(html_path):
-        return FileResponse(html_path)
-    # Fallback inline se il file non esiste
-    html = """
-    <!doctype html>
-    <html>
-      <head>
-        <meta charset=\"utf-8\" />
-        <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
-        <title>Embeddings 3D Preview</title>
-        <script src=\"https://cdn.plot.ly/plotly-2.30.0.min.js\"></script>
-        <style>
-          html, body { height: 100%; margin: 0; }
-          #plot { width: 100%; height: 100%; }
-        </style>
-      </head>
-      <body>
-        <div id=\"plot\"></div>
-        <script>
-        async function loadAndPlot(){
-          const res = await fetch('/embeddings/preview3d?limit=1000&with_meta=1');
-          const data = await res.json();
-          if(data.status !== 'ok' || !data.points || !data.points.length){
-            document.getElementById('plot').innerHTML = 'Nessun dato disponibile';
-            return;
-          }
-          const xs = data.points.map(p => p.x);
-          const ys = data.points.map(p => p.y);
-          const zs = data.points.map(p => p.z);
-          const texts = data.points.map(p => (p.label || p.id));
-          const trace = {
-            type: 'scatter3d',
-            mode: 'markers',
-            x: xs, y: ys, z: zs,
-            text: texts,
-            marker: { size: 3, opacity: 0.8 }
-          };
-          const layout = {
-            title: 'Embeddings (PCA 3D)',
-            scene: {xaxis:{title:'PC1'}, yaxis:{title:'PC2'}, zaxis:{title:'PC3'}},
-            margin: {l:0, r:0, t:40, b:0}
-          };
-          Plotly.newPlot('plot', [trace], layout, {responsive: true});
-        }
-        loadAndPlot();
-        </script>
-      </body>
-    </html>
-    """
-    return HTMLResponse(content=html)
-
-@app.get("/embeddings/preview3d_with_query")
-def embeddings_preview3d_with_query(q: str, limit: int = 1000, with_meta: bool = True):
-    """
-    Visualizzazione 3D embeddings con query (DEPRECATO).
-    
-    Non supportato con Weaviate/Elysia.
-    
-    Args:
-        q: Query di ricerca
-        limit: Numero massimo punti
-        with_meta: Include metadati
-        
-    Returns:
-        Dict vuoto con messaggio non supportato
-    """
-    # TODO: Implementare con Weaviate se necessario
-    return {
-        "status": "ok",
-        "n": 0,
-        "points": [],
-        "query_point": None,
-        "message": "Embeddings 3D view con query non supportata con Elysia"
-    }
- 
 # ===============================
 # ENDPOINTS FRONTEND
 # ===============================
 
-@app.get("/", response_class=HTMLResponse, include_in_schema=False)
+@app.get("/", include_in_schema=False)
 async def serve_frontend():
     """
     Serve la pagina principale del frontend.
@@ -556,7 +436,6 @@ def health_check():
         Dict con stato sistema e statistiche
     """
     try:
-        #stats = elysia_recipe_db.get_stats()
         stats = {}
         return {
             "status": "ok",

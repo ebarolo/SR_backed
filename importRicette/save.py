@@ -172,84 +172,126 @@ async def _process_video_internal(
                 audio_filename = f"{os.path.splitext(shortcode)[0]}.mp3"
                 audio_path = os.path.join(video_folder_post, audio_filename)
 
-                # Estrae audio dal video usando FFmpeg
-                def _run_ffmpeg():
-                    return subprocess.run(
-                        [
-                            "ffmpeg", "-y",  # Sovrascrivi file esistenti
-                            "-i", video_path,
-                            "-vn",  # Disabilita video
-                            "-acodec", "libmp3lame",  # Codec MP3
-                            "-q:a", "0",  # Qualità audio massima
-                            "-ar", "44100",  # Frequenza campionamento
-                            "-loglevel", "error",  # Solo errori
-                            audio_path
-                        ],
-                        check=True,
-                        capture_output=True,
-                        text=True,
-                    )
-                
-                try:
-                    process = await error_handler.safe_execute_async(
-                        lambda: asyncio.to_thread(_run_ffmpeg),
-                        "ffmpeg_audio_extraction",
-                        severity=ErrorSeverity.HIGH,
-                        action=ErrorAction.RAISE,
-                        context={
-                            "shortcode": shortcode,
-                            "video_path": video_path,
-                            "audio_path": audio_path
-                        }
-                    )
-                    _emit_progress("extract_audio", 50.0)
-                    
-                    # Verifica che il file audio sia stato effettivamente creato
-                    if not os.path.exists(audio_path):
-                        raise FileNotFoundError(
-                            f"FFmpeg non ha creato il file audio: {audio_path}"
+                # Verifica prima se il video ha una traccia audio usando ffprobe
+                def _check_audio_stream():
+                    """Verifica se il video ha una traccia audio."""
+                    try:
+                        result = subprocess.run(
+                            [
+                                "ffprobe", "-v", "error",
+                                "-select_streams", "a:0",
+                                "-show_entries", "stream=codec_type",
+                                "-of", "default=noprint_wrappers=1:nokey=1",
+                                video_path
+                            ],
+                            capture_output=True,
+                            text=True,
+                            timeout=10
                         )
-                    
-                    # Verifica che il file non sia vuoto
-                    if os.path.getsize(audio_path) == 0:
-                        raise ValueError(
-                            f"File audio vuoto (il video potrebbe non avere traccia audio): {audio_path}"
-                        )
-                        
-                except Exception as e:
-                    _emit_progress("error", 25.0, message=str(e))
-                    error_logger.log_exception(
-                        "ffmpeg_extraction_failed",
-                        e,
-                        {
-                            "shortcode": shortcode,
-                            "video_path": video_path,
-                            "audio_path": audio_path,
-                            "video_exists": os.path.exists(video_path),
-                            "audio_exists": os.path.exists(audio_path)
-                        }
-                    )
-                    # Rilancia per interrompere processing
-                    raise
+                        return result.stdout.strip() == "audio"
+                    except Exception:
+                        # In caso di errore, assume che ci sia audio e prova comunque
+                        return True
 
-                # Trascrizione audio con Whisper
-                try:
-                    ricetta_audio = await whisper_speech_recognition(audio_path, "it")
-                    _emit_progress("stt", 85.0)
-                except OpenAIError as openai_err:
-                    # Gestione specifica errori OpenAI con messaggio user-friendly
-                    error_logger.log_error(
-                        "whisper_openai_error",
-                        f"OpenAI error in Whisper: {openai_err.user_message}",
-                        {
-                            "shortcode": shortcode,
-                            "error_type": openai_err.error_type.value,
-                            "should_retry": openai_err.should_retry,
-                            "context": openai_err.context
-                        }
+                has_audio = await asyncio.to_thread(_check_audio_stream)
+                
+                if has_audio:
+                    # Estrae audio dal video usando FFmpeg
+                    def _run_ffmpeg():
+                        return subprocess.run(
+                            [
+                                "ffmpeg", "-y",  # Sovrascrivi file esistenti
+                                "-i", video_path,
+                                "-vn",  # Disabilita video
+                                "-acodec", "libmp3lame",  # Codec MP3
+                                "-q:a", "0",  # Qualità audio massima
+                                "-ar", "44100",  # Frequenza campionamento
+                                "-loglevel", "error",  # Solo errori
+                                audio_path
+                            ],
+                            check=True,
+                            capture_output=True,
+                            text=True,
+                        )
+                    
+                    try:
+                        process = await error_handler.safe_execute_async(
+                            lambda: asyncio.to_thread(_run_ffmpeg),
+                            "ffmpeg_audio_extraction",
+                            severity=ErrorSeverity.HIGH,
+                            action=ErrorAction.RAISE,
+                            context={
+                                "shortcode": shortcode,
+                                "video_path": video_path,
+                                "audio_path": audio_path
+                            }
+                        )
+                        _emit_progress("extract_audio", 50.0)
+                        
+                        # Verifica che il file audio sia stato effettivamente creato
+                        if not os.path.exists(audio_path):
+                            logging.getLogger(__name__).warning(
+                                f"FFmpeg non ha creato il file audio per '{shortcode}', continuo senza audio"
+                            )
+                            ricetta_audio = ""
+                        elif os.path.getsize(audio_path) == 0:
+                            logging.getLogger(__name__).warning(
+                                f"File audio vuoto per '{shortcode}', continuo senza audio"
+                            )
+                            ricetta_audio = ""
+                        else:
+                            # Trascrizione audio con Whisper
+                            try:
+                                ricetta_audio = await whisper_speech_recognition(audio_path, "it")
+                                _emit_progress("stt", 85.0)
+                            except OpenAIError as openai_err:
+                                # Gestione specifica errori OpenAI con messaggio user-friendly
+                                error_logger.log_error(
+                                    "whisper_openai_error",
+                                    f"OpenAI error in Whisper: {openai_err.user_message}",
+                                    {
+                                        "shortcode": shortcode,
+                                        "error_type": openai_err.error_type.value,
+                                        "should_retry": openai_err.should_retry,
+                                        "context": openai_err.context
+                                    }
+                                )
+                                _emit_progress("error", 50.0, message=openai_err.user_message)
+                                raise
+                            
+                    except subprocess.CalledProcessError as e:
+                        # FFmpeg fallito: continua senza audio invece di bloccare
+                        error_logger.log_error(
+                            "ffmpeg_extraction_failed",
+                            f"FFmpeg fallito per '{shortcode}', continuo senza audio: {e.stderr if hasattr(e, 'stderr') else str(e)}",
+                            {
+                                "shortcode": shortcode,
+                                "video_path": video_path,
+                                "audio_path": audio_path
+                            }
+                        )
+                        ricetta_audio = ""
+                        _emit_progress("extract_audio", 50.0, message="Video senza audio, continuo con caption")
+                    except Exception as e:
+                        # Altri errori: logga ma continua
+                        error_logger.log_exception(
+                            "ffmpeg_extraction_error",
+                            e,
+                            {
+                                "shortcode": shortcode,
+                                "video_path": video_path,
+                                "audio_path": audio_path
+                            }
+                        )
+                        ricetta_audio = ""
+                        _emit_progress("extract_audio", 50.0, message="Errore estrazione audio, continuo con caption")
+                else:
+                    # Video senza traccia audio
+                    logging.getLogger(__name__).info(
+                        f"Video '{shortcode}' non ha traccia audio, uso solo caption"
                     )
-                    _emit_progress("error", 50.0, message=openai_err.user_message)
-                    raise
+                    ricetta_audio = ""
+                    _emit_progress("extract_audio", 50.0, message="Video senza audio")
                 
                 # Log lunghezza testi per debug
                 logger = logging.getLogger(__name__)
