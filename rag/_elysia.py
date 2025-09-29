@@ -132,9 +132,9 @@ def search_recipes_elysia(query: str, limit: int = 10) -> Tuple[Any, Any]:
         # 2. Verifica se la collection esiste e è preprocessata
         if not _check_collection_exists():
             logging.info("🔄 Collection non preprocessata, avvio preprocessing...")
-            #if not _preprocess_collection():
-                #logging.error("❌ Impossibile preprocessare la collection")
-                #return None, None
+            if not _preprocess_collection(WCD_COLLECTION_NAME):
+                logging.error("❌ Impossibile preprocessare la collection")
+                return None, None
 
         # 3. Esegue ricerca con Elysia Tree
         risposta, oggetti = _search_with_tree(query, WCD_COLLECTION_NAME)

@@ -31,27 +31,7 @@ OPENAI_IMAGE_MODEL = os.getenv("OPENAI_IMAGE_MODEL", "gpt-image-1")
 # Client OpenAI condiviso
 openAIclient = OpenAI(api_key=OPENAI_API_KEY)
 
-# modell EMBEDDING_MODEL da usare
-EMBEDDING_MODEL = "BAAI/bge-m3"
-FLAGEMBEDDING_AVAILABLE = True
 NO_IMAGE = False
-
-# Percorso file NPZ che contiene embeddings e metadati
-EMBEDDINGS_NPZ_PATH = os.getenv(
-    "EMBEDDINGS_NPZ_PATH",
-    os.path.join(os.getcwd(), "static/recipeEmbeddings.npz")
-)
-
-# -------------------------------
-# Configurazione ChromaDB
-# -------------------------------
-# Forza l'uso della versione locale di ChromaDB invece di Chroma Cloud
-USE_LOCAL_CHROMA = os.getenv("USE_LOCAL_CHROMA", "false").lower() in ("true", "1", "yes")
-CHROMADB_AVAILABLE = False
-
-# Percorso per il database ChromaDB locale (se None, usa in-memory)
-CHROMA_LOCAL_PATH = os.getenv("CHROMA_LOCAL_PATH", os.path.join(os.getcwd(), "chroma_db"))
-CHROMA_COLLECTION_NAME = "SmartRecipe"
 
 # -------------------------------
 # Configurazione Weaviate/Elysia 

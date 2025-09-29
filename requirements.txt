@@ -5,13 +5,13 @@ uvicorn[standard]==0.29.0
 pydantic==2.11.9
 
 # AI/LLM
-openai>=1.109.1
+openai==1.109.1
 tenacity==9.1.2
 
 # Utilities
-python-dotenv>=1.1.1
+python-dotenv==1.1.1
 requests==2.32.5
-yt-dlp>=2025.8.20
+yt-dlp==2024.12.13
 
 # Logging and monitoring (opzionali)
 python-json-logger==3.3.0
@@ -21,14 +21,14 @@ numpy==2.3.3
 scikit-learn==1.7.1
 instaloader==4.14.2
 matplotlib==3.10.5
-scipy==1.16.1
+scipy==1.14.1
 
 # Elysia e Weaviate - Versioni compatibili TESTATE
 # Fix per compatibilità gRPC/Protobuf - versioni che funzionano insieme
 grpcio==1.74.0
 grpcio-tools==1.74.0
 grpcio-status==1.74.0
-protobuf==6.32.0
+protobuf==5.28.3
 elysia-ai==0.2.7
 weaviate-client==4.16.10
 weaviate-agents==1.0.1

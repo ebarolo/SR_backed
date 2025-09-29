@@ -15,12 +15,9 @@ import re
 import os
 import traceback
 import asyncio
-import unicodedata
 from functools import wraps
 
 
-# Import configurazione e logging
-from config import BASE_FOLDER_RICETTE, EMBEDDING_MODEL
 from utility.logging_config import get_error_logger
 
 # Inizializzazioni

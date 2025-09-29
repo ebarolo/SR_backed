@@ -26,6 +26,7 @@ from config import BASE_FOLDER_RICETTE, NO_IMAGE
 # Import utility
 from utility.utility import sanitize_text, sanitize_filename
 from utility.logging_config import get_error_logger, request_id_var, clear_error_chain
+from utility.openai_errors import OpenAIError, QuotaExceededError
 
 # Import moduli interni
 from importRicette.analize import (
@@ -38,16 +39,19 @@ from importRicette.scrape.instaLoader import (
     scarica_contenuti_account
 )
 from importRicette.scrape.yt_dlp import yt_dlp_video
+from utility.error_handler import ErrorHandler, ErrorSeverity, ErrorAction
 
 
 # Inizializza logger e multiprocessing
 error_logger = get_error_logger(__name__)
+error_handler = ErrorHandler(__name__)
 mp.set_start_method("spawn", force=True)
 
 @retry(stop=stop_after_attempt(1), wait=wait_exponential(multiplier=1, min=4, max=10))
 async def _process_video_internal(
     recipeUrl: str,
-    progress_cb: Optional[Callable[[Dict[str, Any]], None]] = None
+    progress_cb: Optional[Callable[[Dict[str, Any]], None]] = None,
+    force_redownload: bool = False
 ) -> RecipeDBSchema:
     """
     Processa internamente un video ricetta.
@@ -60,6 +64,7 @@ async def _process_video_internal(
     Args:
         recipeUrl: URL del video o username Instagram
         progress_cb: Callback per aggiornamenti progresso
+        force_redownload: Se True, forza il ri-download anche se già presente
         
     Returns:
         RecipeDBSchema con i dati estratti
@@ -102,7 +107,7 @@ async def _process_video_internal(
             url_lower = recipeUrl.lower()
             if any(host in url_lower for host in ["instagram.com"]):
                 # URL Instagram: usa instaloader
-                dws = await scarica_contenuto_reel(recipeUrl)
+                dws = await scarica_contenuto_reel(recipeUrl, force_redownload=force_redownload)
                 _emit_progress("download", 25.0)
             else:
                 # Altri URL: usa yt-dlp
@@ -120,7 +125,8 @@ async def _process_video_internal(
                 dst = os.path.join(downloadFolder, os.path.basename(info["video_filename"]))
                 try:
                     if os.path.abspath(src) != os.path.abspath(dst):
-                        os.replace(src, dst)
+                        import shutil
+                        shutil.move(src, dst)
                 except Exception as e:
                     error_logger.log_error(
                         "file_move",
@@ -167,35 +173,83 @@ async def _process_video_internal(
                 audio_path = os.path.join(video_folder_post, audio_filename)
 
                 # Estrae audio dal video usando FFmpeg
-                try:
-                    process = await asyncio.to_thread(
-                        subprocess.run,
+                def _run_ffmpeg():
+                    return subprocess.run(
                         [
-                            "ffmpeg", "-i", video_path,
+                            "ffmpeg", "-y",  # Sovrascrivi file esistenti
+                            "-i", video_path,
+                            "-vn",  # Disabilita video
+                            "-acodec", "libmp3lame",  # Codec MP3
                             "-q:a", "0",  # Qualità audio massima
-                            "-map", "a",   # Estrai solo audio
+                            "-ar", "44100",  # Frequenza campionamento
+                            "-loglevel", "error",  # Solo errori
                             audio_path
                         ],
                         check=True,
                         capture_output=True,
                         text=True,
                     )
+                
+                try:
+                    process = await error_handler.safe_execute_async(
+                        lambda: asyncio.to_thread(_run_ffmpeg),
+                        "ffmpeg_audio_extraction",
+                        severity=ErrorSeverity.HIGH,
+                        action=ErrorAction.RAISE,
+                        context={
+                            "shortcode": shortcode,
+                            "video_path": video_path,
+                            "audio_path": audio_path
+                        }
+                    )
                     _emit_progress("extract_audio", 50.0)
-                except subprocess.CalledProcessError as e:
-                    extra_info = {
-                        "shortcode": shortcode,
-                        "return_code": e.returncode,
-                        "stdout": e.stdout,
-                        "stderr": e.stderr,
-                        "command": str(e.cmd)
-                    }
-                    error_logger.log_exception("ffmpeg_audio_extraction", e, extra_info)
+                    
+                    # Verifica che il file audio sia stato effettivamente creato
+                    if not os.path.exists(audio_path):
+                        raise FileNotFoundError(
+                            f"FFmpeg non ha creato il file audio: {audio_path}"
+                        )
+                    
+                    # Verifica che il file non sia vuoto
+                    if os.path.getsize(audio_path) == 0:
+                        raise ValueError(
+                            f"File audio vuoto (il video potrebbe non avere traccia audio): {audio_path}"
+                        )
+                        
+                except Exception as e:
                     _emit_progress("error", 25.0, message=str(e))
-                    raise RuntimeError(f"Errore durante l'estrazione dell'audio per shortcode '{shortcode}': {e.stderr}") from e
+                    error_logger.log_exception(
+                        "ffmpeg_extraction_failed",
+                        e,
+                        {
+                            "shortcode": shortcode,
+                            "video_path": video_path,
+                            "audio_path": audio_path,
+                            "video_exists": os.path.exists(video_path),
+                            "audio_exists": os.path.exists(audio_path)
+                        }
+                    )
+                    # Rilancia per interrompere processing
+                    raise
 
                 # Trascrizione audio con Whisper
-                ricetta_audio = await whisper_speech_recognition(audio_path, "it")
-                _emit_progress("stt", 85.0)
+                try:
+                    ricetta_audio = await whisper_speech_recognition(audio_path, "it")
+                    _emit_progress("stt", 85.0)
+                except OpenAIError as openai_err:
+                    # Gestione specifica errori OpenAI con messaggio user-friendly
+                    error_logger.log_error(
+                        "whisper_openai_error",
+                        f"OpenAI error in Whisper: {openai_err.user_message}",
+                        {
+                            "shortcode": shortcode,
+                            "error_type": openai_err.error_type.value,
+                            "should_retry": openai_err.should_retry,
+                            "context": openai_err.context
+                        }
+                    )
+                    _emit_progress("error", 50.0, message=openai_err.user_message)
+                    raise
                 
                 # Log lunghezza testi per debug
                 logger = logging.getLogger(__name__)
@@ -205,8 +259,23 @@ async def _process_video_internal(
                 )
 
             # Estrae informazioni ricetta usando GPT-4
-            ricetta = await extract_recipe_info(ricetta_audio, captionSanit, [], [])
-            _emit_progress("parse_recipe", 100.0)
+            try:
+                ricetta = await extract_recipe_info(ricetta_audio, captionSanit, [], [])
+                _emit_progress("parse_recipe", 100.0)
+            except OpenAIError as openai_err:
+                # Gestione specifica errori OpenAI con messaggio user-friendly
+                error_logger.log_error(
+                    "extract_recipe_openai_error",
+                    f"OpenAI error in recipe extraction: {openai_err.user_message}",
+                    {
+                        "shortcode": shortcode,
+                        "error_type": openai_err.error_type.value,
+                        "should_retry": openai_err.should_retry,
+                        "context": openai_err.context
+                    }
+                )
+                _emit_progress("error", 85.0, message=openai_err.user_message)
+                raise
             
             if ricetta:
                 # Converti in dict se necessario
@@ -217,7 +286,24 @@ async def _process_video_internal(
                 
                 # Genera immagini se abilitato
                 if not NO_IMAGE:
-                    images_recipe = await generateRecipeImages(ricetta_dict, shortcode)
+                    try:
+                        images_recipe = await generateRecipeImages(ricetta_dict, shortcode)
+                    except OpenAIError as openai_err:
+                        # Per immagini, logga ma continua (non bloccante)
+                        error_logger.log_error(
+                            "generate_images_openai_error",
+                            f"OpenAI error in image generation: {openai_err.user_message}",
+                            {
+                                "shortcode": shortcode,
+                                "error_type": openai_err.error_type.value,
+                                "severity": "medium"  # Non critico
+                            }
+                        )
+                        # Continua senza immagini generate
+                        images_recipe = []
+                        logging.getLogger(__name__).warning(
+                            f"Generazione immagini fallita per '{shortcode}', continuo senza immagini: {openai_err.user_message}"
+                        )
                 else:
                     images_recipe = []
                 
@@ -260,8 +346,12 @@ async def _process_video_internal(
                 raise ValueError(
                     f"Nessuna ricetta estratta per shortcode '{shortcode}'"
                 )
+        except OpenAIError as openai_err:
+            # Errore OpenAI già classificato e gestito
+            # Propaga con messaggio user-friendly già impostato nel progress
+            raise
         except Exception as e:
-            # Log errore e rilancia
+            # Log errore generico e rilancia
             error_logger.log_exception("process_video", e, {"shortcode": shortcode})
             
             # Estrai errore originale se wrapped in RetryError
@@ -269,7 +359,9 @@ async def _process_video_internal(
             if hasattr(e, 'last_attempt') and hasattr(e.last_attempt, 'exception'):
                 original_error = e.last_attempt.exception()
             
-            _emit_progress("error", 50.0, message=str(original_error))
+            # Messaggio generico per utente
+            error_message = str(original_error) if original_error else "Errore durante il processing"
+            _emit_progress("error", 50.0, message=error_message)
             raise original_error
             
 
@@ -292,7 +384,8 @@ async def _process_video_internal(
 
 async def process_video(
     recipeUrl: str,
-    progress_cb: Optional[Callable[[Dict[str, Any]], None]] = None
+    progress_cb: Optional[Callable[[Dict[str, Any]], None]] = None,
+    force_redownload: bool = False
 ) -> RecipeDBSchema:
     """
     Processa un video ricetta e ne estrae i dati.
@@ -302,6 +395,7 @@ async def process_video(
     Args:
         recipeUrl: URL del video o username Instagram
         progress_cb: Callback opzionale per aggiornamenti progresso
+        force_redownload: Se True, forza il ri-download anche se già presente
         
     Returns:
         RecipeDBSchema con i dati estratti dalla ricetta
@@ -310,7 +404,7 @@ async def process_video(
         Exception: Errore durante il processing
     """
     try:
-        return await _process_video_internal(recipeUrl, progress_cb)
+        return await _process_video_internal(recipeUrl, progress_cb, force_redownload)
     except Exception as e:
         # Estrai errore originale da RetryError se presente
         if hasattr(e, 'last_attempt') and hasattr(e.last_attempt, 'exception'):

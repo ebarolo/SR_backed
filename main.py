@@ -16,7 +16,7 @@ from pydantic import BaseModel, HttpUrl, field_validator
 from typing import List, Optional, Dict, Any
 
 # Import moduli interni
-from config import BASE_FOLDER_RICETTE, EMBEDDING_MODEL, STATIC_DIR
+from config import BASE_FOLDER_RICETTE, STATIC_DIR
 from utility.models import JobStatus
 from rag._elysia import search_recipes_elysia, _preprocess_collection
 from rag._weaviate import WeaviateSemanticEngine
@@ -45,6 +45,7 @@ error_logger = get_error_logger(__name__)
 class VideoURLs(BaseModel):
     """Schema per validazione URL video da importare."""
     urls: List[HttpUrl]
+    force_redownload: bool = False  # Opzionale: forza il ri-download se già presente
 
     @field_validator('urls')
     def validate_urls(cls, vs):
@@ -84,13 +85,6 @@ app = FastAPI(
     version="0.9",
     description="API per gestione ricette con ricerca semantica basata su Weaviate/Elysia",
     lifespan=lifespan
-)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
 )
 
 # Configurazione MIME types per assicurarsi che i CSS vengano serviti correttamente
@@ -136,7 +130,7 @@ async def enqueue_ingest(videos: VideoURLs, background_tasks: BackgroundTasks):
             "urls": urls_progress,
         },
     }
-    background_tasks.add_task(_ingest_urls_job, app, job_id, url_list)
+    background_tasks.add_task(_ingest_urls_job, app, job_id, url_list, videos.force_redownload)
     return JobStatus(job_id=job_id, status="queued", progress_percent=0.0, progress=app.state.jobs[job_id]["progress"])
 
 @app.post("/recipes/ingest/fromFolder", response_model=JobStatus, status_code=status.HTTP_202_ACCEPTED)
@@ -236,7 +230,53 @@ def search_recipes(
     diet: Optional[str] = None,
     cuisine: Optional[str] = None
 ):
-     return search_recipes_elysia(query, limit)
+    """
+    Ricerca semantica ricette con validazione input.
+    
+    Args:
+        query: Testo di ricerca (max 500 caratteri)
+        limit: Numero risultati (max 100)
+        max_time: Tempo massimo preparazione
+        difficulty: Difficoltà ricetta
+        diet: Tipo dieta
+        cuisine: Tipo cucina
+        
+    Returns:
+        Risultati ricerca semantica
+        
+    Raises:
+        HTTPException: Se validazione input fallisce
+    """
+    # Validazione query
+    if not query or not query.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Query non può essere vuota"
+        )
+    
+    if len(query) > 500:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Query troppo lunga (max 500 caratteri)"
+        )
+    
+    # Validazione limit
+    if limit < 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Limit deve essere maggiore di 0"
+        )
+    
+    if limit > 100:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Limit troppo alto (max 100)"
+        )
+    
+    # Sanitize query per prevenire injection
+    query_clean = query.strip()
+    
+    return search_recipes_elysia(query_clean, limit)
 
 def _is_folder_empty_or_contains_empty_folders(folder_path: str) -> bool:
     """
@@ -260,9 +300,23 @@ def delete_emptyFolder():
     deleted_folders = []
     errors = []
     
+    # Normalizza BASE_FOLDER_RICETTE per confronto sicuro
+    base_folder_abs = os.path.abspath(BASE_FOLDER_RICETTE)
+    
     try:
         for dir_name in os.listdir(BASE_FOLDER_RICETTE):
+            # Previene path traversal (es. ../../../etc/passwd)
+            if ".." in dir_name or "/" in dir_name or "\\" in dir_name:
+                errors.append(f"Nome cartella non valido (path traversal rilevato): {dir_name}")
+                continue
+            
             dir_path = os.path.join(BASE_FOLDER_RICETTE, dir_name)
+            
+            # Verifica che il path finale sia effettivamente sotto BASE_FOLDER_RICETTE
+            dir_path_abs = os.path.abspath(dir_path)
+            if not dir_path_abs.startswith(base_folder_abs):
+                errors.append(f"Path traversal rilevato per: {dir_name}")
+                continue
             
             # Verifica che sia effettivamente una cartella
             if not os.path.isdir(dir_path):
@@ -295,10 +349,47 @@ def delete_emptyFolder():
 def delete_recipe(shortcode: str):
     """
     Elimina una ricetta specifica tramite shortcode.
+    
+    Args:
+        shortcode: Identificativo univoco ricetta
+        
+    Returns:
+        Messaggio conferma eliminazione
+        
+    Raises:
+        HTTPException: Se shortcode non valido o errore eliminazione
     """
-    with WeaviateSemanticEngine() as db_engine:
-        db_engine.delete_recipe(shortcode)
-    return {"message": "Ricetta eliminata con successo"}
+    # Validazione shortcode per prevenire path traversal
+    if not shortcode or not shortcode.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Shortcode non può essere vuoto"
+        )
+    
+    # Previeni path traversal e caratteri pericolosi
+    if ".." in shortcode or "/" in shortcode or "\\" in shortcode:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Shortcode contiene caratteri non validi"
+        )
+    
+    # Limita lunghezza
+    if len(shortcode) > 100:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Shortcode troppo lungo (max 100 caratteri)"
+        )
+    
+    try:
+        with WeaviateSemanticEngine() as db_engine:
+            db_engine.delete_recipe(shortcode.strip())
+        return {"message": "Ricetta eliminata con successo", "shortcode": shortcode}
+    except Exception as e:
+        error_logger.log_exception("delete_recipe", e, {"shortcode": shortcode})
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Errore durante eliminazione: {str(e)}"
+        )
 
 @app.get("/recipes/{shortcode}")
 def get_recipe_by_shortcode(shortcode: str):
@@ -470,8 +561,7 @@ def health_check():
         return {
             "status": "ok",
             "system": "Smart Recipe API",
-            "version": "0.7 - Ottimizzato",
-            "embedding_model": EMBEDDING_MODEL,
+            "version": "0.9",
             "database": {
                 "type": stats.get("database_type", "Elysia/Weaviate"),
                 "total_recipes": stats.get("total_recipes", 0),

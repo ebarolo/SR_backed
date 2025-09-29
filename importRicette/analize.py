@@ -4,11 +4,19 @@ import base64
 import asyncio
 import json
 import requests
+import openai
 
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_not_exception_type
 
 from utility.utility import timeout
 from utility.logging_config import get_error_logger
+from utility.timeout_config import TimeoutConfig, TimeoutContext
+from utility.openai_errors import (
+    classify_openai_error,
+    QuotaExceededError,
+    InvalidAPIKeyError,
+    OpenAIError
+)
 
 error_logger = get_error_logger(__name__)
 
@@ -71,42 +79,12 @@ def encode_image(image_path):
         error_logger.log_exception("image_encoding", e, {"image_path": image_path})
         raise
 
-
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
-@timeout(300)
-async def analyze_recipe_frames(base64Frames):
-    try:
-        PROMPT_MESSAGES = [
-            {
-                "role": "system",
-                "content": "You are an assistant expert in culinary image analysis. Your task is to identify ingredients and cooking actions from an image.",
-            },
-            {
-                "role": "user",
-                "content": [
-                    "These are frames from a video recipe that I want to upload. Identify the visible ingredients and the actions that are executed. Provide the answer in JSON format with three keys: 'ingredients' , 'actions', description.",
-                    *map(lambda x: {"image": x, "resize": 768}, base64Frames[0::50]),
-                ],
-            },
-        ]
-        # logger.info({PROMPT_MESSAGES})
-        params = {
-            "model": OPENAI_VISION_CHAT_MODEL,
-            "messages": PROMPT_MESSAGES,
-            "max_tokens": 700,
-        }
-
-        # Esegui la chiamata bloccante nel thread pool passando i kwargs correttamente
-        result = await asyncio.to_thread(openAIclient.chat.completions.create, **params)
-
-        #logger.info(result.choices[0])
-        return result.choices[0].message.content
-    except Exception as e:
-        error_logger.log_exception("recipe_frames_analysis", e, {"frames_count": len(base64Frames)})
-        raise
-
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
-@timeout(180)  # 3 minuti
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=4, max=10),
+    retry=retry_if_not_exception_type((QuotaExceededError, InvalidAPIKeyError, OpenAIError))
+)
+@timeout(TimeoutConfig.EXTRACT_RECIPE_INFO)
 async def extract_recipe_info( recipe_audio_text: str, recipe_caption_text: str, ingredients: any, actions: any
  ):
 
@@ -213,65 +191,106 @@ async def extract_recipe_info( recipe_audio_text: str, recipe_caption_text: str,
         # Log più dettagliato per debug del troncamento
         audio_preview = recipe_audio_text[:200] + f"... [tot: {len(recipe_audio_text)} chars]" if recipe_audio_text and len(recipe_audio_text) > 200 else recipe_audio_text or ""
         caption_preview = recipe_caption_text[:200] + f"... [tot: {len(recipe_caption_text)} chars]" if recipe_caption_text and len(recipe_caption_text) > 200 else recipe_caption_text or ""
-        error_logger.log_exception("extract_recipe_info", e, {
+        
+        context = {
             "audio_text_length": len(recipe_audio_text) if recipe_audio_text else 0,
             "caption_text_length": len(recipe_caption_text) if recipe_caption_text else 0,
             "ingredients_count": len(ingredients) if isinstance(ingredients, list) else 0,
             "actions_count": len(actions) if isinstance(actions, list) else 0,
             "audio_preview": audio_preview,
             "caption_preview": caption_preview
-        })
+        }
+        
+        # Classifica errore OpenAI se è un errore API
+        if isinstance(e, (openai.RateLimitError, openai.AuthenticationError, openai.APIError)):
+            openai_error = classify_openai_error(e, "extract_recipe_info", context)
+            error_logger.log_exception("extract_recipe_info", openai_error, context)
+            raise openai_error
+        
+        error_logger.log_exception("extract_recipe_info", e, context)
         raise  # Preserva stack trace originale
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
-@timeout(300)  # 5 minuti di timeout
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=4, max=10),
+    retry=retry_if_not_exception_type((QuotaExceededError, InvalidAPIKeyError, OpenAIError))
+)
+@timeout(TimeoutConfig.WHISPER_TRANSCRIPTION)
 async def whisper_speech_recognition(audio_file_path: str, language: str) -> str:
-    try:
-        # Leggi il contenuto del file e ottieni informazioni prima del thread async
-        with open(audio_file_path, "rb") as audio_file:
-            # Controlla la dimensione del file audio in KB
-            audio_file.seek(0, 2)  # spostati alla fine del file
-            file_size_bytes = audio_file.tell()
-            audio_file.seek(0)     # torna all'inizio del file
-            file_size_kb = file_size_bytes / 1024
+    # Calcola timeout dinamico basato su dimensione file
+    file_size_bytes = os.path.getsize(audio_file_path)
+    file_size_mb = file_size_bytes / (1024 * 1024)
+    adjusted_timeout = TimeoutConfig.adjust_for_file_size(
+        TimeoutConfig.WHISPER_TRANSCRIPTION, file_size_mb
+    )
+    
+    with TimeoutContext("whisper_transcription", adjusted_timeout):
+        try:
+            # Leggi il contenuto del file e ottieni informazioni prima del thread async
+            with open(audio_file_path, "rb") as audio_file:
+                # Controlla la dimensione del file audio in KB
+                audio_file.seek(0, 2)  # spostati alla fine del file
+                file_size_bytes = audio_file.tell()
+                audio_file.seek(0)     # torna all'inizio del file
+                file_size_kb = file_size_bytes / 1024
+                
+                # Leggi tutto il contenuto del file in memoria
+                audio_content = audio_file.read()
             
-            # Leggi tutto il contenuto del file in memoria
-            audio_content = audio_file.read()
-        
-        # Crea un file-like object dal contenuto per evitare problemi con file descriptors
-        import io
-        audio_buffer = io.BytesIO(audio_content)
-        audio_buffer.name = audio_file_path  # Aggiungi il nome per compatibility
-        
-        # Ora esegui la trascrizione con il buffer in memoria
-        transcription = await asyncio.to_thread(
-            openAIclient.audio.transcriptions.create,
-            model=OPENAI_TRANSCRIBE_MODEL,
-            file=audio_buffer,
-            language=language,
-        )
-        
-        # Log successful transcription (info level) con anteprima del testo
-        import logging
-        text_preview = transcription.text[:200] + (f"... [continua per altri {len(transcription.text)-200} caratteri]" if len(transcription.text) > 200 else "") if transcription.text else ""
-        logging.getLogger(__name__).info(f"Speech recognition completed successfully", extra={
-            "audio_file": audio_file_path,
-            "file_size_kb": file_size_kb,
-            "language": language,
-            "transcription_length": len(transcription.text) if transcription.text else 0,
-            "transcription_preview": text_preview
-        })
-        
-        return transcription.text
-    except FileNotFoundError as e:
-        error_logger.log_exception("whisper_file_not_found", e, {"audio_file_path": audio_file_path, "language": language})
-        raise  # Preserva stack trace originale
-    except Exception as e:
-        error_logger.log_exception("whisper_speech_recognition", e, {"audio_file_path": audio_file_path, "language": language})
-        raise  # Preserva stack trace originale
+            # Crea un file-like object dal contenuto per evitare problemi con file descriptors
+            import io
+            # Usa context manager per garantire chiusura del buffer
+            with io.BytesIO(audio_content) as audio_buffer:
+                audio_buffer.name = audio_file_path  # Aggiungi il nome per compatibility
+                
+                # Ora esegui la trascrizione con il buffer in memoria
+                transcription = await asyncio.to_thread(
+                    openAIclient.audio.transcriptions.create,
+                    model=OPENAI_TRANSCRIBE_MODEL,
+                    file=audio_buffer,
+                    language=language,
+                )
+            
+            # Log successful transcription (info level) con anteprima del testo
+            import logging
+            text_preview = transcription.text[:200] + (f"... [continua per altri {len(transcription.text)-200} caratteri]" if len(transcription.text) > 200 else "") if transcription.text else ""
+            logging.getLogger(__name__).info(f"Speech recognition completed successfully", extra={
+                "audio_file": audio_file_path,
+                "file_size_kb": file_size_kb,
+                "file_size_mb": file_size_mb,
+                "adjusted_timeout": adjusted_timeout,
+                "language": language,
+                "transcription_length": len(transcription.text) if transcription.text else 0,
+                "transcription_preview": text_preview
+            })
+            
+            return transcription.text
+        except FileNotFoundError as e:
+            error_logger.log_exception("whisper_file_not_found", e, {"audio_file_path": audio_file_path, "language": language})
+            raise  # Preserva stack trace originale
+        except Exception as e:
+            context = {
+                "audio_file_path": audio_file_path,
+                "language": language,
+                "file_size_mb": file_size_mb,
+                "adjusted_timeout": adjusted_timeout
+            }
+            
+            # Classifica errore OpenAI se è un errore API
+            if isinstance(e, (openai.RateLimitError, openai.AuthenticationError, openai.APIError)):
+                openai_error = classify_openai_error(e, "whisper_speech_recognition", context)
+                error_logger.log_exception("whisper_speech_recognition", openai_error, context)
+                raise openai_error
+            
+            error_logger.log_exception("whisper_speech_recognition", e, context)
+            raise  # Preserva stack trace originale
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
-@timeout(300)  # 5 minuti di timeout
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=4, max=10),
+    retry=retry_if_not_exception_type((QuotaExceededError, InvalidAPIKeyError, OpenAIError))
+)
+@timeout(TimeoutConfig.GENERATE_IMAGES)
 async def generateRecipeImages(ricetta: dict, shortcode: str):
     # Costruisci un testo robusto per il prompt a partire dai campi di ricetta
     image_folder = os.path.join(BASE_FOLDER_RICETTE, shortcode, "media_recipe")
@@ -374,9 +393,10 @@ async def generateRecipeImages(ricetta: dict, shortcode: str):
                 if b64_val:
                     image_bytes = base64.b64decode(b64_val)
                 elif url_val:
-                    resp = requests.get(url_val, timeout=30)
-                    resp.raise_for_status()
-                    image_bytes = resp.content
+                    # Usa context manager per garantire chiusura connessione HTTP
+                    with requests.get(url_val, timeout=30, stream=True) as resp:
+                        resp.raise_for_status()
+                        image_bytes = resp.content
                 else:
                     raise ValueError("Elemento immagine privo di 'b64_json' e 'url'")
 
@@ -398,7 +418,15 @@ async def generateRecipeImages(ricetta: dict, shortcode: str):
             raise
 
      except Exception as e:
-        error_logger.log_exception("generate_recipe_images", e, {"shortcode": shortcode, "recipe_title": ricetta.get("title", "")})
+        context = {"shortcode": shortcode, "recipe_title": ricetta.get("title", ""), "image_type": img["type"]}
+        
+        # Classifica errore OpenAI se è un errore API
+        if isinstance(e, (openai.RateLimitError, openai.AuthenticationError, openai.APIError)):
+            openai_error = classify_openai_error(e, "generate_recipe_images", context)
+            error_logger.log_exception("generate_recipe_images", openai_error, context)
+            raise openai_error
+        
+        error_logger.log_exception("generate_recipe_images", e, context)
         raise  # Preserva stack trace originale
 
     return all_saved_paths
