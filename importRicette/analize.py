@@ -221,42 +221,54 @@ async def extract_recipe_info( recipe_audio_text: str, recipe_caption_text: str,
             "audio_preview": audio_preview,
             "caption_preview": caption_preview
         })
-        raise e
+        raise  # Preserva stack trace originale
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
 @timeout(300)  # 5 minuti di timeout
 async def whisper_speech_recognition(audio_file_path: str, language: str) -> str:
     try:
+        # Leggi il contenuto del file e ottieni informazioni prima del thread async
         with open(audio_file_path, "rb") as audio_file:
-            # Usiamo asyncio.to_thread per eseguire la chiamata bloccante in un thread separato
             # Controlla la dimensione del file audio in KB
             audio_file.seek(0, 2)  # spostati alla fine del file
             file_size_bytes = audio_file.tell()
             audio_file.seek(0)     # torna all'inizio del file
             file_size_kb = file_size_bytes / 1024
-            transcription = await asyncio.to_thread(
-                openAIclient.audio.transcriptions.create,
-                model=OPENAI_TRANSCRIBE_MODEL,
-                file=audio_file,
-                language=language,
-            )
-            # Log successful transcription (info level) con anteprima del testo
-            import logging
-            text_preview = transcription.text[:200] + (f"... [continua per altri {len(transcription.text)-200} caratteri]" if len(transcription.text) > 200 else "") if transcription.text else ""
-            logging.getLogger(__name__).info(f"Speech recognition completed successfully", extra={
-                "audio_file": audio_file_path,
-                "file_size_kb": file_size_kb,
-                "language": language,
-                "transcription_length": len(transcription.text) if transcription.text else 0,
-                "transcription_preview": text_preview
-            })
+            
+            # Leggi tutto il contenuto del file in memoria
+            audio_content = audio_file.read()
+        
+        # Crea un file-like object dal contenuto per evitare problemi con file descriptors
+        import io
+        audio_buffer = io.BytesIO(audio_content)
+        audio_buffer.name = audio_file_path  # Aggiungi il nome per compatibility
+        
+        # Ora esegui la trascrizione con il buffer in memoria
+        transcription = await asyncio.to_thread(
+            openAIclient.audio.transcriptions.create,
+            model=OPENAI_TRANSCRIBE_MODEL,
+            file=audio_buffer,
+            language=language,
+        )
+        
+        # Log successful transcription (info level) con anteprima del testo
+        import logging
+        text_preview = transcription.text[:200] + (f"... [continua per altri {len(transcription.text)-200} caratteri]" if len(transcription.text) > 200 else "") if transcription.text else ""
+        logging.getLogger(__name__).info(f"Speech recognition completed successfully", extra={
+            "audio_file": audio_file_path,
+            "file_size_kb": file_size_kb,
+            "language": language,
+            "transcription_length": len(transcription.text) if transcription.text else 0,
+            "transcription_preview": text_preview
+        })
+        
         return transcription.text
     except FileNotFoundError as e:
         error_logger.log_exception("whisper_file_not_found", e, {"audio_file_path": audio_file_path, "language": language})
-        raise e
+        raise  # Preserva stack trace originale
     except Exception as e:
         error_logger.log_exception("whisper_speech_recognition", e, {"audio_file_path": audio_file_path, "language": language})
-        raise e
+        raise  # Preserva stack trace originale
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
 @timeout(300)  # 5 minuti di timeout
@@ -387,6 +399,6 @@ async def generateRecipeImages(ricetta: dict, shortcode: str):
 
      except Exception as e:
         error_logger.log_exception("generate_recipe_images", e, {"shortcode": shortcode, "recipe_title": ricetta.get("title", "")})
-        raise e
+        raise  # Preserva stack trace originale
 
     return all_saved_paths

@@ -86,15 +86,8 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Abilita CORS per consentire chiamate dal frontend o da domini esterni
-_cors_origins = os.getenv("CORS_ALLOW_ORIGINS", "*")
-_parsed_origins = [origin.strip() for origin in _cors_origins.split(",") if origin.strip()]
-if "*" in _parsed_origins or not _parsed_origins:
-    _parsed_origins = ["*"]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_parsed_origins,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],

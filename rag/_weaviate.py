@@ -365,9 +365,8 @@ class WeaviateSemanticEngine:
             collection = self.client.collections.use(collection_name)
             success_count = 0
             
-            # Prepara raccolte distinte per inserimenti e aggiornamenti
-            batch_to_insert = []
-            batch_to_update = []
+            # Usa batch upsert per evitare race conditions
+            batch_to_upsert = []
             
             for index, recipe in enumerate(recipes):
                 try:
@@ -451,45 +450,55 @@ class WeaviateSemanticEngine:
                     
                     # Genera UUID deterministico dal shortcode
                     recipe_uuid = generate_uuid5(shortcode)
-
-                    try:
-                        exists = collection.data.exists(recipe_uuid)
-                        
-                    except Exception as exists_err:
-                        logger.error(f"❌ Errore verifica esistenza {shortcode}: {exists_err}")
-                        continue
-
-                    target_batch = batch_to_update if exists else batch_to_insert
-                    target_batch.append({
+                    
+                    batch_to_upsert.append({
                         "uuid": recipe_uuid,
-                        "properties": recipe_object
+                        "properties": recipe_object,
+                        "shortcode": shortcode  # Per logging
                     })
                     
                 except Exception as e:
-                    logger.error(f"❌ Errore preparazione ricetta {shortcode}: {e}")
+                    error_shortcode = recipe.get('shortcode', 'unknown') if isinstance(recipe, dict) else getattr(recipe, 'shortcode', 'unknown')
+                    logger.error(f"❌ Errore preparazione ricetta {error_shortcode}: {e}")
                     continue
             
-            if batch_to_update:
-                logger.info(f"Aggiornamento di {len(batch_to_update)} ricette esistenti")
-                for obj in batch_to_update:
-                    shortcode = obj["properties"].get("shortcode", "unknown")
+            # Esegui operazioni upsert atomiche per evitare race conditions
+            logger.info(f"Esecuzione upsert atomico per {len(batch_to_upsert)} ricette")
+            
+            try:
+                with collection.batch.dynamic() as batch:
+                    for data_row in batch_to_upsert:
+                        try:
+                            # Upsert atomico: inserisce se non esiste, aggiorna se esiste
+                            batch.add_object(
+                                properties=data_row["properties"],
+                                uuid=data_row["uuid"]
+                            )
+                            success_count += 1
+                        except Exception as upsert_err:
+                            # Se fallisce l'upsert automatico, prova update esplicito
+                            try:
+                                collection.data.update(data_row["uuid"], data_row["properties"])
+                                success_count += 1
+                                logger.info(f"✅ Ricetta {data_row['shortcode']} aggiornata via fallback")
+                            except Exception as update_fallback_err:
+                                logger.error(f"❌ Errore upsert/update {data_row['shortcode']}: {update_fallback_err}")
+                                continue
+                                
+            except Exception as batch_err:
+                logger.error(f"❌ Errore batch upsert: {batch_err}")
+                # Fallback a operazioni individuali se batch fallisce
+                for data_row in batch_to_upsert:
                     try:
-                        collection.data.update(obj["uuid"], obj["properties"])
-                        success_count += 1
-                    except Exception as update_err:
-                        logger.error(f"❌ Errore aggiornamento {shortcode}: {update_err}")
-
-            if batch_to_insert:
-                try:
-                 with collection.batch.dynamic() as batch:
-                    for data_row in batch_to_insert:
-                        batch.add_object(
-                            properties=data_row["properties"],
-                            uuid=data_row["uuid"]
-                        )
-                        success_count += 1
-                except Exception as e:
-                  logger.error(f"❌ Errore generale batch: {e}")
+                        # Prova insert, se fallisce prova update
+                        try:
+                            collection.data.insert(properties=data_row["properties"], uuid=data_row["uuid"])
+                            success_count += 1
+                        except Exception:
+                            collection.data.update(data_row["uuid"], data_row["properties"]) 
+                            success_count += 1
+                    except Exception as individual_err:
+                        logger.error(f"❌ Errore operazione individuale {data_row['shortcode']}: {individual_err}")
                           
             logger.info(f"✅ Processate {success_count}/{len(recipes)} ricette")
             
@@ -600,20 +609,42 @@ class WeaviateSemanticEngine:
             return {"error": str(e)}
     
     def close(self):
-        """Chiude la connessione"""
+        """Chiude la connessione in modo sicuro e completo"""
         if hasattr(self, 'client') and self.client is not None:
             try:
+                # Assicura che tutte le operazioni pending siano completate
+                if hasattr(self.client, '_connection') and hasattr(self.client._connection, 'close'):
+                    self.client._connection.close()
+                
+                # Chiusura principale del client
                 self.client.close()
                 logger.info("Connessione Weaviate chiusa correttamente")
+                
             except Exception as e:
-                logger.warning(f"Errore durante chiusura connessione: {e}")
+                logger.error(f"Errore durante chiusura connessione Weaviate: {e}")
+                # Non rilancia l'eccezione per evitare problemi durante cleanup
             finally:
-                self.client = None
+                # Assicura che il client sia sempre settato a None
+                try:
+                    self.client = None
+                except Exception:
+                    pass  # Ignora errori durante cleanup finale
     
     def __enter__(self):
         """Context manager entry"""
         return self
     
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit - chiude automaticamente la connessione"""
-        self.close()
+        """
+        Context manager exit - chiude automaticamente la connessione.
+        
+        Garantisce la chiusura anche in caso di eccezioni durante l'operazione.
+        """
+        try:
+            self.close()
+        except Exception as close_err:
+            # Log errore ma non interrompere il flusso di cleanup
+            logger.error(f"Errore durante __exit__ cleanup: {close_err}")
+        
+        # Non sopprime le eccezioni originali
+        return False

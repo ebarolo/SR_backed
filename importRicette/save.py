@@ -139,7 +139,7 @@ async def _process_video_internal(
     except Exception as e:
         error_logger.log_exception("download_error", e, {"recipeUrl": recipeUrl})
         _emit_progress("error", 0.0, message=str(e))
-        raise e
+        raise  # Preserva stack trace originale
 
     # Processa ogni video scaricato
     for dw in dws:
@@ -317,4 +317,4 @@ async def process_video(
             original_error = e.last_attempt.exception()
             raise original_error
         else:
-            raise e
+            raise  # Preserva stack trace originale
