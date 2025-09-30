@@ -86,7 +86,7 @@ async def scarica_contenuto_reel(url: str, force_redownload: bool = False) -> Di
     
     result = []
     try:
-        L = get_instaloader()
+        L = instaloader.Instaloader(sleep=True,quiet=True)
         if(url.startswith("https://www.instagram.com/")):
          # Extract shortcode from URL
          shortcode = extract_shortcode_from_url(url)
