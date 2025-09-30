@@ -6,8 +6,7 @@ from typing import List
 from fastapi import FastAPI
 from colorgram import colorgram
 
-from utility.logging_config import (
-    setup_logging, 
+from utility.cloud_logging_config import (
     get_error_logger,
     job_id_var
 )
@@ -29,8 +28,7 @@ from utility.utility import (
 )
 from utility.path_utils import ensure_media_web_paths, ensure_media_web_path, web_path_to_filesystem_path
 
-# Setup logging
-setup_logging()
+# Setup logging (ora configurato globalmente in main.py)
 error_logger = get_error_logger(__name__)
 error_handler = ErrorHandler(__name__)
 

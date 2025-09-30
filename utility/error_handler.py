@@ -13,7 +13,7 @@ import logging
 from typing import Any, Callable, Dict, Optional, Type, Union, List
 from enum import Enum
 
-from utility.logging_config import get_error_logger
+from utility.cloud_logging_config import get_error_logger
 
 
 class ErrorSeverity(Enum):

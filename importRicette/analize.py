@@ -9,7 +9,7 @@ import openai
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_not_exception_type
 
 from utility.utility import timeout
-from utility.logging_config import get_error_logger
+from utility.cloud_logging_config import get_error_logger
 from utility.timeout_config import TimeoutConfig, TimeoutContext
 from utility.openai_errors import (
     classify_openai_error,

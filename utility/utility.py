@@ -18,7 +18,7 @@ import asyncio
 from functools import wraps
 
 
-from utility.logging_config import get_error_logger
+from utility.cloud_logging_config import get_error_logger
 
 # Inizializzazioni
 error_logger = get_error_logger(__name__)

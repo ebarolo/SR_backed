@@ -16,15 +16,25 @@ from pydantic import BaseModel, HttpUrl, field_validator
 from typing import List, Optional, Dict, Any
 
 # Import moduli interni
-from config import BASE_FOLDER_RICETTE, STATIC_DIR
+from config import (
+    BASE_FOLDER_RICETTE, 
+    STATIC_DIR,
+    LOG_BACKEND,
+    LOG_LEVEL,
+    LOG_NAME,
+    ENVIRONMENT
+)
 from utility.models import JobStatus
 from rag._elysia import search_recipes_elysia, _preprocess_collection
 from rag._weaviate import WeaviateSemanticEngine
 
-from utility.logging_config import (
-    setup_logging, 
-    get_error_logger
+# Cloud Logging (nuovo sistema)
+from utility.cloud_logging_config import (
+    setup_cloud_logging,
+    get_error_logger,
+    LoggingBackend
 )
+from utility.cloud_logging_middleware import CloudLoggingMiddleware
 
 from importRicette.ingest import _ingest_urls_job, _ingest_folder_job
 # Import uvicorn per server
@@ -34,8 +44,19 @@ import uvicorn
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DIST_DIR = os.path.join(BASE_DIR, "importFrontend")
 
-# Setup logging
-setup_logging()
+# Setup Cloud Logging con best practices
+setup_cloud_logging(
+    backend=LOG_BACKEND,
+    level=LOG_LEVEL,
+    log_name=LOG_NAME,
+    console=True,
+    local_file_path="logs/backend.jsonl",
+    global_labels={
+        "application": "smart-recipe",
+        "environment": ENVIRONMENT,
+        "version": "0.9"
+    }
+)
 error_logger = get_error_logger(__name__)
 
 # ===============================
@@ -75,6 +96,14 @@ app = FastAPI(
     version="0.9",
     description="API per gestione ricette con ricerca semantica basata su Weaviate/Elysia",
     lifespan=lifespan
+)
+
+# Aggiungi Cloud Logging Middleware per request tracking
+app.add_middleware(
+    CloudLoggingMiddleware,
+    log_requests=True,
+    log_responses=True,
+    exclude_paths=["/health", "/static"]
 )
 
 # Configurazione MIME types per assicurarsi che i CSS vengano serviti correttamente

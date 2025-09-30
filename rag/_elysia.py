@@ -24,7 +24,7 @@ from config import (
 )
 
 # Import utility e modelli
-from utility.logging_config import get_error_logger
+from utility.cloud_logging_config import get_error_logger
 
 # Import Elysia SDK
 from elysia import (

@@ -4,7 +4,7 @@ import logging
 from typing import Dict, Any
 
 from utility.utility import sanitize_folder_name
-from utility.logging_config import get_error_logger, clear_error_chain
+from utility.cloud_logging_config import get_error_logger, clear_error_chain
 from config import ISTA_USERNAME, ISTA_PASSWORD, BASE_FOLDER_RICETTE
 
 # Initialize error logger

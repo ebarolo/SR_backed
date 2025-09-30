@@ -25,7 +25,7 @@ from config import BASE_FOLDER_RICETTE, NO_IMAGE
 
 # Import utility
 from utility.utility import sanitize_text, sanitize_filename
-from utility.logging_config import get_error_logger, request_id_var, clear_error_chain
+from utility.cloud_logging_config import get_error_logger, request_id_var, clear_error_chain
 from utility.openai_errors import OpenAIError, QuotaExceededError
 
 # Import moduli interni
