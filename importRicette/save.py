@@ -107,7 +107,7 @@ async def _process_video_internal(
             url_lower = recipeUrl.lower()
             if any(host in url_lower for host in ["instagram.com"]):
                 # URL Instagram: usa instaloader
-                dws = await scarica_contenuto_reel(recipeUrl, force_redownload=force_redownload)
+                dws = await scarica_contenuto_reel(recipeUrl)
                 _emit_progress("download", 25.0)
             else:
                 # Altri URL: usa yt-dlp
@@ -446,7 +446,7 @@ async def process_video(
         Exception: Errore durante il processing
     """
     try:
-        return await _process_video_internal(recipeUrl, progress_cb, force_redownload)
+        return await _process_video_internal(recipeUrl, progress_cb)
     except Exception as e:
         # Estrai errore originale da RetryError se presente
         if hasattr(e, 'last_attempt') and hasattr(e.last_attempt, 'exception'):
