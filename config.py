@@ -13,7 +13,7 @@ load_dotenv()
 LOG_BACKEND = os.getenv("LOG_BACKEND", "cloud")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 LOG_NAME = os.getenv("LOG_NAME", "smart-recipe")
-GCP_PROJECT_ID = os.getenv("smart-recipe-445321", "")
+GCP_PROJECT_ID = os.getenv("GCP_PROJECT_ID", "smart-recipe-445321")
 ENVIRONMENT = os.getenv("ENVIRONMENT", "production")
 
 STATIC_DIR = os.path.join(os.getcwd(), "static")

@@ -2,6 +2,7 @@ import os
 import instaloader
 import logging
 from typing import Dict, Any
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 from utility.utility import sanitize_folder_name
 from utility.cloud_logging_config import get_error_logger, clear_error_chain
@@ -68,6 +69,7 @@ def extract_shortcode_from_url(url: str) -> str:
      
         return shortcode
 
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
 async def scarica_contenuto_reel(url: str, force_redownload: bool = False) -> Dict[str, Any]:
     """
     Scarica contenuto da Instagram reel.
