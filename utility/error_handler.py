@@ -87,7 +87,7 @@ class ErrorHandler:
         self.logger.log_exception(operation, error, {
             "severity": severity.value,
             "action": action.value,
-            "module": self.module_name,
+            "error_module": self.module_name,  # Rinominato per evitare conflitti con attributi nativi
             **context
         })
         

@@ -296,7 +296,7 @@ class ImportManager {
     }
 
     async clearCompletedJobs() {
-        const completedJobs = document.querySelectorAll('.step-completed');
+        const completedJobs = document.querySelectorAll('.step-completed, .step-failed');
         if (completedJobs.length === 0) {
             this.showNotification('Nessun job completato da cancellare', 'warning');
             return;
@@ -305,7 +305,7 @@ class ImportManager {
         const confirmResult = confirm(
             `⚠️ Conferma Cancellazione\n\n` +
             `Vuoi cancellare ${completedJobs.length} job completati?\n\n` +
-            `Questa azione rimuoverà i job dalla visualizzazione ma non influenzerà le ricette già salvate nel database.`
+            `Questa azione rimuoverà i job dalla memoria e dalla visualizzazione ma non influenzerà le ricette già salvate nel database.`
         );
 
         if (!confirmResult) {
@@ -313,6 +313,19 @@ class ImportManager {
         }
 
         try {
+            // Chiama l'endpoint DELETE per eliminare tutti i job completati dal backend
+            const response = await fetch(`${this.apiBaseUrl}/recipes/ingest/status/completed/all`, {
+                method: 'DELETE',
+                signal: this._abortController.signal
+            });
+
+            if (!response.ok) {
+                throw new Error('Errore durante l\'eliminazione dei job dal server');
+            }
+
+            const result = await response.json();
+            console.log('Job eliminati dal server:', result);
+
             // Nascondi i job completati con animazione
             completedJobs.forEach((job, index) => {
                 setTimeout(() => {
@@ -329,7 +342,7 @@ class ImportManager {
             });
 
             // Aggiorna le statistiche
-            const remainingJobs = document.querySelectorAll('.card-elevated:not(.step-completed)');
+            const remainingJobs = document.querySelectorAll('.card-elevated:not(.step-completed):not(.step-failed)');
             const runningCount = document.querySelectorAll('.step-running').length;
             const queuedCount = document.querySelectorAll('.step-queued').length;
             
@@ -340,7 +353,7 @@ class ImportManager {
             });
 
             this.showNotification(
-                `✅ ${completedJobs.length} job completati rimossi dalla visualizzazione`,
+                `✅ ${result.deleted_count || completedJobs.length} job completati eliminati con successo`,
                 'success'
             );
 
@@ -353,7 +366,7 @@ class ImportManager {
 
         } catch (error) {
             console.error('Errore durante la cancellazione:', error);
-            this.showNotification('Errore durante la cancellazione', 'destructive');
+            this.showNotification(`Errore durante la cancellazione: ${error.message}`, 'destructive');
         }
     }
 
@@ -1046,21 +1059,12 @@ class ImportManager {
                             </div>
                         </div>
                     </div>
-                    <button onclick="importManager.toggleJobDetails('${job_id}')" 
-                        class="px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted rounded-full transition-colors">
-                        Dettagli →
-                    </button>
                 </div>
                 
                 ${progressSection}
                 ${resultSection}
             </div>
         `;
-    }
-
-    toggleJobDetails(jobId) {
-        // TODO: Implementare visualizzazione dettagli completi in modal
-        console.log('Toggle details for job:', jobId);
     }
 
     updateJobStats(jobs) {

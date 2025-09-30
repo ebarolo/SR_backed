@@ -224,11 +224,11 @@ class CloudLoggingHandler(logging.Handler):
         Returns:
             Dictionary con structured payload
         """
-        # Base payload
+        # Base payload (evita nomi che confliggono con attributi nativi di LogRecord)
         payload = {
             "message": record.getMessage(),
             "logger": record.name,
-            "module": record.module,
+            "source_module": record.module,  # Rinominato per evitare conflitti
             "function": record.funcName,
             "line": record.lineno,
             "pathname": record.pathname,
@@ -275,12 +275,24 @@ class CloudLoggingHandler(logging.Handler):
                 "traceback": traceback.format_exception(*record.exc_info)
             }
         
-        # Aggiungi extra fields dal record
+        # Lista di attributi nativi di LogRecord da escludere
+        native_attrs = {
+            'name', 'msg', 'args', 'created', 'filename', 'funcName',
+            'levelname', 'levelno', 'lineno', 'module', 'msecs', 'message',
+            'pathname', 'process', 'processName', 'thread', 'threadName',
+            'exc_info', 'exc_text', 'stack_info', 'relativeCreated'
+        }
+        
+        # Aggiungi extra fields dal record, escludendo attributi nativi
         for key, value in record.__dict__.items():
-            if key not in logging.LogRecord.__dict__ and not key.startswith('_'):
-                # Evita di duplicare campi già presenti
+            if key not in native_attrs and not key.startswith('_'):
+                # Evita di duplicare campi già presenti nel payload
                 if key not in payload:
-                    payload[key] = value
+                    try:
+                        # Serializza solo valori JSON-compatibili
+                        payload[key] = value
+                    except (TypeError, ValueError):
+                        payload[key] = str(value)
         
         return payload
     
@@ -562,13 +574,20 @@ def setup_cloud_logging(
             file_handler = logging.FileHandler(file_path, mode="a", encoding="utf-8")
             file_handler.setLevel(log_level)
             
+            # Usa reserved_attrs per evitare conflitti con campi nativi di LogRecord
             json_formatter = JsonFormatter(
                 fmt=(
                     "%(asctime)s %(levelname)s %(name)s %(message)s "
                     "%(request_id)s %(job_id)s %(trace_id)s "
                     "%(pathname)s %(lineno)d %(error_chain)s"
                 ),
-                json_ensure_ascii=False
+                json_ensure_ascii=False,
+                reserved_attrs=[
+                    'name', 'msg', 'args', 'created', 'filename', 'funcName',
+                    'levelname', 'levelno', 'lineno', 'module', 'msecs',
+                    'pathname', 'process', 'processName', 'thread', 'threadName',
+                    'exc_info', 'exc_text', 'stack_info', 'relativeCreated'
+                ]
             )
             file_handler.setFormatter(json_formatter)
             file_handler.addFilter(context_filter)

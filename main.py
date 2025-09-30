@@ -235,6 +235,48 @@ def job_status(job_id: str):
     progress = job.get("progress") or {}
     return JobStatus(job_id=job_id, status=job.get("status"), detail=job.get("detail"), result=job.get("result"), progress_percent=progress.get("percentage"), progress=progress)
 
+@app.delete("/recipes/ingest/status/{job_id}")
+def delete_job(job_id: str):
+    """
+    Elimina un job specifico dalla memoria.
+    
+    Args:
+        job_id: ID univoco del job da eliminare
+        
+    Returns:
+        Messaggio di conferma
+        
+    Raises:
+        HTTPException 404 se il job non esiste
+    """
+    if job_id not in app.state.jobs:
+        raise HTTPException(status_code=404, detail="Job non trovato")
+    
+    del app.state.jobs[job_id]
+    return {"message": "Job eliminato con successo", "job_id": job_id}
+
+@app.delete("/recipes/ingest/status/completed/all")
+def delete_all_completed_jobs():
+    """
+    Elimina tutti i job completati e falliti dalla memoria.
+    
+    Returns:
+        Messaggio con numero di job eliminati
+    """
+    jobs_to_delete = [
+        job_id for job_id, job in app.state.jobs.items()
+        if job.get("status") in ["completed", "failed"]
+    ]
+    
+    for job_id in jobs_to_delete:
+        del app.state.jobs[job_id]
+    
+    return {
+        "message": f"{len(jobs_to_delete)} job completati eliminati con successo",
+        "deleted_count": len(jobs_to_delete),
+        "deleted_job_ids": jobs_to_delete
+    }
+
 @app.get("/recipes/ingest/preprocess")
 def preprocess_collection(collection_name: str):
     

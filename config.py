@@ -10,10 +10,10 @@ load_dotenv()
 # Configurazione Google Cloud Logging
 # -------------------------------
 # Backend logging: "cloud", "local", "hybrid"
-LOG_BACKEND = os.getenv("LOG_BACKEND", "hybrid")
+LOG_BACKEND = os.getenv("LOG_BACKEND", "cloud")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 LOG_NAME = os.getenv("LOG_NAME", "smart-recipe")
-GCP_PROJECT_ID = os.getenv("GCP_PROJECT_ID", "")
+GCP_PROJECT_ID = os.getenv("smart-recipe-445321", "")
 ENVIRONMENT = os.getenv("ENVIRONMENT", "production")
 
 STATIC_DIR = os.path.join(os.getcwd(), "static")
