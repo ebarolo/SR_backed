@@ -2,10 +2,9 @@ import os
 import instaloader
 import logging
 from typing import Dict, Any
-from tenacity import retry, stop_after_attempt, wait_exponential
 
 from utility.utility import sanitize_folder_name
-from utility.cloud_logging_config import get_error_logger, clear_error_chain
+from utility.logging_config import get_error_logger, clear_error_chain
 from config import ISTA_USERNAME, ISTA_PASSWORD, BASE_FOLDER_RICETTE
 
 # Initialize error logger
@@ -41,14 +40,21 @@ def get_instaloader():
 
     return L
 
-def extract_shortcode_from_url(url: str) -> str:
-    # Extract shortcode from URL with improved handling for different URL formats
-    # Handle URLs like:
-    # - https://www.instagram.com/p/ABC123/
-    # - https://www.instagram.com/reel/ABC123/
-    # - https://www.instagram.com/tv/ABC123/
-    # - https://instagram.com/p/ABC123/
+async def scarica_contenuto_reel(url: str) -> Dict[str, Any]:
+    # Clear error chain at start of new operation
+    clear_error_chain()
     
+    result = []
+    try:
+        L = get_instaloader()
+
+        # Extract shortcode from URL with improved handling for different URL formats
+        # Handle URLs like:
+        # - https://www.instagram.com/p/ABC123/
+        # - https://www.instagram.com/reel/ABC123/
+        # - https://www.instagram.com/tv/ABC123/
+        # - https://instagram.com/p/ABC123/
+
         logging.getLogger(__name__).info(f"Processing URL: {url}")
 
         # Clean URL by removing query parameters and trailing slashes
@@ -66,122 +72,63 @@ def extract_shortcode_from_url(url: str) -> str:
 
         if not shortcode:
             raise ValueError(f"Could not extract shortcode from URL: {url}")
-     
-        return shortcode
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
-async def scarica_contenuto_reel(url: str, force_redownload: bool = False) -> Dict[str, Any]:
-    """
-    Scarica contenuto da Instagram reel.
-    
-    Args:
-        url: URL del reel o shortcode
-        force_redownload: Se True, ridownload anche se già presente
-        
-    Returns:
-        Lista con dati del contenuto scaricato
-    """
-    # Clear error chain at start of new operation
-    clear_error_chain()
-    
-    result = []
-    try:
-        L = instaloader.Instaloader(sleep=True,quiet=True)
-        if(url.startswith("https://www.instagram.com/")):
-         # Extract shortcode from URL
-         shortcode = extract_shortcode_from_url(url)
-         logging.getLogger(__name__).info(f"Extracted shortcode: {shortcode}")
-
-        else:
-            shortcode = url
-            
+        logging.getLogger(__name__).info(f"Extracted shortcode: {shortcode}")
         # Create a folder named after the shortcode inside static/mediaRicette
         shortcode_folder = os.path.join(
             BASE_FOLDER_RICETTE, shortcode
         )
         
-        # Check if the folder already exists and contains the metadata file
-        metadata_file_path = os.path.join(shortcode_folder, "media_original", f"metadata_{shortcode}.json")
-        if os.path.exists(metadata_file_path) and not force_redownload:
-            # Contenuto già esistente - restituisci i dati senza ri-scaricare
-            logging.getLogger(__name__).info(
-                f"Content for shortcode {shortcode} already exists, skipping download",
-                extra={"shortcode": shortcode, "metadata_file": metadata_file_path}
-            )
-            
-            # Leggi caption dal metadata esistente se disponibile
-            caption = ""
+        # Check if the folder already exists and contains files
+        if os.path.exists(shortcode_folder) and os.listdir(shortcode_folder):
+            error_logger.log_error("content_already_exists", f"Folder {shortcode_folder} already exists and contains files", {"shortcode": shortcode, "url": url})
+
+            raise ValueError(f"Content for shortcode {shortcode} already downloaded")
+
+        else:
+            downloadFolder = os.path.join(shortcode_folder, "media_original")
+            os.makedirs(downloadFolder, exist_ok=True)
+
+            # Set the dirname_pattern to the shortcode folder for this download
+            L.dirname_pattern = downloadFolder
+
+            logging.getLogger(__name__).info(f"Created folder for download: {downloadFolder}")
             try:
-                import json
-                with open(metadata_file_path, 'r', encoding='utf-8') as f:
-                    metadata = json.load(f)
-                    caption = metadata.get('node', {}).get('edge_media_to_caption', {}).get('edges', [{}])[0].get('node', {}).get('text', '')
-            except Exception as e:
-                logging.getLogger(__name__).warning(
-                    f"Could not read caption from existing metadata: {e}",
-                    extra={"shortcode": shortcode}
-                )
+                post = instaloader.Post.from_shortcode(L.context, shortcode)
+            except instaloader.exceptions.InstaloaderException as e:
+                error_logger.log_exception("instaloader_fetch_post", e, {"shortcode": shortcode, "url": url})
+                raise ValueError(f"Errore durante il recupero del post con shortcode {shortcode}: {str(e)}") from e
+            except Exception as e: # Cattura generica per altri possibili errori non di Instaloader
+                error_logger.log_exception("unexpected_fetch_post", e, {"shortcode": shortcode, "url": url})
+                raise ValueError(f"Errore inaspettato durante il recupero del post con shortcode {shortcode}: {str(e)}") from e
+
+            # Dump all available post attributes
+            post_attributes = {}
+            for attr in dir(post):
+                # Skip private attributes and methods
+                if not attr.startswith("_") and not callable(getattr(post, attr)):
+                    try:
+                        value = getattr(post, attr)
+                        # Convert complex objects to string representation to avoid serialization issues
+                        if not isinstance(value, (str, int, float, bool, type(None))):
+                            value = str(value)
+                        post_attributes[attr] = value
+                    except Exception as e:
+                        post_attributes[attr] = f"Error accessing attribute: {str(e)}"
+
+            logging.getLogger(__name__).info(f"Post attributes extracted", extra={"shortcode": shortcode, "attributes_count": len(post_attributes)})
             
+            # Download the post
+            L.download_post(post, downloadFolder)
+
             res = {
                 "error": "",
                 "shortcode": shortcode,
-                "caption": caption,
+                "caption": post.caption if post.caption else "",
             }
+
             result.append(res)
             return result
-        elif os.path.exists(metadata_file_path) and force_redownload:
-            logging.getLogger(__name__).info(
-                f"Force redownload enabled for shortcode {shortcode}, removing existing content",
-                extra={"shortcode": shortcode}
-            )
-            # Rimuovi contenuto esistente per permettere il redownload
-            import shutil
-            shutil.rmtree(shortcode_folder)
-        
-        # Download del contenuto (nuovo o forzato)
-        downloadFolder = os.path.join(shortcode_folder, "media_original")
-        os.makedirs(downloadFolder, exist_ok=True)
-
-        # Set the dirname_pattern to the shortcode folder for this download
-        L.dirname_pattern = downloadFolder
-
-        logging.getLogger(__name__).info(f"Created folder for download: {downloadFolder}")
-        try:
-            post = instaloader.Post.from_shortcode(L.context, shortcode)
-        except instaloader.exceptions.InstaloaderException as e:
-            error_logger.log_exception("instaloader_fetch_post", e, {"shortcode": shortcode, "url": url})
-            raise ValueError(f"Errore durante il recupero del post con shortcode {shortcode}: {str(e)}") from e
-        except Exception as e: # Cattura generica per altri possibili errori non di Instaloader
-            error_logger.log_exception("unexpected_fetch_post", e, {"shortcode": shortcode, "url": url})
-            raise ValueError(f"Errore inaspettato durante il recupero del post con shortcode {shortcode}: {str(e)}") from e
-
-        # Dump all available post attributes
-        post_attributes = {}
-        for attr in dir(post):
-            # Skip private attributes and methods
-            if not attr.startswith("_") and not callable(getattr(post, attr)):
-                try:
-                    value = getattr(post, attr)
-                    # Convert complex objects to string representation to avoid serialization issues
-                    if not isinstance(value, (str, int, float, bool, type(None))):
-                        value = str(value)
-                    post_attributes[attr] = value
-                except Exception as e:
-                    post_attributes[attr] = f"Error accessing attribute: {str(e)}"
-
-        logging.getLogger(__name__).info(f"Post attributes extracted", extra={"shortcode": shortcode, "attributes_count": len(post_attributes)})
-        
-        # Download the post
-        L.download_post(post, downloadFolder)
-
-        res = {
-            "error": "",
-            "shortcode": shortcode,
-            "caption": post.caption if post.caption else "",
-        }
-
-        result.append(res)
-        return result
 
     except instaloader.exceptions.InstaloaderException as e:
         error_logger.log_exception("scarica_contenuto_reel", e, {"url": url})
