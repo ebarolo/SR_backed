@@ -10,6 +10,7 @@ load_dotenv()
 # Configurazione Google Cloud Logging
 # -------------------------------
 # Backend logging: "cloud", "local", "hybrid"
+# Default "local" per evitare errori se credenziali GCP non configurate
 LOG_BACKEND = os.getenv("LOG_BACKEND", "cloud")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 LOG_NAME = os.getenv("LOG_NAME", "smart-recipe")

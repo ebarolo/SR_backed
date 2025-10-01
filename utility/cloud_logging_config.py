@@ -64,6 +64,13 @@ class CloudLoggingHandler(logging.Handler):
         """
         super().__init__()
         
+        # Silenzia logger di sistema PRIMA di tentare autenticazione
+        logging.getLogger("grpc").setLevel(logging.CRITICAL)
+        logging.getLogger("grpc._plugin_wrapping").setLevel(logging.CRITICAL)
+        logging.getLogger("google.auth").setLevel(logging.CRITICAL)
+        logging.getLogger("google.auth.transport").setLevel(logging.CRITICAL)
+        logging.getLogger("google.auth.compute_engine").setLevel(logging.CRITICAL)
+        
         try:
             from google.cloud import logging as cloud_logging
             from google.cloud.logging_v2.resource import Resource
@@ -94,7 +101,14 @@ class CloudLoggingHandler(logging.Handler):
             )
             self.enabled = False
         except Exception as e:
-            sys.stderr.write(f"Warning: Could not initialize Cloud Logging: {e}\n")
+            # Errore di autenticazione o altro - usa fallback locale
+            sys.stderr.write(
+                f"Warning: Could not initialize Cloud Logging: {type(e).__name__}\n"
+                "Cloud logging disabled. Using local logging fallback.\n"
+                "To enable Cloud Logging on GCE:\n"
+                "  1. Ensure VM has a service account with 'Logging Writer' role\n"
+                "  2. Or set GOOGLE_APPLICATION_CREDENTIALS env variable\n"
+            )
             self.enabled = False
     
     def _detect_resource(self) -> Optional[Any]:
@@ -473,6 +487,7 @@ def setup_cloud_logging(
         LOG_LEVEL: Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
         GCP_PROJECT_ID: Project ID per Cloud Logging
         ENVIRONMENT: Environment name (development, staging, production)
+        GOOGLE_APPLICATION_CREDENTIALS: Path to service account JSON key file
         
     Example:
         # Production (Cloud Logging)
@@ -484,6 +499,13 @@ def setup_cloud_logging(
         # Hybrid (entrambi)
         setup_cloud_logging(backend=LoggingBackend.HYBRID)
     """
+    # Silenzia logger di sistema per evitare noise da errori di autenticazione
+    logging.getLogger("grpc").setLevel(logging.CRITICAL)
+    logging.getLogger("grpc._plugin_wrapping").setLevel(logging.CRITICAL)
+    logging.getLogger("google.auth").setLevel(logging.CRITICAL)
+    logging.getLogger("google.auth.transport").setLevel(logging.CRITICAL)
+    logging.getLogger("google.auth.compute_engine").setLevel(logging.CRITICAL)
+    
     # Determina backend da usare
     backend_str = os.getenv("LOG_BACKEND", "").lower()
     if backend_str:
@@ -528,6 +550,7 @@ def setup_cloud_logging(
         root_logger.addHandler(console_handler)
     
     # Aggiungi Cloud Logging handler se richiesto
+    cloud_enabled = False
     if backend in (LoggingBackend.CLOUD, LoggingBackend.HYBRID):
         try:
             cloud_handler = CloudLoggingHandler(
@@ -538,6 +561,7 @@ def setup_cloud_logging(
                 cloud_handler.setLevel(log_level)
                 cloud_handler.addFilter(context_filter)
                 root_logger.addHandler(cloud_handler)
+                cloud_enabled = True
                 
                 # Log startup message
                 logger = logging.getLogger(__name__)
@@ -550,13 +574,14 @@ def setup_cloud_logging(
                     }
                 )
             else:
-                sys.stderr.write("Warning: Cloud Logging handler not enabled, using fallback\n")
-                # Fallback a local se cloud non disponibile
-                backend = LoggingBackend.LOCAL
+                sys.stderr.write("Warning: Cloud Logging not available, using local logging\n")
         except Exception as e:
-            sys.stderr.write(f"Error setting up Cloud Logging: {e}\n")
-            # Fallback a local se cloud fallisce
-            backend = LoggingBackend.LOCAL
+            sys.stderr.write(f"Warning: Cloud Logging setup failed ({type(e).__name__}), using local logging\n")
+    
+    # Forza logging locale se Cloud Logging non è abilitato e backend era CLOUD
+    if backend == LoggingBackend.CLOUD and not cloud_enabled:
+        backend = LoggingBackend.LOCAL
+        sys.stderr.write("Info: Switched to LOCAL logging backend\n")
     
     # Aggiungi file handler locale se richiesto
     if backend in (LoggingBackend.LOCAL, LoggingBackend.HYBRID):
