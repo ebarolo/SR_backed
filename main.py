@@ -22,6 +22,7 @@ from config import (
     LOG_BACKEND,
     LOG_LEVEL,
     LOG_NAME,
+    GCP_PROJECT_ID,
     ENVIRONMENT
 )
 from utility.models import JobStatus
@@ -43,6 +44,9 @@ import uvicorn
 # Directory base e frontend
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DIST_DIR = os.path.join(BASE_DIR, "importFrontend")
+
+# Esporta GCP_PROJECT_ID per Cloud Logging
+os.environ["GCP_PROJECT_ID"] = GCP_PROJECT_ID
 
 # Setup Cloud Logging con best practices
 setup_cloud_logging(

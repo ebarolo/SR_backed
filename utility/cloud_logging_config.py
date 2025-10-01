@@ -77,7 +77,14 @@ class CloudLoggingHandler(logging.Handler):
             
             # Inizializza client se non fornito
             if client is None:
-                self.client = cloud_logging.Client()
+                # Usa project ID da environment variable
+                project_id = os.getenv("GCP_PROJECT_ID")
+                if project_id:
+                    self.client = cloud_logging.Client(project=project_id)
+                    sys.stderr.write(f"Info: Using GCP Project ID: {project_id}\n")
+                else:
+                    self.client = cloud_logging.Client()
+                    sys.stderr.write("Warning: GCP_PROJECT_ID not set, using default credentials\n")
             else:
                 self.client = client
             
@@ -91,7 +98,36 @@ class CloudLoggingHandler(logging.Handler):
                 self.resource = resource
                 
             self.global_labels = labels or {}
-            self.enabled = True
+            
+            # Test connettività con timeout breve
+            try:
+                # Prova a scrivere un log di test con timeout
+                import signal
+                
+                def timeout_handler(signum, frame):
+                    raise TimeoutError("Cloud Logging connection test timeout")
+                
+                # Usa timeout solo su Linux/Unix (non Windows)
+                if hasattr(signal, 'SIGALRM'):
+                    signal.signal(signal.SIGALRM, timeout_handler)
+                    signal.alarm(3)  # 3 secondi timeout
+                    
+                try:
+                    self.logger.log_struct(
+                        {"message": "Cloud Logging connectivity test", "test": True},
+                        severity="INFO"
+                    )
+                    self.enabled = True
+                finally:
+                    if hasattr(signal, 'SIGALRM'):
+                        signal.alarm(0)  # Cancella alarm
+                        
+            except (TimeoutError, Exception) as test_error:
+                sys.stderr.write(
+                    f"Warning: Cloud Logging connectivity test failed: {type(test_error).__name__}\n"
+                    "Cloud Logging disabled. Using local logging fallback.\n"
+                )
+                self.enabled = False
             
         except ImportError:
             # Fallback se google-cloud-logging non è disponibile
@@ -370,19 +406,44 @@ class CloudLoggingHandler(logging.Handler):
             # Determina severity
             severity = self._get_severity(record.levelno)
             
-            # Invia log a Cloud Logging
-            self.logger.log_struct(
-                payload,
-                severity=severity,
-                labels=labels,
-                resource=self.resource,
-                trace=trace
-            )
+            # Invia log a Cloud Logging con timeout
+            import signal
             
+            def emit_timeout_handler(signum, frame):
+                raise TimeoutError("Cloud Logging emit timeout")
+            
+            # Usa timeout solo su Linux/Unix
+            if hasattr(signal, 'SIGALRM'):
+                old_handler = signal.signal(signal.SIGALRM, emit_timeout_handler)
+                signal.alarm(5)  # 5 secondi timeout per emit
+                
+            try:
+                self.logger.log_struct(
+                    payload,
+                    severity=severity,
+                    labels=labels,
+                    resource=self.resource,
+                    trace=trace
+                )
+            finally:
+                if hasattr(signal, 'SIGALRM'):
+                    signal.alarm(0)
+                    signal.signal(signal.SIGALRM, old_handler)
+            
+        except TimeoutError:
+            # Timeout: disabilita handler per non rallentare applicazione
+            self.enabled = False
+            sys.stderr.write(
+                "Warning: Cloud Logging timeout. Handler disabled, using local logging only.\n"
+            )
         except Exception as e:
-            # Fallback a stderr per non perdere il log
-            sys.stderr.write(f"Error sending log to Cloud Logging: {e}\n")
-            sys.stderr.write(f"Original log: {record.getMessage()}\n")
+            # Altri errori: disabilita dopo 1 errore per evitare spam
+            if self.enabled:
+                self.enabled = False
+                sys.stderr.write(
+                    f"Warning: Cloud Logging error ({type(e).__name__}). "
+                    "Handler disabled, using local logging only.\n"
+                )
 
 
 class EnhancedContextFilter(logging.Filter):
