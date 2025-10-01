@@ -2,6 +2,7 @@ import os
 import instaloader
 import logging
 from typing import Dict, Any
+import shutil
 
 from utility.utility import sanitize_folder_name
 from utility.logging_config import get_error_logger, clear_error_chain
@@ -12,8 +13,10 @@ error_logger = get_error_logger(__name__)
 
 def get_instaloader():
     L = instaloader.Instaloader(
+        sleep=True,
+        quiet=True,
         download_videos=True,
-        download_video_thumbnails=True,
+        download_video_thumbnails=False,
         download_geotags=False,
         download_comments=False,
         save_metadata=True,
@@ -97,9 +100,12 @@ async def scarica_contenuto_reel(url: str) -> Dict[str, Any]:
                 post = instaloader.Post.from_shortcode(L.context, shortcode)
             except instaloader.exceptions.InstaloaderException as e:
                 error_logger.log_exception("instaloader_fetch_post", e, {"shortcode": shortcode, "url": url})
+                shutil.rmtree(os.path.join(shortcode_folder), ignore_errors=True)
                 raise ValueError(f"Errore durante il recupero del post con shortcode {shortcode}: {str(e)}") from e
             except Exception as e: # Cattura generica per altri possibili errori non di Instaloader
                 error_logger.log_exception("unexpected_fetch_post", e, {"shortcode": shortcode, "url": url})
+                shutil.rmtree(os.path.join(shortcode_folder), ignore_errors=True)
+
                 raise ValueError(f"Errore inaspettato durante il recupero del post con shortcode {shortcode}: {str(e)}") from e
 
             # Dump all available post attributes
@@ -132,6 +138,8 @@ async def scarica_contenuto_reel(url: str) -> Dict[str, Any]:
 
     except instaloader.exceptions.InstaloaderException as e:
         error_logger.log_exception("scarica_contenuto_reel", e, {"url": url})
+        shutil.rmtree(os.path.join(shortcode_folder), ignore_errors=True)
+        
         raise ValueError(f"Errore scarica_contenuto_reel: {str(e)}") from e
 
 async def scarica_contenuti_account(username: str):
